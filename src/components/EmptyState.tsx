@@ -6,7 +6,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 interface EmptyStateProps {
   readonly icon: string;
@@ -27,12 +26,9 @@ function EmptyStateComponent({
 
   return (
     <View style={styles.container}>
-      <MaterialIcons
-        name={icon}
-        size={64}
-        color={theme.colors.onSurfaceVariant}
-        accessibilityLabel={title}
-      />
+      <Text style={{ fontSize: 64, textAlign: 'center' }} accessibilityLabel={title}>
+        {icon}
+      </Text>
       <Text
         variant="headlineSmall"
         style={[styles.title, { color: theme.colors.onSurface }]}>

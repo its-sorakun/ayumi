@@ -9,7 +9,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 interface StatCardProps {
   readonly title: string;
@@ -32,12 +31,9 @@ function StatCardComponent({
     <Card style={styles.card} mode="elevated">
       <Card.Content style={styles.content}>
         <View style={styles.header}>
-          <MaterialIcons
-            name={icon}
-            size={24}
-            color={theme.colors.primary}
-            accessibilityLabel={title}
-          />
+          <Text style={{ fontSize: 20 }} accessibilityLabel={title}>
+            {icon}
+          </Text>
           <Text
             variant="labelMedium"
             style={[styles.title, { color: theme.colors.onSurfaceVariant }]}>

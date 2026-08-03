@@ -66,7 +66,7 @@ export function DashboardScreen(): React.JSX.Element {
   if (providerStatus === 'not_installed' || providerStatus === 'not_supported') {
     return (
       <EmptyState
-        icon="heart-broken"
+        icon="💔"
         title="Health Connect Required"
         description="Ayumi needs Health Connect to read your health data. Please install Health Connect from the Play Store."
       />
@@ -76,7 +76,7 @@ export function DashboardScreen(): React.JSX.Element {
   if (providerStatus === 'update_required') {
     return (
       <EmptyState
-        icon="system-update"
+        icon="🔄"
         title="Update Required"
         description="Your version of Health Connect needs to be updated for Ayumi to work."
       />
@@ -92,7 +92,7 @@ export function DashboardScreen(): React.JSX.Element {
   ) {
     return (
       <EmptyState
-        icon="shield"
+        icon="🛡️"
         title="Permission Needed"
         description="Ayumi needs permission to read your health data from Health Connect. Your data never leaves your device."
         actionLabel="Grant Permission"
@@ -105,7 +105,7 @@ export function DashboardScreen(): React.JSX.Element {
   if (error != null && !loading) {
     return (
       <EmptyState
-        icon="error-outline"
+        icon="⚠️"
         title="Something went wrong"
         description={error}
         actionLabel="Try Again"
@@ -150,14 +150,14 @@ export function DashboardScreen(): React.JSX.Element {
               title="Steps"
               value={formattedValues.steps}
               subtitle={`Goal: ${formatNumber(DEFAULT_STEP_GOAL)}`}
-              icon="directions-walk"
+              icon="👟"
               progress={formattedValues.stepProgress}
             />
             <StatCard
               title="Distance"
               value={formattedValues.distance}
               subtitle={`Goal: ${formatDistance(DEFAULT_DISTANCE_GOAL)}`}
-              icon="straighten"
+              icon="📏"
               progress={formattedValues.distanceProgress}
             />
           </View>
@@ -166,13 +166,13 @@ export function DashboardScreen(): React.JSX.Element {
               title="Calories"
               value={formattedValues.calories}
               subtitle={`Goal: ${formatCalories(DEFAULT_CALORIE_GOAL)}`}
-              icon="local-fire-department"
+              icon="🔥"
               progress={formattedValues.calorieProgress}
             />
             <StatCard
               title="Active Time"
               value={formattedValues.activeTime}
-              icon="timer"
+              icon="⏱️"
             />
           </View>
 

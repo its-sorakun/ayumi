@@ -13,7 +13,7 @@
  *  - Cleanup on unmount (no memory leaks / dangling listeners)
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { healthService } from '../services';
 import type { DailySummary, ProviderStatus } from '../types/health';
@@ -44,10 +44,18 @@ export function useHealthData(): HealthDataState {
   const [todaySummary, setTodaySummary] = useState<DailySummary | null>(null);
   const [hasPermissions, setHasPermissions] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Guard against concurrent fetches which can crash the Health Connect binder
+  const isFetching = React.useRef(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (showSpinner = true) => {
+    if (isFetching.current) return;
+    
     try {
-      setLoading(true);
+      isFetching.current = true;
+      if (showSpinner) {
+        setLoading(true);
+      }
       setError(null);
       
       // Check if we actually have permissions first
@@ -64,6 +72,7 @@ export function useHealthData(): HealthDataState {
       setError(message);
     } finally {
       setLoading(false);
+      isFetching.current = false;
     }
   }, []);
 
@@ -107,7 +116,7 @@ export function useHealthData(): HealthDataState {
         // App came to foreground — resume sensors and refresh data
         healthService.resumeSensors();
         if (providerStatus === 'available') {
-          fetchData();
+          fetchData(false); // silent refresh
         }
       } else if (nextState === 'background' || nextState === 'inactive') {
         // App went to background — pause sensor listeners

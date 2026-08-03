@@ -194,7 +194,7 @@ export class HealthConnectProvider implements HealthDataProvider {
     return {
       date,
       steps: (stepsResult as any)?.COUNT_TOTAL ?? 0,
-      distance: (distanceResult as any)?.DISTANCE_TOTAL?.inMeters ?? 0,
+      distance: (distanceResult as any)?.DISTANCE?.inMeters ?? 0,
       calories: (caloriesResult as any)?.ENERGY_TOTAL?.inKilocalories ?? 0,
       activeTime: Math.round(activeMinutes),
       sources: Array.from(sourceSet),
