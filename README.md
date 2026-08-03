@@ -1,97 +1,48 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Ayumi 🍃
 
-# Getting Started
+*A beautiful, privacy-first, offline step counter for Android.*
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## 🌱 Why Ayumi Exists
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+Ayumi exists because I couldn't find the app I was looking for.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+I wanted a simple, open-source application that could show the step count my phone had already recorded. Instead, most apps I found required proprietary ecosystems, accounts, cloud synchronization, intrusive ads, or bundled features I didn't need.
 
-```sh
-# Using npm
-npm start
+After digging into how Android handles health data, I realized the data is already there. Modern Android devices maintain health records through Health Connect. Even de-Googled custom ROMs have dedicated hardware chips silently tracking steps in the background. If the operating system already knows my health data, there should be a lightweight application that simply lets me access it without accounts or internet access.
 
-# OR using Yarn
-yarn start
-```
+That application didn't exist. 
 
-## Step 2: Build and run your app
+So I built it.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+Ayumi is designed for people who prefer open-source software, value privacy, and want to own their devices instead of being locked into proprietary ecosystems. Whether you're running stock Android, a de-Googled phone, a custom ROM like LineageOS, or even an older device, Ayumi intelligently adapts to find your data.
 
-### Android
+Ayumi doesn't try to become another fitness platform.
 
-```sh
-# Using npm
-npm run android
+It simply provides a transparent window into your own health data while staying lightweight, open source, and respectful of your privacy.
 
-# OR using Yarn
-yarn android
-```
+If you've ever looked for a health app that *does less, but does it well*, Ayumi is for you.
 
-### iOS
+---
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+## ✨ Features
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+*   **Zero Accounts, Zero Tracking:** Ayumi operates 100% offline. No cloud sync, no accounts, and no data leaving your device.
+*   **Intelligent Tracking:** Ayumi automatically checks your phone for the best data source. It checks Health Connect first, falls back to your phone's dedicated hardware step chip, and as a last resort, uses a custom battery-efficient pedometer. 
+*   **Material You Design:** Ayumi feels like a natural part of your phone. It dynamically changes its colors to match your wallpaper and seamlessly supports system-wide Dark and Light modes.
+*   **F-Droid Friendly:** Built from the ground up to respect the privacy guidelines of the open-source community. Works perfectly on de-Googled devices.
 
-```sh
-bundle install
-```
+## 🚀 Installation
 
-Then, and every time you update your native dependencies, run:
+*Note: Ayumi is currently in active development.*
 
-```sh
-bundle exec pod install
-```
+**Option 1: F-Droid (Coming Soon)**
+We are working on getting Ayumi published to the official F-Droid repository!
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+**Option 2: Direct Download**
+You can download the latest standalone APK directly from the [Releases](#) tab here on GitHub.
 
-```sh
-# Using npm
-npm run ios
+## 🤝 Contributing
 
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+Ayumi is fully open-source. If you are a developer and want to contribute to the UI, improve the step-counting algorithms, or add new translations, feel free to open an issue or submit a Pull Request!
