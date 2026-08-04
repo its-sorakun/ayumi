@@ -13,6 +13,8 @@ interface EmptyStateProps {
   readonly description: string;
   readonly actionLabel?: string;
   readonly onAction?: () => void;
+  readonly secondaryActionLabel?: string;
+  readonly onSecondaryAction?: () => void;
 }
 
 function EmptyStateComponent({
@@ -21,6 +23,8 @@ function EmptyStateComponent({
   description,
   actionLabel,
   onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
 }: EmptyStateProps): React.JSX.Element {
   const theme = useTheme();
 
@@ -48,6 +52,15 @@ function EmptyStateComponent({
           {actionLabel}
         </Button>
       )}
+      {secondaryActionLabel != null && onSecondaryAction != null && (
+        <Button
+          mode="text"
+          onPress={onSecondaryAction}
+          style={styles.secondaryButton}
+          accessibilityLabel={secondaryActionLabel}>
+          {secondaryActionLabel}
+        </Button>
+      )}
     </View>
   );
 }
@@ -70,6 +83,9 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 16,
+  },
+  secondaryButton: {
+    marginTop: 8,
   },
 });
 

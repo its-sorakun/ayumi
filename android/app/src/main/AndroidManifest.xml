@@ -12,6 +12,7 @@
       On Android 9 (API 28, our minimum), step sensor access is granted automatically.
     -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
       android:name=".MainApplication"
@@ -47,5 +48,11 @@
           <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
         </intent-filter>
       </activity-alias>
+
+      <receiver android:name=".BootReceiver" android:exported="true">
+          <intent-filter>
+              <action android:name="android.intent.action.BOOT_COMPLETED" />
+          </intent-filter>
+      </receiver>
     </application>
 </manifest>

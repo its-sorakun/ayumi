@@ -38,14 +38,26 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
         sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
     }
 
+    private val prefs by lazy {
+        reactContext.getSharedPreferences("ayumi_step_prefs", Context.MODE_PRIVATE)
+    }
+
     /** Total cumulative steps since last reboot at the start of today (midnight baseline) */
-    @Volatile private var midnightBaseline: Long = -1L
+    private var midnightBaseline: Long
+        get() = prefs.getLong("midnightBaseline", -1L)
+        set(value) {
+            prefs.edit().putLong("midnightBaseline", value).apply()
+        }
 
     /** The total cumulative steps since last device reboot (raw sensor value) */
     @Volatile private var totalStepsSinceReboot: Long = -1L
 
     /** Timestamp (epoch ms) when the midnight baseline was last set */
-    @Volatile private var baselineDate: Long = -1L
+    private var baselineDate: Long
+        get() = prefs.getLong("baselineDate", -1L)
+        set(value) {
+            prefs.edit().putLong("baselineDate", value).apply()
+        }
 
     override fun getName(): String = MODULE_NAME
 

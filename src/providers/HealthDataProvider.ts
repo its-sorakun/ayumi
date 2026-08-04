@@ -40,4 +40,16 @@ export interface HealthDataProvider {
     recordType: RecordType,
     timeRange: TimeRangeFilter,
   ): Promise<readonly HealthRecord[]>;
+
+  /**
+   * Called when the app comes to the foreground.
+   * Useful for providers that need to start realtime hardware listeners.
+   */
+  onResume?(): void;
+
+  /**
+   * Called when the app goes to the background.
+   * Useful for providers that need to pause realtime hardware listeners to save battery.
+   */
+  onPause?(): void;
 }

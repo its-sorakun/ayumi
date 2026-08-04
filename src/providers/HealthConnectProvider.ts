@@ -11,6 +11,7 @@ import {
   getSdkStatus,
   SdkAvailabilityStatus,
   requestPermission,
+  getGrantedPermissions as hcGetGrantedPermissions,
   readRecords,
   aggregateRecord,
 } from 'react-native-health-connect';
@@ -126,14 +127,10 @@ export class HealthConnectProvider implements HealthDataProvider {
     await this.ensureInitialized();
 
     const allTypes: RecordType[] = ['steps', 'distance', 'calories', 'exercise'];
-    const permissions = allTypes.map(rt => ({
-      accessType: 'read' as const,
-      recordType: RECORD_TYPE_MAP[rt],
-    }));
 
-    const granted = await requestPermission(permissions);
+    const granted = await hcGetGrantedPermissions();
     const grantedSet = new Set(
-      granted.map((g: { recordType: string }) => g.recordType),
+      granted.map((g: any) => g.recordType),
     );
 
     return allTypes.map(rt => ({
@@ -191,11 +188,19 @@ export class HealthConnectProvider implements HealthDataProvider {
       }
     }
 
+    const steps = (stepsResult as any)?.COUNT_TOTAL ?? 0;
+    const hcDistance = (distanceResult as any)?.DISTANCE?.inMeters ?? 0;
+    const hcCalories = (caloriesResult as any)?.ENERGY_TOTAL?.inKilocalories ?? 0;
+
+    // Fallback: If Health Connect didn't aggregate distance or calories, estimate from steps
+    const distance = hcDistance > 0 ? hcDistance : steps * 0.762;
+    const calories = hcCalories > 0 ? hcCalories : steps * 0.04;
+
     return {
       date,
-      steps: (stepsResult as any)?.COUNT_TOTAL ?? 0,
-      distance: (distanceResult as any)?.DISTANCE?.inMeters ?? 0,
-      calories: (caloriesResult as any)?.ENERGY_TOTAL?.inKilocalories ?? 0,
+      steps,
+      distance,
+      calories,
       activeTime: Math.round(activeMinutes),
       sources: Array.from(sourceSet),
     };

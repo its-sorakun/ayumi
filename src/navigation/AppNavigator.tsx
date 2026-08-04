@@ -10,7 +10,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTheme } from 'react-native-paper';
 
-import { DashboardScreen } from '../screens';
+import { DashboardScreen, SettingsScreen } from '../screens';
 import type { RootStackParamList } from '../types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -37,6 +37,14 @@ export function AppNavigator(): React.JSX.Element {
           component={DashboardScreen}
           options={{
             title: 'Ayumi',
+            headerLargeTitle: false,
+          }}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{
+            title: 'Settings',
             headerLargeTitle: false,
           }}
         />

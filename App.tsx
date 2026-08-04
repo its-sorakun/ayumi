@@ -21,6 +21,7 @@ import type { MaterialYouPalette } from 'react-native-material-you-colors';
 
 import { AppNavigator } from './src/navigation';
 import { createLightTheme, createDarkTheme } from './src/theme';
+import { SettingsProvider, useSettings } from './src/contexts/SettingsContext';
 
 /**
  * Palette shade indices (the library uses 13-element arrays):
@@ -116,6 +117,11 @@ export { useMaterialYouTheme };
  */
 function AppContent(): React.JSX.Element {
   const materialYouTheme = useMaterialYouTheme();
+  const { theme: userTheme } = useSettings();
+
+  React.useEffect(() => {
+    materialYouTheme.setColorScheme(userTheme);
+  }, [userTheme, materialYouTheme]);
 
   // Build Paper theme from the active Material You colors
   const paperTheme = materialYouTheme.background === materialYouTheme.onSurface
@@ -163,13 +169,15 @@ function isColorDark(hexColor: string): boolean {
 function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
-      <ThemeProvider
-        colorScheme="auto"
-        fallbackColor={AYUMI_SEED_COLOR}
-        seedColor="auto"
-        generationStyle="TONAL_SPOT">
-        <AppContent />
-      </ThemeProvider>
+      <SettingsProvider>
+        <ThemeProvider
+          colorScheme="auto"
+          fallbackColor={AYUMI_SEED_COLOR}
+          seedColor="auto"
+          generationStyle="TONAL_SPOT">
+          <AppContent />
+        </ThemeProvider>
+      </SettingsProvider>
     </SafeAreaProvider>
   );
 }

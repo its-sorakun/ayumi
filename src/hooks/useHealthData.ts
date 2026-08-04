@@ -16,6 +16,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { healthService } from '../services';
+import { useSettings } from '../contexts/SettingsContext';
 import type { DailySummary, ProviderStatus } from '../types/health';
 
 interface HealthDataState {
@@ -33,11 +34,14 @@ interface HealthDataState {
   readonly error: string | null;
   /** Request health data permissions */
   readonly requestPermissions: () => Promise<void>;
+  /** Switch to local device sensor provider */
+  readonly switchToDeviceSensor: () => Promise<void>;
   /** Manually refresh the data */
   readonly refresh: () => Promise<void>;
 }
 
 export function useHealthData(): HealthDataState {
+  const { provider: providerPref, setProvider, isLoading: isSettingsLoading } = useSettings();
   const [loading, setLoading] = useState(true);
   const [providerStatus, setProviderStatus] = useState<ProviderStatus>('unknown');
   const [providerName, setProviderName] = useState<string | null>(null);
@@ -49,7 +53,7 @@ export function useHealthData(): HealthDataState {
   const isFetching = React.useRef(false);
 
   const fetchData = useCallback(async (showSpinner = true) => {
-    if (isFetching.current) return;
+    if (isFetching.current || isSettingsLoading) return;
     
     try {
       isFetching.current = true;
@@ -57,6 +61,11 @@ export function useHealthData(): HealthDataState {
         setLoading(true);
       }
       setError(null);
+      
+      await healthService.setForceSensor(providerPref === 'device_sensor');
+      const status = await healthService.initialize();
+      setProviderStatus(status);
+      setProviderName(healthService.getProviderName());
       
       // Check if we actually have permissions first
       const perms = await healthService.getGrantedPermissions();
@@ -74,29 +83,16 @@ export function useHealthData(): HealthDataState {
       setLoading(false);
       isFetching.current = false;
     }
-  }, []);
+  }, [providerPref, isSettingsLoading]);
 
   // Initialize the health service on mount
   useEffect(() => {
+    if (isSettingsLoading) return;
+    
     let mounted = true;
-
     const init = async () => {
-      try {
-        const status = await healthService.initialize();
-        if (!mounted) { return; }
-
-        setProviderStatus(status);
-        setProviderName(healthService.getProviderName());
-
-        if (status === 'available') {
-          await fetchData();
-        } else {
-          setLoading(false);
-        }
-      } catch (err) {
-        if (!mounted) { return; }
-        setError('Failed to initialize health service');
-        setLoading(false);
+      if (mounted) {
+        await fetchData();
       }
     };
 
@@ -105,7 +101,7 @@ export function useHealthData(): HealthDataState {
     return () => {
       mounted = false;
     };
-  }, [fetchData]);
+  }, [fetchData, isSettingsLoading]);
 
   // Pause/resume sensor providers when the app is backgrounded/foregrounded.
   // This is critical for the PedometerProvider (accelerometer) — we don't want
@@ -149,6 +145,23 @@ export function useHealthData(): HealthDataState {
     }
   }, [fetchData]);
 
+  const switchToDeviceSensor = useCallback(async () => {
+    // 1. Save preference globally so it persists on restart
+    await setProvider('device_sensor');
+    // 2. Force the singleton to drop Health Connect
+    await healthService.setForceSensor(true);
+    
+    // 3. Automatically prompt the user for permission instead of waiting for a button click
+    try {
+      await healthService.requestPermissions(['steps', 'distance', 'calories', 'exercise']);
+    } catch (e) {
+      // ignore
+    }
+    
+    // 4. Finally fetch data and update the UI state
+    await fetchData(true);
+  }, [fetchData, setProvider]);
+
   const refresh = useCallback(async () => {
     if (providerStatus === 'available') {
       await fetchData();
@@ -163,6 +176,7 @@ export function useHealthData(): HealthDataState {
     hasPermissions,
     error,
     requestPermissions,
+    switchToDeviceSensor,
     refresh,
   };
 }

@@ -38,6 +38,20 @@ class HealthService {
   private provider: HealthDataProvider | null = null;
   private pedometerProvider: PedometerProvider | null = null;
   private providerStatus: ProviderStatus = 'unknown';
+  private forceSensor = false;
+
+  /**
+   * Forces the app to skip Health Connect and fallback to device sensors.
+   * Useful when Health Connect is installed but disabled by the user.
+   */
+  async setForceSensor(force: boolean): Promise<void> {
+    this.forceSensor = force;
+  }
+  
+  async forceDeviceSensor(): Promise<ProviderStatus> {
+    this.forceSensor = true;
+    return this.initialize();
+  }
 
   /**
    * Detects and initializes the best available health data provider.
@@ -46,14 +60,16 @@ class HealthService {
    * Returns the final ProviderStatus and records which provider won.
    */
   async initialize(): Promise<ProviderStatus> {
-    // ── Tier 1: Health Connect ───────────────────────────────────────────────
-    const hcProvider = new HealthConnectProvider();
-    const hcStatus = await hcProvider.checkAvailability();
+    if (!this.forceSensor) {
+      // ── Tier 1: Health Connect ───────────────────────────────────────────────
+      const hcProvider = new HealthConnectProvider();
+      const hcStatus = await hcProvider.checkAvailability();
 
-    if (hcStatus === 'available') {
-      this.provider = hcProvider;
-      this.providerStatus = 'available';
-      return 'available';
+      if (hcStatus === 'available') {
+        this.provider = hcProvider;
+        this.providerStatus = 'available';
+        return 'available';
+      }
     }
 
     // ── Tier 2: Hardware Step Counter ────────────────────────────────────────
@@ -96,10 +112,10 @@ class HealthService {
 
   /**
    * Stop active sensor listeners when the app is backgrounded.
-   * Currently only required by PedometerProvider; other providers read on demand.
    */
   pauseSensors(): void {
     this.pedometerProvider?.stopListening();
+    this.provider?.onPause?.();
   }
 
   /**
@@ -107,6 +123,7 @@ class HealthService {
    */
   resumeSensors(): void {
     this.pedometerProvider?.startListening();
+    this.provider?.onResume?.();
   }
 
   async requestPermissions(

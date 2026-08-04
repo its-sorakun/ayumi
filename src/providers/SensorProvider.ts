@@ -64,6 +64,20 @@ export class SensorProvider implements HealthDataProvider {
     }
   }
 
+  onResume(): void {
+    if (StepCounter) {
+      StepCounter.startListening().catch(() => {
+        // Ignore errors if sensor is unavailable
+      });
+    }
+  }
+
+  onPause(): void {
+    if (StepCounter) {
+      StepCounter.stopListening();
+    }
+  }
+
   async requestPermissions(
     _recordTypes: readonly RecordType[],
   ): Promise<readonly PermissionState[]> {

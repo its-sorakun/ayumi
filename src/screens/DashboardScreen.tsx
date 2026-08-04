@@ -10,9 +10,12 @@
  * - Data loaded successfully
  */
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useLayoutEffect } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Text, useTheme } from 'react-native-paper';
+import { Text, useTheme, IconButton } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../types';
 
 import { StatCard, EmptyState } from '../components';
 import { useHealthData } from '../hooks';
@@ -31,6 +34,20 @@ import {
 
 export function DashboardScreen(): React.JSX.Element {
   const theme = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <IconButton
+          icon={() => <Text>⚙️</Text>}
+          onPress={() => navigation.navigate('Settings')}
+          accessibilityLabel="Settings"
+        />
+      ),
+    });
+  }, [navigation]);
+
   const {
     loading,
     providerStatus,
@@ -39,6 +56,7 @@ export function DashboardScreen(): React.JSX.Element {
     hasPermissions,
     error,
     requestPermissions,
+    switchToDeviceSensor,
     refresh,
   } = useHealthData();
 
@@ -97,6 +115,8 @@ export function DashboardScreen(): React.JSX.Element {
         description="Ayumi needs permission to read your health data from Health Connect. Your data never leaves your device."
         actionLabel="Grant Permission"
         onAction={requestPermissions}
+        secondaryActionLabel={providerName === 'Health Connect' ? "Use Device Sensor Instead" : undefined}
+        onSecondaryAction={providerName === 'Health Connect' ? switchToDeviceSensor : undefined}
       />
     );
   }
