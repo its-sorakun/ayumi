@@ -59,6 +59,19 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
             prefs.edit().putLong("baselineDate", value).apply()
         }
 
+    /** The last recorded sensor step count, persisted across app restarts */
+    private var lastKnownTotalSteps: Long
+        get() = prefs.getLong("lastKnownTotalSteps", -1L)
+        set(value) {
+            prefs.edit().putLong("lastKnownTotalSteps", value).apply()
+        }
+
+    /** 
+     * Fallback to lastKnownTotalSteps if the sensor hasn't fired yet since reboot/restart 
+     */
+    private val currentTotalSteps: Long
+        get() = if (totalStepsSinceReboot >= 0L) totalStepsSinceReboot else lastKnownTotalSteps
+
     override fun getName(): String = MODULE_NAME
 
     /**
@@ -114,7 +127,7 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
     fun getTodaySteps(promise: Promise) {
         val map = Arguments.createMap()
 
-        if (stepCounterSensor == null || totalStepsSinceReboot < 0L) {
+        if (stepCounterSensor == null || currentTotalSteps < 0L) {
             map.putBoolean("available", false)
             map.putInt("stepsToday", 0)
             promise.resolve(map)
@@ -135,6 +148,8 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
         if (event.sensor.type != Sensor.TYPE_STEP_COUNTER) return
 
         totalStepsSinceReboot = event.values[0].toLong()
+        lastKnownTotalSteps = totalStepsSinceReboot
+        
         resetBaselineIfNewDay()
 
         val stepsToday = calculateTodaySteps()
@@ -159,9 +174,10 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
      */
     private fun resetBaselineIfNewDay() {
         val todayMidnight = getMidnightEpochMs()
+        val currentSteps = currentTotalSteps
 
-        if (baselineDate != todayMidnight && totalStepsSinceReboot >= 0L) {
-            midnightBaseline = totalStepsSinceReboot
+        if (baselineDate != todayMidnight && currentSteps >= 0L) {
+            midnightBaseline = currentSteps
             baselineDate = todayMidnight
         }
     }
@@ -171,8 +187,9 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
      * from the current cumulative total.
      */
     private fun calculateTodaySteps(): Long {
-        return if (midnightBaseline >= 0L && totalStepsSinceReboot >= midnightBaseline) {
-            totalStepsSinceReboot - midnightBaseline
+        val currentSteps = currentTotalSteps
+        return if (midnightBaseline >= 0L && currentSteps >= midnightBaseline) {
+            currentSteps - midnightBaseline
         } else {
             0L
         }

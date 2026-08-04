@@ -151,7 +151,10 @@ export function useHealthData(): HealthDataState {
     // 2. Force the singleton to drop Health Connect
     await healthService.setForceSensor(true);
     
-    // 3. Automatically prompt the user for permission instead of waiting for a button click
+    // 3. Initialize to actually apply the provider switch
+    await healthService.initialize();
+    
+    // 4. Automatically prompt the user for permission instead of waiting for a button click
     try {
       await healthService.requestPermissions(['steps', 'distance', 'calories', 'exercise']);
     } catch (e) {

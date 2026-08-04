@@ -189,19 +189,33 @@ export class HealthConnectProvider implements HealthDataProvider {
     }
 
     const steps = (stepsResult as any)?.COUNT_TOTAL ?? 0;
+    
+    // Extract data origins directly from the aggregate results!
+    const addOrigins = (result: any) => {
+      if (result?.dataOrigins && Array.isArray(result.dataOrigins)) {
+        result.dataOrigins.forEach((o: string) => sourceSet.add(o));
+      }
+    };
+    addOrigins(stepsResult);
+    addOrigins(distanceResult);
+    addOrigins(caloriesResult);
+
     const hcDistance = (distanceResult as any)?.DISTANCE?.inMeters ?? 0;
     const hcCalories = (caloriesResult as any)?.ENERGY_TOTAL?.inKilocalories ?? 0;
 
     // Fallback: If Health Connect didn't aggregate distance or calories, estimate from steps
     const distance = hcDistance > 0 ? hcDistance : steps * 0.762;
     const calories = hcCalories > 0 ? hcCalories : steps * 0.04;
+    
+    // Fallback: Active Time estimation based on typical walking cadence (100 steps/min)
+    const finalActiveTime = activeMinutes > 0 ? activeMinutes : (steps / 100);
 
     return {
       date,
       steps,
       distance,
       calories,
-      activeTime: Math.round(activeMinutes),
+      activeTime: Math.round(finalActiveTime),
       sources: Array.from(sourceSet),
     };
   }

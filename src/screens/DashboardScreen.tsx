@@ -76,9 +76,9 @@ export function DashboardScreen(): React.JSX.Element {
       distanceProgress: todaySummary.distance / DEFAULT_DISTANCE_GOAL,
       calorieProgress: todaySummary.calories / DEFAULT_CALORIE_GOAL,
       date: formatDate(todaySummary.date),
-      sources: todaySummary.sources.join(', ') || 'No sources',
+      sources: todaySummary.sources.length > 0 ? todaySummary.sources.join(', ') : providerName,
     };
-  }, [todaySummary]);
+  }, [todaySummary, providerName]);
 
   // Handle provider unavailable
   if (providerStatus === 'not_installed' || providerStatus === 'not_supported') {
@@ -197,13 +197,15 @@ export function DashboardScreen(): React.JSX.Element {
           </View>
 
           {/* Data Sources */}
-          <View style={styles.sourcesContainer}>
-            <Text
-              variant="labelSmall"
-              style={{ color: theme.colors.onSurfaceVariant }}>
-              Data from: {formattedValues.sources}
-            </Text>
-          </View>
+          {formattedValues.sources != null && (
+            <View style={styles.sourcesContainer}>
+              <Text
+                variant="labelSmall"
+                style={{ color: theme.colors.onSurfaceVariant }}>
+                Data from: {formattedValues.sources}
+              </Text>
+            </View>
+          )}
         </>
       )}
     </ScrollView>

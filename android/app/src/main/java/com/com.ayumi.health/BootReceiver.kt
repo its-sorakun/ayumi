@@ -9,6 +9,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             val prefs = context.getSharedPreferences("ayumi_step_prefs", Context.MODE_PRIVATE)
             prefs.edit().putLong("midnightBaseline", 0L).apply()
+            prefs.edit().putLong("lastKnownTotalSteps", 0L).apply()
             
             StepWorkerHelper.scheduleNextMidnightWorker(context)
         }
