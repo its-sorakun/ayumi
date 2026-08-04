@@ -44,7 +44,7 @@ If you've ever looked for a health app that *does less, but does it well*, Ayumi
 We are working on getting Ayumi published to the official F-Droid repository!
 
 **Option 2: Direct Download**
-You can download the latest standalone APK directly from the [Releases](#) tab here on GitHub.
+You can download the latest standalone APK directly from the [Releases](https://github.com/its-sorakun/ayumi/releases) tab here on GitHub.
 
 ## 🤝 Contributing
 
