@@ -36,7 +36,7 @@ import type {
 const RECORD_TYPE_MAP = {
   steps: 'Steps',
   distance: 'Distance',
-  calories: 'TotalCaloriesBurned',
+  calories: 'ActiveCaloriesBurned',
   exercise: 'ExerciseSession',
 } as const satisfies Record<RecordType, HCRecordType>;
 
@@ -165,7 +165,7 @@ export class HealthConnectProvider implements HealthDataProvider {
           timeRangeFilter,
         }).catch(() => null),
         aggregateRecord({
-          recordType: 'TotalCaloriesBurned',
+          recordType: 'ActiveCaloriesBurned',
           timeRangeFilter,
         }).catch(() => null),
         readRecords('ExerciseSession', { timeRangeFilter }).catch(
@@ -201,21 +201,21 @@ export class HealthConnectProvider implements HealthDataProvider {
     addOrigins(caloriesResult);
 
     const hcDistance = (distanceResult as any)?.DISTANCE?.inMeters ?? 0;
-    const hcCalories = (caloriesResult as any)?.ENERGY_TOTAL?.inKilocalories ?? 0;
+    const hcCalories = (caloriesResult as any)?.ACTIVE_CALORIES_TOTAL?.inKilocalories ?? 0;
 
-    // Fallback: If Health Connect didn't aggregate distance or calories, estimate from steps
-    const distance = hcDistance > 0 ? hcDistance : steps * 0.762;
-    const calories = hcCalories > 0 ? hcCalories : steps * 0.04;
+    // Fallback: Ensure distance and calories are at least what the step count implies
+    const distance = Math.max(hcDistance, steps * 0.762);
+    const calories = Math.max(hcCalories, steps * 0.04);
     
     // Fallback: Active Time estimation based on typical walking cadence (100 steps/min)
-    const finalActiveTime = activeMinutes > 0 ? activeMinutes : (steps / 100);
+    const finalActiveTime = Math.max(activeMinutes, steps / 100);
 
     return {
       date,
       steps,
       distance,
       calories,
-      activeTime: Math.round(finalActiveTime),
+      activeTime: steps > 0 ? Math.max(1, Math.round(finalActiveTime)) : 0,
       sources: Array.from(sourceSet),
     };
   }

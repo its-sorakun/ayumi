@@ -167,7 +167,7 @@ export class SensorProvider implements HealthDataProvider {
         steps,
         distance: stepsToMeters(steps),
         calories: stepsToKcal(steps),
-        activeTime: Math.round(steps / 100),
+        activeTime: steps > 0 ? Math.max(1, Math.round(steps / 100)) : 0,
         sources: [this.name],
       };
     } catch {
