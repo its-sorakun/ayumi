@@ -9,8 +9,6 @@ export const DEFAULT_STEP_GOAL = 10_000;
 /** Default daily distance goal in meters */
 export const DEFAULT_DISTANCE_GOAL = 8_000;
 
-/** Default daily calorie goal in kcal */
-export const DEFAULT_CALORIE_GOAL = 500;
 
 /** Minimum steps threshold before a record is considered valid */
 export const MIN_VALID_STEPS = 0;

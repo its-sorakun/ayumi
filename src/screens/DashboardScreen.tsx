@@ -19,11 +19,7 @@ import type { RootStackParamList } from '../types';
 
 import { StatCard, EmptyState } from '../components';
 import { useHealthData } from '../hooks';
-import {
-  DEFAULT_STEP_GOAL,
-  DEFAULT_DISTANCE_GOAL,
-  DEFAULT_CALORIE_GOAL,
-} from '../constants';
+import { useSettings } from '../contexts/SettingsContext';
 import {
   formatNumber,
   formatDistance,
@@ -34,6 +30,7 @@ import {
 
 export function DashboardScreen(): React.JSX.Element {
   const theme = useTheme();
+  const { stepGoal, distanceGoal } = useSettings();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   useLayoutEffect(() => {
@@ -72,13 +69,12 @@ export function DashboardScreen(): React.JSX.Element {
       distance: formatDistance(todaySummary.distance),
       calories: formatCalories(todaySummary.calories),
       activeTime: formatDuration(todaySummary.activeTime),
-      stepProgress: todaySummary.steps / DEFAULT_STEP_GOAL,
-      distanceProgress: todaySummary.distance / DEFAULT_DISTANCE_GOAL,
-      calorieProgress: todaySummary.calories / DEFAULT_CALORIE_GOAL,
+      stepProgress: todaySummary.steps / stepGoal,
+      distanceProgress: todaySummary.distance / distanceGoal,
       date: formatDate(todaySummary.date),
       sources: todaySummary.sources.length > 0 ? todaySummary.sources.join(', ') : providerName,
     };
-  }, [todaySummary, providerName]);
+  }, [todaySummary, providerName, stepGoal, distanceGoal]);
 
   // Handle provider unavailable
   if (providerStatus === 'not_installed' || providerStatus === 'not_supported') {
@@ -169,14 +165,14 @@ export function DashboardScreen(): React.JSX.Element {
             <StatCard
               title="Steps"
               value={formattedValues.steps}
-              subtitle={`Goal: ${formatNumber(DEFAULT_STEP_GOAL)}`}
+              subtitle={`Goal: ${formatNumber(stepGoal)}`}
               icon="👟"
               progress={formattedValues.stepProgress}
             />
             <StatCard
               title="Distance"
               value={formattedValues.distance}
-              subtitle={`Goal: ${formatDistance(DEFAULT_DISTANCE_GOAL)}`}
+              subtitle={`Goal: ${formatDistance(distanceGoal)}`}
               icon="📏"
               progress={formattedValues.distanceProgress}
             />
@@ -185,9 +181,7 @@ export function DashboardScreen(): React.JSX.Element {
             <StatCard
               title="Calories"
               value={formattedValues.calories}
-              subtitle={`Goal: ${formatCalories(DEFAULT_CALORIE_GOAL)}`}
               icon="🔥"
-              progress={formattedValues.calorieProgress}
             />
             <StatCard
               title="Active Time"

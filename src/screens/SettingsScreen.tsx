@@ -1,16 +1,41 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, useTheme, RadioButton, List, Divider } from 'react-native-paper';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { Text, useTheme, RadioButton, List, Divider, TextInput } from 'react-native-paper';
 import { useSettings } from '../contexts/SettingsContext';
 
 export function SettingsScreen(): React.JSX.Element {
   const theme = useTheme();
-  const { theme: currentTheme, provider: currentProvider, setTheme, setProvider } = useSettings();
+  const { theme: currentTheme, provider: currentProvider, stepGoal, distanceGoal, setTheme, setProvider, setStepGoal, setDistanceGoal } = useSettings();
+
+  const [stepInput, setStepInput] = useState(stepGoal.toString());
+  const [distanceInput, setDistanceInput] = useState(distanceGoal.toString());
+
+  const handleSaveStepGoal = () => {
+    const val = parseInt(stepInput, 10);
+    if (!isNaN(val) && val > 0) {
+      setStepGoal(val);
+    } else {
+      setStepInput(stepGoal.toString()); // Revert to valid number
+    }
+  };
+
+  const handleSaveDistanceGoal = () => {
+    const val = parseInt(distanceInput, 10);
+    if (!isNaN(val) && val > 0) {
+      setDistanceGoal(val);
+    } else {
+      setDistanceInput(distanceGoal.toString()); // Revert to valid number
+    }
+  };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      
-      <List.Section>
+      <ScrollView 
+        style={[styles.container, { backgroundColor: theme.colors.background }]} 
+        contentContainerStyle={{ paddingBottom: 300 }}
+        automaticallyAdjustKeyboardInsets
+      >
+        
+        <List.Section>
         <List.Subheader>Appearance</List.Subheader>
         <RadioButton.Group onValueChange={value => setTheme(value as any)} value={currentTheme}>
           <List.Item
@@ -59,6 +84,44 @@ export function SettingsScreen(): React.JSX.Element {
         </RadioButton.Group>
       </List.Section>
 
+      <Divider style={styles.divider} />
+
+      <List.Section>
+        <List.Subheader>Goals</List.Subheader>
+        <List.Item
+          title="Daily Steps"
+          description="Your target step count"
+          left={props => <List.Icon {...props} icon={() => <Text>👟</Text>} />}
+          right={() => (
+            <TextInput
+              mode="outlined"
+              keyboardType="numeric"
+              value={stepInput}
+              onChangeText={setStepInput}
+              onBlur={handleSaveStepGoal}
+              style={styles.input}
+              dense
+            />
+          )}
+        />
+        <List.Item
+          title="Daily Distance (m)"
+          description="Target distance in meters"
+          left={props => <List.Icon {...props} icon={() => <Text>📏</Text>} />}
+          right={() => (
+            <TextInput
+              mode="outlined"
+              keyboardType="numeric"
+              value={distanceInput}
+              onChangeText={setDistanceInput}
+              onBlur={handleSaveDistanceGoal}
+              style={styles.input}
+              dense
+            />
+          )}
+        />
+        </List.Section>
+
     </ScrollView>
   );
 }
@@ -69,5 +132,11 @@ const styles = StyleSheet.create({
   },
   divider: {
     marginVertical: 8,
+  },
+  input: {
+    width: 100,
+    height: 40,
+    alignSelf: 'center',
+    textAlign: 'center',
   },
 });
