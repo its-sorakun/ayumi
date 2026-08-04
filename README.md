@@ -29,8 +29,11 @@ If you've ever looked for a health app that *does less, but does it well*, Ayumi
 ## ✨ Features
 
 *   **Zero Accounts, Zero Tracking:** Ayumi operates 100% offline. No cloud sync, no accounts, and no data leaving your device.
-*   **Intelligent Tracking:** Ayumi automatically checks your phone for the best data source. It checks Health Connect first, falls back to your phone's dedicated hardware step chip, and as a last resort, uses a custom battery-efficient pedometer. 
-*   **Material You Design:** Ayumi feels like a natural part of your phone. It dynamically changes its colors to match your wallpaper and seamlessly supports system-wide Dark and Light modes.
+*   **Dual Data Modes:** Choose your preferred tracking method:
+    *   **Google Health Connect:** Seamlessly sync your history with other fitness apps, automatically pulling active calories and aggregating your steps across devices.
+    *   **Device Sensor Only:** A fully de-Googled mode. Bypass Health Connect entirely and pull data directly from your phone's hardware pedometer chip for 100% private, standalone tracking.
+*   **Customizable Goals:** Set your own daily step and distance targets directly from the Settings panel, with progress rings that dynamically adapt to you.
+*   **Beautiful Aesthetics:** Features a sleek UI with smooth progress rings. Customize your experience with Light, Dark, or System Adaptive theme options.
 *   **F-Droid Friendly:** Built from the ground up to respect the privacy guidelines of the open-source community. Works perfectly on de-Googled devices.
 
 ## 🚀 Installation
