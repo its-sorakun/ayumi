@@ -10,15 +10,15 @@
  * - Data loaded successfully
  */
 
-import React, { useCallback, useMemo, useLayoutEffect } from 'react';
+import React, { useCallback, useMemo, useLayoutEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Text, useTheme, IconButton } from 'react-native-paper';
+import { Text, useTheme, IconButton, Portal, Dialog, Button, TextInput, List, Divider } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 
 import { StatCard, EmptyState } from '../components';
-import { useHealthData } from '../hooks';
+import { useHealthData, useWaterTracker } from '../hooks';
 import { useSettings } from '../contexts/SettingsContext';
 import {
   formatNumber,
@@ -26,12 +26,19 @@ import {
   formatCalories,
   formatDuration,
   formatDate,
+  calculateTotalCalories,
+  calculateWaterGoal,
 } from '../utils';
 
 export function DashboardScreen(): React.JSX.Element {
   const theme = useTheme();
-  const { stepGoal, distanceGoal } = useSettings();
+  const { stepGoal, distanceGoal, gender, weight, height, age, customWaterGoal } = useSettings();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  
+  // Water Tracker State
+  const { totalWater, addWater, logs, deleteWater } = useWaterTracker();
+  const [waterModalVisible, setWaterModalVisible] = useState(false);
+  const [customWaterInput, setCustomWaterInput] = useState('');
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -64,17 +71,31 @@ export function DashboardScreen(): React.JSX.Element {
   // Memoize formatted values to avoid recomputation on every render
   const formattedValues = useMemo(() => {
     if (!todaySummary) { return null; }
+    
+    let totalCaloriesStr = "Setup";
+    if (gender && weight && height && age) {
+      const totalCal = calculateTotalCalories(todaySummary.calories, gender, weight, height, age);
+      totalCaloriesStr = formatCalories(totalCal);
+    }
+
+    const waterGoal = customWaterGoal || calculateWaterGoal(gender, weight, height, age);
+    const formattedWaterGoal = (waterGoal / 1000).toFixed(1) + ' L';
+    const waterProgress = Math.min(totalWater / waterGoal, 1);
+    
     return {
       steps: formatNumber(todaySummary.steps),
       distance: formatDistance(todaySummary.distance),
       calories: formatCalories(todaySummary.calories),
+      totalCalories: totalCaloriesStr,
+      waterGoalText: formattedWaterGoal,
+      waterProgress,
       activeTime: formatDuration(todaySummary.activeTime),
       stepProgress: todaySummary.steps / stepGoal,
       distanceProgress: todaySummary.distance / distanceGoal,
       date: formatDate(todaySummary.date),
       sources: todaySummary.sources.length > 0 ? todaySummary.sources.join(', ') : providerName,
     };
-  }, [todaySummary, providerName, stepGoal, distanceGoal]);
+  }, [todaySummary, providerName, stepGoal, distanceGoal, gender, weight, height, age, customWaterGoal]);
 
   // Handle provider unavailable
   if (providerStatus === 'not_installed' || providerStatus === 'not_supported') {
@@ -179,14 +200,31 @@ export function DashboardScreen(): React.JSX.Element {
           </View>
           <View style={styles.row}>
             <StatCard
-              title="Calories"
+              title={"ACTIVE\nCALORIES"}
               value={formattedValues.calories}
               icon="🔥"
             />
             <StatCard
+              title={"TOTAL\nCALORIES"}
+              value={formattedValues.totalCalories}
+              subtitle={formattedValues.totalCalories === "Setup" ? "Tap settings to configure" : undefined}
+              icon="⚡"
+            />
+          </View>
+          
+          <View style={styles.row}>
+            <StatCard
               title="Active Time"
               value={formattedValues.activeTime}
               icon="⏱️"
+            />
+            <StatCard
+              title="Water"
+              value={`${totalWater} ml`}
+              subtitle={`Goal: ${formattedValues.waterGoalText}`}
+              icon="💧"
+              progress={formattedValues.waterProgress}
+              onPress={() => setWaterModalVisible(true)}
             />
           </View>
 
@@ -202,6 +240,66 @@ export function DashboardScreen(): React.JSX.Element {
           )}
         </>
       )}
+
+      {/* Water Tracker Modal */}
+      <Portal>
+        <Dialog visible={waterModalVisible} onDismiss={() => setWaterModalVisible(false)} style={{ maxHeight: '80%' }}>
+          <Dialog.Title>Log Water</Dialog.Title>
+          <Dialog.Content>
+            <View style={styles.quickAddContainer}>
+              <Button mode="contained-tonal" onPress={() => { addWater(250); setWaterModalVisible(false); }}>+ 250ml</Button>
+              <Button mode="contained-tonal" onPress={() => { addWater(500); setWaterModalVisible(false); }}>+ 500ml</Button>
+            </View>
+            <View style={styles.customInputContainer}>
+              <TextInput
+                mode="outlined"
+                keyboardType="numeric"
+                label="Custom amount (ml)"
+                value={customWaterInput}
+                onChangeText={setCustomWaterInput}
+                style={{ flex: 1 }}
+                dense
+              />
+              <Button 
+                mode="contained" 
+                onPress={() => {
+                  const val = parseInt(customWaterInput, 10);
+                  if (!isNaN(val) && val > 0) {
+                    addWater(val);
+                    setCustomWaterInput('');
+                    setWaterModalVisible(false);
+                  }
+                }}>
+                Add
+              </Button>
+            </View>
+            
+            <Divider style={{ marginVertical: 16 }} />
+            <Text variant="titleSmall" style={{ marginBottom: 8, color: theme.colors.onSurfaceVariant }}>Today's Logs</Text>
+            
+            <ScrollView style={{ maxHeight: 200 }}>
+              {logs.length === 0 ? (
+                <Text style={{ textAlign: 'center', marginVertical: 16, color: theme.colors.outline }}>No water logged yet today.</Text>
+              ) : (
+                logs.map(log => (
+                  <List.Item
+                    key={log.id}
+                    title={`${log.amount} ml`}
+                    description={log.time}
+                    left={props => <List.Icon {...props} icon={() => <Text>💧</Text>} />}
+                    right={props => (
+                      <IconButton {...props} icon={() => <Text>❌</Text>} onPress={() => deleteWater(log.id)} />
+                    )}
+                  />
+                ))
+              )}
+            </ScrollView>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setWaterModalVisible(false)}>Close</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </ScrollView>
   );
 }
@@ -225,5 +323,15 @@ const styles = StyleSheet.create({
   sourcesContainer: {
     marginTop: 16,
     alignItems: 'center',
+  },
+  quickAddContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  customInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });

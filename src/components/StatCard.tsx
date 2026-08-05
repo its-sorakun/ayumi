@@ -16,6 +16,7 @@ interface StatCardProps {
   readonly subtitle?: string;
   readonly icon: string;
   readonly progress?: number; // 0 to 1
+  readonly onPress?: () => void;
 }
 
 function StatCardComponent({
@@ -24,11 +25,12 @@ function StatCardComponent({
   subtitle,
   icon,
   progress,
+  onPress,
 }: StatCardProps): React.JSX.Element {
   const theme = useTheme();
 
   return (
-    <Card style={styles.card} mode="elevated">
+    <Card style={styles.card} mode="elevated" onPress={onPress}>
       <Card.Content style={styles.content}>
         <View style={styles.header}>
           <Text style={{ fontSize: 20 }} accessibilityLabel={title}>
@@ -36,7 +38,8 @@ function StatCardComponent({
           </Text>
           <Text
             variant="labelMedium"
-            style={[styles.title, { color: theme.colors.onSurfaceVariant }]}>
+            style={[styles.title, { color: theme.colors.onSurfaceVariant, flexShrink: 1 }]}
+            numberOfLines={2}>
             {title}
           </Text>
         </View>
@@ -44,7 +47,9 @@ function StatCardComponent({
         <Text
           variant="headlineMedium"
           style={[styles.value, { color: theme.colors.onSurface }]}
-          accessibilityLabel={`${title}: ${value}`}>
+          accessibilityLabel={`${title}: ${value}`}
+          numberOfLines={1}
+          adjustsFontSizeToFit>
           {value}
         </Text>
 
