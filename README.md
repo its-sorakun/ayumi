@@ -1,4 +1,4 @@
-# Ayumi 🍃
+# <img src="https://imgh.in/host/y49107" width="48" style="vertical-align: middle; border-radius: 12px;" /> Ayumi
 
 *A beautiful, privacy-first, offline health data viewer for Android.*
 
@@ -20,6 +20,14 @@ If you've ever looked for a health client that *does less, but does it well*, Ay
 
 ---
 
+## 📸 Screenshots
+
+| Dashboard | Water Tracker | Settings |
+| :---: | :---: | :---: |
+| <img src="https://imgh.in/host/odlp92" width="250"/> | <img src="https://imgh.in/host/c8e1cq" width="250"/> | <img src="https://imgh.in/host/d88gbn" width="250"/> |
+
+---
+
 ## 🛡️ Privacy by Design
 
 Ayumi is built on a strict privacy-first philosophy:
@@ -35,11 +43,21 @@ Ayumi is built on a strict privacy-first philosophy:
 
 *   **Zero Accounts, Zero Tracking:** Ayumi operates 100% offline. No cloud sync, no accounts, and no data leaving your device.
 *   **Dual Data Modes:** Choose your preferred tracking backend:
-    *   **Google Health Connect:** Seamlessly read your history from other fitness apps, automatically pulling active calories and aggregating your steps across devices.
+    *   **Health Connect:** Seamlessly read your history from other fitness apps, automatically pulling active calories and aggregating your steps across devices.
     *   **Device Sensor Only:** A fully de-Googled mode. Bypass Health Connect entirely and pull data directly from your phone's hardware sensor APIs for 100% private, standalone tracking.
-*   **Customizable Goals:** Set your own daily step and distance targets directly from the Settings panel, with progress rings that dynamically adapt to you.
-*   **Beautiful Aesthetics:** Features a sleek UI with smooth progress rings. Customize your experience with Light, Dark, or System Adaptive theme options.
+*   **Advanced Calorie Tracking:** Go beyond active calories. Input your Physical Stats to let Ayumi dynamically calculate your Total Calories using your Basal Metabolic Rate (BMR) scaled to the time of day.
+*   **Interactive Water Tracker:** A simple hydration log on your dashboard. Features an automatic bodyweight-based daily goal, quick-add buttons (+250ml / +500ml), a daily timeline history, and a visual progress bar.
+*   **Customizable Goals:** Set your own daily step, distance, and water targets directly from the Settings panel.
+*   **Beautiful Aesthetics:** Features a sleek UI with smooth progress rings, and full support for Material You design on Android 12 and above. Customize your experience with Light, Dark, or System Adaptive theme options.
 *   **F-Droid Friendly:** Built from the ground up to respect the privacy guidelines of the open-source community. Works perfectly on de-Googled devices.
+
+---
+
+## 📖 Health Guide
+
+The accompanying [Health Guide](https://github.com/its-sorakun/ayumi/blob/main/HEALTH_GUIDE.md) provides an accessible introduction to the science behind everyday health metrics. It explores how the human body uses energy, how hydration requirements are estimated, why daily step counts matter, and the evidence behind several long-standing health myths that continue to circulate today.
+
+---
 
 ## 🚀 Installation
 
@@ -62,3 +80,10 @@ Ayumi is fully open-source, and contributions are welcome! We are always looking
 *   Improving documentation
 
 Feel free to open an issue or submit a Pull Request. Let's build a better, more private health ecosystem together.
+
+---
+## 📄 License
+
+Ayumi is licensed under GPL-3.0.
+
+The goal is to ensure that improvements to the project remain available to the community and that the software continues to respect the principles of free and open-source software.
