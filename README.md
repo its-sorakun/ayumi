@@ -1,4 +1,4 @@
-# <img src="https://imgh.in/host/y49107" width="48" style="vertical-align: middle; border-radius: 12px;" /> Ayumi
+# <img src="https://imgh.in/host/y49107" width="48" valign="middle" /> Ayumi
 
 *A beautiful, privacy-first, offline health data viewer for Android.*
 
