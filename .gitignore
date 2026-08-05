@@ -36,6 +36,7 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
+my-upload-key.keystore
 .kotlin/
 
 # node.js
