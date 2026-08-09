@@ -156,6 +156,16 @@ class HealthService {
     return this.provider!.getRecords(recordType, timeRange);
   }
 
+  async getHistoricalSteps(timeRange: 'week' | 'month' | 'year') {
+    this.ensureProvider();
+    return this.provider!.getHistoricalSteps(timeRange);
+  }
+
+  async getExerciseSessions(timeRange: 'week' | 'month' | 'year') {
+    this.ensureProvider();
+    return this.provider!.getExerciseSessions(timeRange);
+  }
+
   private ensureProvider(): void {
     if (!this.provider) {
       throw new Error(

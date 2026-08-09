@@ -14,7 +14,13 @@ import {
   getGrantedPermissions as hcGetGrantedPermissions,
   readRecords,
   aggregateRecord,
+  aggregateGroupByPeriod,
+  ExerciseType,
 } from 'react-native-health-connect';
+
+const EXERCISE_TYPE_MAP = Object.fromEntries(
+  Object.entries(ExerciseType).map(([key, val]) => [val, key.replace(/_/g, ' ').toLowerCase()])
+);
 import type {
   RecordType as HCRecordType,
 } from 'react-native-health-connect';
@@ -105,10 +111,15 @@ export class HealthConnectProvider implements HealthDataProvider {
   ): Promise<readonly PermissionState[]> {
     await this.ensureInitialized();
 
-    const permissions = recordTypes.map(rt => ({
-      accessType: 'read' as const,
+    const permissions: any[] = recordTypes.map(rt => ({
+      accessType: 'read',
       recordType: RECORD_TYPE_MAP[rt],
     }));
+    
+    permissions.push({
+      accessType: 'read',
+      recordType: 'ReadHealthDataHistory',
+    });
 
     const granted = await requestPermission(permissions);
 
@@ -245,6 +256,123 @@ export class HealthConnectProvider implements HealthDataProvider {
       sourceName: record.metadata?.dataOrigin ?? 'Unknown',
       sourcePackage: record.metadata?.dataOrigin,
     }));
+  }
+
+  async getHistoricalSteps(timeRange: 'week' | 'month' | 'year') {
+    await this.ensureInitialized();
+    const days = timeRange === 'week' ? 7 : timeRange === 'month' ? 30 : 365;
+    
+    const now = new Date();
+    const startTime = new Date(now);
+    if (timeRange === 'year') {
+      startTime.setMonth(startTime.getMonth() - 11);
+      startTime.setDate(1);
+    } else {
+      startTime.setDate(startTime.getDate() - (days - 1));
+    }
+    startTime.setHours(0, 0, 0, 0);
+
+    try {
+      const result = await aggregateGroupByPeriod({
+        recordType: 'Steps',
+        timeRangeFilter: {
+          operator: 'between',
+          startTime: startTime.toISOString(),
+          endTime: now.toISOString(),
+        },
+        timeRangeSlicer: {
+          period: timeRange === 'year' ? 'MONTHS' : 'DAYS',
+          length: 1,
+        },
+      });
+
+      return result.map((r: any) => ({
+        date: r.startTime.split('T')[0],
+        steps: r.result?.COUNT_TOTAL || 0,
+      }));
+    } catch (e) {
+      console.warn('Failed to aggregate historical steps', e);
+      return [];
+    }
+  }
+
+  async getExerciseSessions(timeRange: 'week' | 'month' | 'year') {
+    await this.ensureInitialized();
+    const days = timeRange === 'week' ? 7 : timeRange === 'month' ? 30 : 365;
+    
+    const now = new Date();
+    const startTime = new Date(now);
+    if (timeRange === 'year') {
+      startTime.setMonth(startTime.getMonth() - 11);
+      startTime.setDate(1);
+    } else {
+      startTime.setDate(startTime.getDate() - days);
+    }
+    startTime.setHours(0, 0, 0, 0);
+
+    try {
+      const result = await readRecords('ExerciseSession', {
+        timeRangeFilter: {
+          operator: 'between',
+          startTime: startTime.toISOString(),
+          endTime: now.toISOString(),
+        },
+      });
+
+      const sessions: any[] = [];
+
+      await Promise.all(
+        result.records.map(async (record: any) => {
+          let typeStr = record.title;
+          if (!typeStr) {
+            const mapped = EXERCISE_TYPE_MAP[record.exerciseType];
+            typeStr = mapped ? mapped : `Exercise ${record.exerciseType}`;
+          }
+
+          const startDate = new Date(record.startTime);
+          const hour = startDate.getHours();
+          let timeOfDay = 'Night';
+          if (hour >= 5 && hour < 12) timeOfDay = 'Morning';
+          else if (hour >= 12 && hour < 17) timeOfDay = 'Afternoon';
+          else if (hour >= 17 && hour < 21) timeOfDay = 'Evening';
+
+          const start = startDate.getTime();
+          const end = new Date(record.endTime).getTime();
+          const durationMinutes = (end - start) / (1000 * 60);
+
+          // Fetch steps for this session
+          let sessionSteps = 0;
+          try {
+            const stepsAggr = await aggregateRecord({
+              recordType: 'Steps',
+              timeRangeFilter: {
+                operator: 'between',
+                startTime: record.startTime,
+                endTime: record.endTime,
+              },
+            });
+            sessionSteps = (stepsAggr as any)?.COUNT_TOTAL || 0;
+          } catch (e) {
+            // Ignore step errors per session
+          }
+          
+          sessions.push({
+            type: `${timeOfDay} ${typeStr}`,
+            durationMinutes,
+            steps: sessionSteps,
+            date: startDate.toISOString().split('T')[0],
+            timeOfDay,
+            startTime: start,
+          });
+        })
+      );
+
+      return sessions.sort((a, b) => b.startTime - a.startTime);
+
+    } catch (e) {
+      console.warn('Failed to read exercise sessions', e);
+      return [];
+    }
   }
 
   /** Extracts the numeric value from a Health Connect record based on type */

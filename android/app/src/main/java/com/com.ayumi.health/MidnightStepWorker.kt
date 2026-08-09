@@ -43,6 +43,44 @@ class MidnightStepWorker(
 
         if (currentSteps >= 0L) {
             val prefs = context.getSharedPreferences("ayumi_step_prefs", Context.MODE_PRIVATE)
+            
+            val prevBaseline = prefs.getLong("midnightBaseline", -1L)
+            val prevBaselineDate = prefs.getLong("baselineDate", -1L)
+            
+            if (prevBaseline >= 0L && prevBaselineDate > 0L) {
+                var stepsTaken = currentSteps - prevBaseline
+                if (stepsTaken < 0) {
+                    // device rebooted, step counter reset
+                    stepsTaken = currentSteps
+                }
+                
+                // Read existing history
+                val historyStr = prefs.getString("stepHistory", "[]")
+                try {
+                    val jsonArray = org.json.JSONArray(historyStr)
+                    val newObj = org.json.JSONObject()
+                    
+                    val df = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                    val dateStr = df.format(java.util.Date(prevBaselineDate))
+                    
+                    newObj.put("date", dateStr)
+                    newObj.put("steps", stepsTaken)
+                    
+                    jsonArray.put(newObj)
+                    
+                    // keep only last 30 days
+                    val trimmedArray = org.json.JSONArray()
+                    val startIndex = Math.max(0, jsonArray.length() - 30)
+                    for (i in startIndex until jsonArray.length()) {
+                        trimmedArray.put(jsonArray.get(i))
+                    }
+                    
+                    prefs.edit().putString("stepHistory", trimmedArray.toString()).apply()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            
             val cal = Calendar.getInstance()
             cal.set(Calendar.HOUR_OF_DAY, 0)
             cal.set(Calendar.MINUTE, 0)

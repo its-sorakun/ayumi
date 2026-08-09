@@ -179,6 +179,14 @@ export class PedometerProvider implements HealthDataProvider {
     ];
   }
 
+  async getHistoricalSteps(_timeRange: 'week' | 'month' | 'year') {
+    return [];
+  }
+
+  async getExerciseSessions(_timeRange: 'week' | 'month' | 'year') {
+    return [];
+  }
+
   /**
    * Begin listening to the accelerometer and detecting steps.
    * Call this when the app comes to the foreground.

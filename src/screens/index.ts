@@ -1,2 +1,3 @@
-export { DashboardScreen } from './DashboardScreen';
-export { SettingsScreen } from './SettingsScreen';
+export * from './DashboardScreen';
+export * from './SettingsScreen';
+export * from './StepsDetailsScreen';

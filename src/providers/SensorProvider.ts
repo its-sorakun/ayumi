@@ -230,6 +230,24 @@ export class SensorProvider implements HealthDataProvider {
     }
   }
 
+  async getHistoricalSteps(timeRange: 'week' | 'month' | 'year') {
+    try {
+      if (StepCounter && StepCounter.getHistoricalSteps) {
+        const historyStr = await StepCounter.getHistoricalSteps();
+        const history = JSON.parse(historyStr);
+        const days = timeRange === 'week' ? 7 : 30;
+        return history.slice(-days);
+      }
+    } catch (e) {
+      console.warn('Failed to parse historical steps', e);
+    }
+    return [];
+  }
+
+  async getExerciseSessions(_timeRange: 'week' | 'month' | 'year') {
+    return [];
+  }
+
   private emptyDailySummary(date: Date): DailySummary {
     return {
       date,

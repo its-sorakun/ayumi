@@ -39,6 +39,22 @@ export interface TimeRangeFilter {
 /** Granularity for history views */
 export type TimeGranularity = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
+/** Data for a single day in a historical chart */
+export interface HistoricalStepData {
+  readonly date: string; // YYYY-MM-DD
+  readonly steps: number;
+}
+
+/** Summarized duration of a specific exercise type */
+export interface ExerciseSessionData {
+  readonly type: string; // e.g. 'walking', 'running'
+  readonly durationMinutes: number;
+  readonly steps?: number;
+  readonly date?: string;
+  readonly timeOfDay?: string;
+  readonly startTime?: number;
+}
+
 /** Status of the data provider */
 export type ProviderStatus =
   | 'available'

@@ -10,6 +10,7 @@ interface StepCounterNativeModule {
   startListening(): Promise<boolean>;
   stopListening(): void;
   getTodaySteps(): Promise<{ available: boolean; stepsToday: number }>;
+  getHistoricalSteps(): Promise<string>;
 }
 
 const { StepCounterModule } = NativeModules as {

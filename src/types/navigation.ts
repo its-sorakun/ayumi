@@ -4,6 +4,7 @@
 
 export type RootStackParamList = {
   Dashboard: undefined;
+  StepsDetails: undefined;
   History: undefined;
   Settings: undefined;
 };

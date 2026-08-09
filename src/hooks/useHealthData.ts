@@ -48,25 +48,25 @@ export function useHealthData(): HealthDataState {
   const [todaySummary, setTodaySummary] = useState<DailySummary | null>(null);
   const [hasPermissions, setHasPermissions] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Guard against concurrent fetches which can crash the Health Connect binder
   const isFetching = React.useRef(false);
 
   const fetchData = useCallback(async (showSpinner = true) => {
     if (isFetching.current || isSettingsLoading) return;
-    
+
     try {
       isFetching.current = true;
       if (showSpinner) {
         setLoading(true);
       }
       setError(null);
-      
+
       await healthService.setForceSensor(providerPref === 'device_sensor');
       const status = await healthService.initialize();
       setProviderStatus(status);
       setProviderName(healthService.getProviderName());
-      
+
       // Check if we actually have permissions first
       const perms = await healthService.getGrantedPermissions();
       const stepsGranted = perms.find(p => p.recordType === 'steps')?.granted ?? false;
@@ -88,7 +88,7 @@ export function useHealthData(): HealthDataState {
   // Initialize the health service on mount
   useEffect(() => {
     if (isSettingsLoading) return;
-    
+
     let mounted = true;
     const init = async () => {
       if (mounted) {
@@ -150,17 +150,17 @@ export function useHealthData(): HealthDataState {
     await setProvider('device_sensor');
     // 2. Force the singleton to drop Health Connect
     await healthService.setForceSensor(true);
-    
+
     // 3. Initialize to actually apply the provider switch
     await healthService.initialize();
-    
+
     // 4. Automatically prompt the user for permission instead of waiting for a button click
     try {
       await healthService.requestPermissions(['steps', 'distance', 'calories', 'exercise']);
     } catch (e) {
       // ignore
     }
-    
+
     // 4. Finally fetch data and update the UI state
     await fetchData(true);
   }, [fetchData, setProvider]);

@@ -14,6 +14,8 @@ import type {
   ProviderStatus,
   RecordType,
   TimeRangeFilter,
+  HistoricalStepData,
+  ExerciseSessionData,
 } from '../types/health';
 
 export interface HealthDataProvider {
@@ -40,6 +42,12 @@ export interface HealthDataProvider {
     recordType: RecordType,
     timeRange: TimeRangeFilter,
   ): Promise<readonly HealthRecord[]>;
+
+  /** Get daily step buckets for a given time range */
+  getHistoricalSteps(timeRange: 'week' | 'month' | 'year'): Promise<readonly HistoricalStepData[]>;
+
+  /** Get exercise sessions for a given time range */
+  getExerciseSessions(timeRange: 'week' | 'month' | 'year'): Promise<readonly ExerciseSessionData[]>;
 
   /**
    * Called when the app comes to the foreground.

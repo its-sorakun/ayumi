@@ -142,6 +142,16 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
         promise.resolve(map)
     }
 
+    /**
+     * Get the last 30 days of historical steps.
+     * Returns a JSON string of array [{date: "YYYY-MM-DD", steps: number}]
+     */
+    @ReactMethod
+    fun getHistoricalSteps(promise: Promise) {
+        val historyStr = prefs.getString("stepHistory", "[]")
+        promise.resolve(historyStr)
+    }
+
     // ─── SensorEventListener ────────────────────────────────────────────────
 
     override fun onSensorChanged(event: SensorEvent) {
