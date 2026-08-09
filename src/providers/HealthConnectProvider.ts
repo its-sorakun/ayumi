@@ -378,8 +378,9 @@ export class HealthConnectProvider implements HealthDataProvider {
           const end = new Date(record.endTime).getTime();
           const durationMinutes = (end - start) / (1000 * 60);
 
-          // Fetch steps for this session
+          // Fetch steps and distance for this session
           let sessionSteps = 0;
+          let sessionDistance = 0;
           try {
             const stepsAggr = await aggregateRecord({
               recordType: 'Steps',
@@ -393,15 +394,30 @@ export class HealthConnectProvider implements HealthDataProvider {
           } catch (e) {
             // Ignore step errors per session
           }
+
+          try {
+            const distanceAggr = await aggregateRecord({
+              recordType: 'Distance',
+              timeRangeFilter: {
+                operator: 'between',
+                startTime: record.startTime,
+                endTime: record.endTime,
+              },
+            });
+            sessionDistance = (distanceAggr as any)?.DISTANCE?.inMeters || 0;
+          } catch (e) {
+            // Ignore distance errors per session
+          }
           
           sessions.push({
             type: `${timeOfDay} ${typeStr}`,
             durationMinutes,
             steps: sessionSteps,
-            date: startDate.toISOString().split('T')[0],
+            distance: sessionDistance,
+            date: record.startTime.split('T')[0],
             timeOfDay,
             startTime: start,
-            endTime: new Date(record.endTime).getTime(),
+            endTime: end,
           });
         })
       );

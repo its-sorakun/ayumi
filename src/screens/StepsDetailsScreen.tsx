@@ -7,6 +7,7 @@ import { BarChart } from 'react-native-gifted-charts';
 import { healthService } from '../services';
 import { useHealthData } from '../hooks';
 import type { HistoricalStepData, ExerciseSessionData } from '../types/health';
+import { formatDistance } from '../utils/index';
 
 export function StepsDetailsScreen() {
   const theme = useTheme();
@@ -249,7 +250,7 @@ export function StepsDetailsScreen() {
               <Card style={styles.statCard} mode="contained">
                 <Card.Content>
                   <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                    Highest
+                    {timeRange === 'year' ? 'Record Highest Month' : 'Record Highest Day'}
                   </Text>
                   <Text variant="titleLarge" style={{ color: theme.colors.onSurface }}>
                     {maxSteps.toLocaleString()}

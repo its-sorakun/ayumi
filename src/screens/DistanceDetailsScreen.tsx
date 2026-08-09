@@ -162,7 +162,7 @@ export function DistanceDetailsScreen() {
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Surface style={styles.header} elevation={0}>
-          <Text style={{ fontSize: 32 }}>👟</Text>
+          <Text style={{ fontSize: 32 }}>📏</Text>
           <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.onSurface }]}>
             Distance
           </Text>
@@ -250,7 +250,7 @@ export function DistanceDetailsScreen() {
               <Card style={styles.statCard} mode="contained">
                 <Card.Content>
                   <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                    Highest
+                    {timeRange === 'year' ? 'Record Highest Month' : 'Record Highest Day'}
                   </Text>
                   <Text variant="titleLarge" style={{ color: theme.colors.onSurface }}>
                     {formatDistance(maxDistance)}
