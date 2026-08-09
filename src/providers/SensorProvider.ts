@@ -26,6 +26,9 @@ import type {
   ProviderStatus,
   RecordType,
   TimeRangeFilter,
+  HistoricalStepData,
+  HistoricalDistanceData,
+  ExerciseSessionData,
 } from '../types/health';
 import { StepCounter } from './native/StepCounterBridge';
 
@@ -244,7 +247,15 @@ export class SensorProvider implements HealthDataProvider {
     return [];
   }
 
-  async getExerciseSessions(_timeRange: 'week' | 'month' | 'year') {
+  async getHistoricalDistance(timeRange: 'week' | 'month' | 'year'): Promise<HistoricalDistanceData[]> {
+    const stepsHistory = await this.getHistoricalSteps(timeRange);
+    return stepsHistory.map((day: any) => ({
+      date: day.date,
+      distance: day.steps * 0.762, // Approximation: 1 step = 0.762m
+    }));
+  }
+
+  async getExerciseSessions(_timeRange: 'week' | 'month' | 'year'): Promise<ExerciseSessionData[]> {
     return [];
   }
 

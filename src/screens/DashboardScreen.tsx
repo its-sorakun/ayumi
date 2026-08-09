@@ -197,6 +197,7 @@ export function DashboardScreen(): React.JSX.Element {
               subtitle={`Goal: ${formatDistance(distanceGoal)}`}
               icon="📏"
               progress={formattedValues.distanceProgress}
+              onPress={() => navigation.navigate('DistanceDetails')}
             />
           </View>
           <View style={styles.row}>

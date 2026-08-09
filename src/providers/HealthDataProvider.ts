@@ -15,6 +15,7 @@ import type {
   RecordType,
   TimeRangeFilter,
   HistoricalStepData,
+  HistoricalDistanceData,
   ExerciseSessionData,
 } from '../types/health';
 
@@ -45,6 +46,9 @@ export interface HealthDataProvider {
 
   /** Get daily step buckets for a given time range */
   getHistoricalSteps(timeRange: 'week' | 'month' | 'year'): Promise<readonly HistoricalStepData[]>;
+
+  /** Get daily distance buckets for a given time range */
+  getHistoricalDistance(timeRange: 'week' | 'month' | 'year'): Promise<readonly HistoricalDistanceData[]>;
 
   /** Get exercise sessions for a given time range */
   getExerciseSessions(timeRange: 'week' | 'month' | 'year'): Promise<readonly ExerciseSessionData[]>;

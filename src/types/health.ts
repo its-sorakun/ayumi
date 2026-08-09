@@ -45,11 +45,18 @@ export interface HistoricalStepData {
   readonly steps: number;
 }
 
+/** Data for a single day in a historical chart for distance */
+export interface HistoricalDistanceData {
+  readonly date: string; // YYYY-MM-DD
+  readonly distance: number; // meters
+}
+
 /** Summarized duration of a specific exercise type */
 export interface ExerciseSessionData {
   readonly type: string; // e.g. 'walking', 'running'
   readonly durationMinutes: number;
   readonly steps?: number;
+  readonly distance?: number;
   readonly date?: string;
   readonly timeOfDay?: string;
   readonly startTime?: number;

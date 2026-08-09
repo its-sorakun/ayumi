@@ -161,6 +161,11 @@ class HealthService {
     return this.provider!.getHistoricalSteps(timeRange);
   }
 
+  async getHistoricalDistance(timeRange: 'week' | 'month' | 'year') {
+    this.ensureProvider();
+    return this.provider!.getHistoricalDistance(timeRange);
+  }
+
   async getExerciseSessions(timeRange: 'week' | 'month' | 'year') {
     this.ensureProvider();
     return this.provider!.getExerciseSessions(timeRange);

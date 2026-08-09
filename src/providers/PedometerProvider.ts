@@ -33,6 +33,9 @@ import type {
   ProviderStatus,
   RecordType,
   TimeRangeFilter,
+  HistoricalStepData,
+  HistoricalDistanceData,
+  ExerciseSessionData,
 } from '../types/health';
 
 // ─── Step detection constants ─────────────────────────────────────────────────
@@ -183,7 +186,11 @@ export class PedometerProvider implements HealthDataProvider {
     return [];
   }
 
-  async getExerciseSessions(_timeRange: 'week' | 'month' | 'year') {
+  async getHistoricalDistance(_timeRange: 'week' | 'month' | 'year'): Promise<HistoricalDistanceData[]> {
+    return [];
+  }
+
+  async getExerciseSessions(_timeRange: 'week' | 'month' | 'year'): Promise<ExerciseSessionData[]> {
     return [];
   }
 

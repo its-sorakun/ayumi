@@ -296,6 +296,44 @@ export class HealthConnectProvider implements HealthDataProvider {
     }
   }
 
+  async getHistoricalDistance(timeRange: 'week' | 'month' | 'year') {
+    await this.ensureInitialized();
+    const days = timeRange === 'week' ? 7 : timeRange === 'month' ? 30 : 365;
+    
+    const now = new Date();
+    const startTime = new Date(now);
+    if (timeRange === 'year') {
+      startTime.setMonth(startTime.getMonth() - 11);
+      startTime.setDate(1);
+    } else {
+      startTime.setDate(startTime.getDate() - (days - 1));
+    }
+    startTime.setHours(0, 0, 0, 0);
+
+    try {
+      const result = await aggregateGroupByPeriod({
+        recordType: 'Distance',
+        timeRangeFilter: {
+          operator: 'between',
+          startTime: startTime.toISOString(),
+          endTime: now.toISOString(),
+        },
+        timeRangeSlicer: {
+          period: timeRange === 'year' ? 'MONTHS' : 'DAYS',
+          length: 1,
+        },
+      });
+
+      return result.map((r: any) => ({
+        date: r.startTime.split('T')[0],
+        distance: r.result?.DISTANCE?.inMeters || 0,
+      }));
+    } catch (e) {
+      console.warn('Failed to aggregate historical distance', e);
+      return [];
+    }
+  }
+
   async getExerciseSessions(timeRange: 'week' | 'month' | 'year') {
     await this.ensureInitialized();
     const days = timeRange === 'week' ? 7 : timeRange === 'month' ? 30 : 365;

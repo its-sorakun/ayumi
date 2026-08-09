@@ -5,6 +5,7 @@
 export type RootStackParamList = {
   Dashboard: undefined;
   StepsDetails: undefined;
+  DistanceDetails: undefined;
   History: undefined;
   Settings: undefined;
 };
