@@ -53,6 +53,7 @@ export interface ExerciseSessionData {
   readonly date?: string;
   readonly timeOfDay?: string;
   readonly startTime?: number;
+  readonly endTime?: number;
 }
 
 /** Status of the data provider */

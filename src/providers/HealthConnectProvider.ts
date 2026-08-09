@@ -363,6 +363,7 @@ export class HealthConnectProvider implements HealthDataProvider {
             date: startDate.toISOString().split('T')[0],
             timeOfDay,
             startTime: start,
+            endTime: new Date(record.endTime).getTime(),
           });
         })
       );

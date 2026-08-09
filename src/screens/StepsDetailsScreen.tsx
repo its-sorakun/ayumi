@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, ActivityIndicator, Dimensions } from 'react-native';
 import { Text, Surface, useTheme, Card, SegmentedButtons } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarChart } from 'react-native-gifted-charts';
@@ -49,15 +49,47 @@ export function StepsDetailsScreen() {
     return () => { mounted = false; };
   }, [timeRange, providerStatus]);
 
-  const maxSteps = Math.max(...history.map(d => d.steps), 0);
-  const avgSteps = history.length > 0 
-    ? Math.round(history.reduce((sum, d) => sum + d.steps, 0) / history.length) 
+  const paddedHistory = React.useMemo(() => {
+    if (!history) return [];
+    const now = new Date();
+    const result = [];
+    const historyMap = new Map(history.map(d => [d.date.substring(0, timeRange === 'year' ? 7 : 10), d]));
+
+    const formatMonth = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const formatDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    if (timeRange === 'year') {
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = formatMonth(d);
+        result.push(historyMap.get(key) || { date: key + '-01', steps: 0 });
+      }
+    } else {
+      const days = timeRange === 'week' ? 7 : 30;
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const key = formatDate(d);
+        result.push(historyMap.get(key) || { date: key, steps: 0 });
+      }
+    }
+    return result;
+  }, [history, timeRange]);
+
+  const maxSteps = Math.max(...paddedHistory.map(d => d.steps), 0);
+  const avgSteps = paddedHistory.length > 0 
+    ? Math.round(paddedHistory.reduce((sum, d) => sum + d.steps, 0) / paddedHistory.length) 
     : 0;
 
   let yAxisMax = 100;
   if (maxSteps > 0) {
     yAxisMax = maxSteps > 1000 ? Math.ceil(maxSteps / 1000) * 1000 : Math.ceil(maxSteps / 100) * 100;
   }
+
+  const chartWidth = Dimensions.get('window').width - 110;
+  const barWidth = timeRange === 'week' ? 22 : timeRange === 'year' ? 14 : 6;
+  const dataLength = timeRange === 'week' ? 7 : timeRange === 'year' ? 12 : 30;
+  const calculatedSpacing = Math.max(2, (chartWidth - (barWidth * dataLength) - 10) / dataLength);
 
   const formatYLabel = (label: string) => {
     const num = parseInt(label, 10);
@@ -66,7 +98,12 @@ export function StepsDetailsScreen() {
     return num.toString();
   };
 
-  const chartData = history.map((d, index) => {
+  const formatTime = (ts?: number) => {
+    if (!ts) return '';
+    return new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const chartData = paddedHistory.map((d, index) => {
     const isToday = timeRange === 'year' 
       ? new Date().toISOString().split('T')[0].substring(0,7) === d.date.substring(0,7)
       : new Date().toISOString().split('T')[0] === d.date;
@@ -87,7 +124,7 @@ export function StepsDetailsScreen() {
       label = monthNames[dateObj.getMonth()];
     } else {
       // For month, show label on first, last, and every 5th day
-      if (index === 0 || index === history.length - 1 || index % 5 === 0) {
+      if (index === 0 || index === paddedHistory.length - 1 || index % 5 === 0) {
         label = dateObj.getDate().toString();
       }
     }
@@ -104,6 +141,21 @@ export function StepsDetailsScreen() {
       ? sessions.filter(s => s.date?.startsWith(selectedDate.substring(0, 7)))
       : sessions.filter(s => s.date === selectedDate)
     : sessions;
+
+  const groupedSessions = React.useMemo(() => {
+    const groups: Record<string, typeof filteredSessions> = {};
+    filteredSessions.forEach(session => {
+      const dateKey = session.date || '';
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(session);
+    });
+    return Object.keys(groups)
+      .sort((a, b) => b.localeCompare(a))
+      .map(date => ({
+        date,
+        sessions: groups[date],
+      }));
+  }, [filteredSessions]);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
@@ -132,21 +184,28 @@ export function StepsDetailsScreen() {
           <>
             <Card style={styles.chartCard} mode="contained">
               <Card.Content>
-                {history.length === 0 && providerName === 'Device Sensor' && (
+                {paddedHistory.length === 0 && providerName === 'Device Sensor' && (
                   <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                     Historical data is building up. Check back tomorrow!
                   </Text>
                 )}
-                {history.length > 0 && (
+                {paddedHistory.length > 0 && (
                   <BarChart
                     data={chartData}
-                    width={280}
+                    width={chartWidth}
                     height={200}
-                    barWidth={timeRange === 'week' ? 22 : timeRange === 'year' ? 14 : 6}
-                    spacing={timeRange === 'week' ? 16 : timeRange === 'year' ? 8 : 2}
-                    labelWidth={timeRange === 'week' ? 30 : timeRange === 'year' ? 25 : 20}
-                    xAxisLabelTextStyle={{ textAlign: 'center', fontSize: 10, width: 30 }}
+                    barWidth={barWidth}
+                    spacing={calculatedSpacing}
+                    initialSpacing={10}
+                    yAxisLabelWidth={36}
+                    labelWidth={timeRange === 'week' ? 30 : timeRange === 'year' ? 25 : 15}
+                    xAxisLabelTextStyle={{ 
+                      textAlign: 'center', 
+                      fontSize: 10, 
+                      marginLeft: (barWidth - (timeRange === 'week' ? 30 : timeRange === 'year' ? 25 : 15)) / 2 
+                    }}
                     noOfSections={4}
+                    disableScroll={true}
                     maxValue={yAxisMax}
                     formatYLabel={formatYLabel}
                     barBorderRadius={4}
@@ -158,6 +217,23 @@ export function StepsDetailsScreen() {
                 )}
               </Card.Content>
             </Card>
+
+            {timeRange === 'month' && selectedDate && (() => {
+              const selectedHistory = paddedHistory.find(d => d.date === selectedDate);
+              if (!selectedHistory) return null;
+              return (
+                <Card style={[styles.statCard, { marginBottom: 16, width: '100%' }]} mode="contained">
+                  <Card.Content>
+                    <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                      {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                    <Text variant="titleLarge" style={{ color: theme.colors.primary }}>
+                      {selectedHistory.steps.toLocaleString()} steps
+                    </Text>
+                  </Card.Content>
+                </Card>
+              );
+            })()}
 
             <View style={styles.statsRow}>
               <Card style={styles.statCard} mode="contained">
@@ -198,7 +274,7 @@ export function StepsDetailsScreen() {
                   </Text>
                 </Card.Content>
               </Card>
-            ) : filteredSessions.length === 0 ? (
+            ) : groupedSessions.length === 0 ? (
               <Card style={styles.activityCard} mode="contained">
                 <Card.Content>
                   <Text style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }}>
@@ -207,24 +283,42 @@ export function StepsDetailsScreen() {
                 </Card.Content>
               </Card>
             ) : (
-              filteredSessions.map((sess, idx) => (
-                <Card key={idx} style={styles.activityCard} mode="contained">
-                  <Card.Content style={styles.activityRow}>
-                    <View style={styles.activityLeft}>
-                      <Text variant="titleMedium" style={{ color: theme.colors.onSurface, textTransform: 'capitalize' }}>
-                        {sess.type}
-                      </Text>
-                      {sess.steps && sess.steps > 0 ? (
-                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                          {sess.steps.toLocaleString()} steps
-                        </Text>
-                      ) : null}
-                    </View>
-                    <Text variant="bodyMedium" style={{ color: theme.colors.primary }}>
-                      {Math.round(sess.durationMinutes)} min
+              groupedSessions.map((group) => (
+                <View key={group.date} style={{ marginBottom: 16 }}>
+                  {group.date && (
+                    <Text variant="labelLarge" style={{ color: theme.colors.primary, marginBottom: 8, marginLeft: 4 }}>
+                      {new Date(group.date).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}
                     </Text>
-                  </Card.Content>
-                </Card>
+                  )}
+                  {group.sessions.map((sess, idx) => (
+                    <Card key={idx} style={styles.activityCard} mode="contained">
+                      <Card.Content style={styles.activityRow}>
+                        <View style={styles.activityLeft}>
+                          <Text variant="titleMedium" numberOfLines={2} style={{ color: theme.colors.onSurface, textTransform: 'capitalize' }}>
+                            {sess.type}
+                          </Text>
+                          {sess.steps && sess.steps > 0 ? (
+                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                              {sess.steps.toLocaleString()} steps
+                            </Text>
+                          ) : null}
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text variant="bodyMedium" style={{ color: theme.colors.primary }}>
+                            {sess.startTime && sess.endTime 
+                              ? `${formatTime(sess.startTime)} - ${formatTime(sess.endTime)}` 
+                              : `${Math.round(sess.durationMinutes)} min`}
+                          </Text>
+                          {sess.startTime && sess.endTime && (
+                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                              {Math.round(sess.durationMinutes)} min
+                            </Text>
+                          )}
+                        </View>
+                      </Card.Content>
+                    </Card>
+                  ))}
+                </View>
               ))
             )}
           </>
@@ -290,6 +384,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   activityLeft: {
+    flex: 1,
     flexDirection: 'column',
+    marginRight: 16,
   },
 });
