@@ -127,6 +127,9 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
     fun getTodaySteps(promise: Promise) {
         val map = Arguments.createMap()
 
+        // Eagerly check if the day has rolled over before returning steps
+        resetBaselineIfNewDay()
+
         if (stepCounterSensor == null || currentTotalSteps < 0L) {
             map.putBoolean("available", false)
             map.putInt("stepsToday", 0)
@@ -134,9 +137,7 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
             return
         }
 
-        resetBaselineIfNewDay()
         val stepsToday = calculateTodaySteps()
-
         map.putBoolean("available", true)
         map.putInt("stepsToday", stepsToday.toInt())
         promise.resolve(map)
