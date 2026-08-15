@@ -185,8 +185,38 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
     private fun resetBaselineIfNewDay() {
         val todayMidnight = getMidnightEpochMs()
         val currentSteps = currentTotalSteps
+        val prevDate = baselineDate
 
-        if (baselineDate != todayMidnight && currentSteps >= 0L) {
+        if (prevDate != todayMidnight && prevDate > 0L && currentSteps >= 0L) {
+            val prevBaseline = midnightBaseline
+            var stepsTaken = currentSteps - prevBaseline
+            if (stepsTaken < 0) {
+                stepsTaken = currentSteps
+            }
+            
+            // Push to history
+            val historyStr = prefs.getString("stepHistory", "[]")
+            try {
+                val jsonArray = org.json.JSONArray(historyStr)
+                val newObj = org.json.JSONObject()
+                val df = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                newObj.put("date", df.format(java.util.Date(prevDate)))
+                newObj.put("steps", stepsTaken)
+                jsonArray.put(newObj)
+                
+                // keep only last 30 days
+                val trimmedArray = org.json.JSONArray()
+                val startIndex = Math.max(0, jsonArray.length() - 30)
+                for (i in startIndex until jsonArray.length()) {
+                    trimmedArray.put(jsonArray.get(i))
+                }
+                prefs.edit().putString("stepHistory", trimmedArray.toString()).apply()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        if (prevDate != todayMidnight && currentSteps >= 0L) {
             midnightBaseline = currentSteps
             baselineDate = todayMidnight
         }

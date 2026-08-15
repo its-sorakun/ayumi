@@ -237,9 +237,24 @@ export class SensorProvider implements HealthDataProvider {
     try {
       if (StepCounter && StepCounter.getHistoricalSteps) {
         const historyStr = await StepCounter.getHistoricalSteps();
-        const history = JSON.parse(historyStr);
-        const days = timeRange === 'week' ? 7 : 30;
-        return history.slice(-days);
+        const history: HistoricalStepData[] = JSON.parse(historyStr) || [];
+        
+        // The native step history only records up to yesterday (done at midnight).
+        // We must manually append today's steps so the graph shows current progress.
+        const todaySummary = await this.getTodaySummary();
+        const todayDateStr = todaySummary.date.toISOString().split('T')[0];
+        
+        // Remove today's date from history if it somehow exists (e.g., timezone weirdness)
+        const filteredHistory = history.filter(d => d.date !== todayDateStr);
+        
+        // Append today's live steps
+        filteredHistory.push({
+          date: todayDateStr,
+          steps: todaySummary.steps
+        });
+        
+        const days = timeRange === 'week' ? 7 : timeRange === 'year' ? 365 : 30;
+        return filteredHistory.slice(-days);
       }
     } catch (e) {
       console.warn('Failed to parse historical steps', e);

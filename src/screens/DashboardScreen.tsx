@@ -13,7 +13,7 @@
 import React, { useCallback, useMemo, useLayoutEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, useTheme, IconButton, Portal, Dialog, Button, TextInput, List, Divider } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 
@@ -36,9 +36,13 @@ export function DashboardScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   
   // Water Tracker State
-  const { totalWater, addWater, logs, deleteWater } = useWaterTracker();
-  const [waterModalVisible, setWaterModalVisible] = useState(false);
-  const [customWaterInput, setCustomWaterInput] = useState('');
+  const { totalWater, refresh: refreshWater } = useWaterTracker();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshWater();
+    }, [refreshWater])
+  );
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -226,7 +230,7 @@ export function DashboardScreen(): React.JSX.Element {
               subtitle={`Goal: ${formattedValues.waterGoalText}`}
               icon="💧"
               progress={formattedValues.waterProgress}
-              onPress={() => setWaterModalVisible(true)}
+              onPress={() => navigation.navigate('WaterDetails')}
             />
           </View>
 
@@ -243,65 +247,6 @@ export function DashboardScreen(): React.JSX.Element {
         </>
       )}
 
-      {/* Water Tracker Modal */}
-      <Portal>
-        <Dialog visible={waterModalVisible} onDismiss={() => setWaterModalVisible(false)} style={{ maxHeight: '80%' }}>
-          <Dialog.Title>Log Water</Dialog.Title>
-          <Dialog.Content>
-            <View style={styles.quickAddContainer}>
-              <Button mode="contained-tonal" onPress={() => { addWater(250); setWaterModalVisible(false); }}>+ 250ml</Button>
-              <Button mode="contained-tonal" onPress={() => { addWater(500); setWaterModalVisible(false); }}>+ 500ml</Button>
-            </View>
-            <View style={styles.customInputContainer}>
-              <TextInput
-                mode="outlined"
-                keyboardType="numeric"
-                label="Custom amount (ml)"
-                value={customWaterInput}
-                onChangeText={setCustomWaterInput}
-                style={{ flex: 1 }}
-                dense
-              />
-              <Button 
-                mode="contained" 
-                onPress={() => {
-                  const val = parseInt(customWaterInput, 10);
-                  if (!isNaN(val) && val > 0) {
-                    addWater(val);
-                    setCustomWaterInput('');
-                    setWaterModalVisible(false);
-                  }
-                }}>
-                Add
-              </Button>
-            </View>
-            
-            <Divider style={{ marginVertical: 16 }} />
-            <Text variant="titleSmall" style={{ marginBottom: 8, color: theme.colors.onSurfaceVariant }}>Today's Logs</Text>
-            
-            <ScrollView style={{ maxHeight: 200 }}>
-              {logs.length === 0 ? (
-                <Text style={{ textAlign: 'center', marginVertical: 16, color: theme.colors.outline }}>No water logged yet today.</Text>
-              ) : (
-                logs.map(log => (
-                  <List.Item
-                    key={log.id}
-                    title={`${log.amount} ml`}
-                    description={log.time}
-                    left={props => <List.Icon {...props} icon={() => <Text>💧</Text>} />}
-                    right={props => (
-                      <IconButton {...props} icon={() => <Text>❌</Text>} onPress={() => deleteWater(log.id)} />
-                    )}
-                  />
-                ))
-              )}
-            </ScrollView>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setWaterModalVisible(false)}>Close</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
     </ScrollView>
   );
 }

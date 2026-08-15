@@ -10,7 +10,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTheme } from 'react-native-paper';
 
-import { DashboardScreen, SettingsScreen, StepsDetailsScreen, DistanceDetailsScreen } from '../screens';
+import { DashboardScreen, SettingsScreen, StepsDetailsScreen, DistanceDetailsScreen, WaterDetailsScreen } from '../screens';
 import type { RootStackParamList } from '../types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -49,6 +49,11 @@ export function AppNavigator(): React.JSX.Element {
           name="DistanceDetails" 
           component={DistanceDetailsScreen}
           options={{ title: 'Distance Details' }}
+        />
+        <Stack.Screen 
+          name="WaterDetails" 
+          component={WaterDetailsScreen}
+          options={{ title: 'Water Details' }}
         />
         <Stack.Screen
           name="Settings"

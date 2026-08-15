@@ -47,7 +47,14 @@ class MidnightStepWorker(
             val prevBaseline = prefs.getLong("midnightBaseline", -1L)
             val prevBaselineDate = prefs.getLong("baselineDate", -1L)
             
-            if (prevBaseline >= 0L && prevBaselineDate > 0L) {
+            val cal = Calendar.getInstance()
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            val todayMidnight = cal.timeInMillis
+            
+            if (prevBaseline >= 0L && prevBaselineDate > 0L && prevBaselineDate != todayMidnight) {
                 var stepsTaken = currentSteps - prevBaseline
                 if (stepsTaken < 0) {
                     // device rebooted, step counter reset
@@ -81,15 +88,9 @@ class MidnightStepWorker(
                 }
             }
             
-            val cal = Calendar.getInstance()
-            cal.set(Calendar.HOUR_OF_DAY, 0)
-            cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            
             prefs.edit()
                 .putLong("midnightBaseline", currentSteps)
-                .putLong("baselineDate", cal.timeInMillis)
+                .putLong("baselineDate", todayMidnight)
                 .apply()
         }
 

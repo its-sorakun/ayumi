@@ -250,7 +250,7 @@ export function DistanceDetailsScreen() {
               <Card style={styles.statCard} mode="contained">
                 <Card.Content>
                   <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                    {timeRange === 'year' ? 'Record Highest Month' : 'Record Highest Day'}
+                    {timeRange === 'year' ? 'Record Highest Month' : timeRange === 'month' ? 'Record Highest Day' : 'Record Highest Week'}
                   </Text>
                   <Text variant="titleLarge" style={{ color: theme.colors.onSurface }}>
                     {formatDistance(maxDistance)}

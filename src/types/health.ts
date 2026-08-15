@@ -51,6 +51,11 @@ export interface HistoricalDistanceData {
   readonly distance: number; // meters
 }
 
+export interface HistoricalWaterData {
+  readonly date: string; // YYYY-MM-DD
+  readonly water: number; // ml
+}
+
 /** Summarized duration of a specific exercise type */
 export interface ExerciseSessionData {
   readonly type: string; // e.g. 'walking', 'running'
