@@ -1,18 +1,18 @@
 /**
- * HeroStepGauge — an organic circular step progress hero component.
+ * HeroStepGauge — an organic circular step progress hero widget.
  *
  * Implements the centerpiece of the Material 3 Expressive fitness dashboard:
- *  - Organic squircle / fluid blob background container
- *  - Pure SVG circular progress track with rounded end-caps and tip indicator dot
- *  - Centered sneaker icon in a soft pastel bubble
- *  - Display-grade step metric typography and goal indicator
- *  - Interactive press handler for navigating to StepsDetails
+ *  - Organic background container styled with dynamic Material You tokens
+ *  - Pure SVG circular progress track with rounded end-caps and glowing tip dot
+ *  - Sneaker icon centered inside a dynamic primaryContainer bubble
+ *  - Bold display-grade step metric typography and expressive goal pill tag
+ *  - Direct touch handler for navigating to detailed step analytics
  */
 
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
-import Svg, { Circle, Path, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { SneakerIcon } from './AestheticIcons';
 
 interface HeroStepGaugeProps {
@@ -22,19 +22,20 @@ interface HeroStepGaugeProps {
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const GAUGE_SIZE = Math.min(SCREEN_WIDTH - 64, 250);
-const STROKE_WIDTH = 13;
+const GAUGE_SIZE = Math.min(SCREEN_WIDTH - 110, 186);
+const STROKE_WIDTH = 11;
 
 export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): React.JSX.Element {
   const theme = useTheme();
 
   const center = GAUGE_SIZE / 2;
-  const radius = center - STROKE_WIDTH - 6;
+  const radius = center - STROKE_WIDTH - 4;
   const circumference = 2 * Math.PI * radius;
 
   // Clamped ratio between 0 and 1
   const progressRatio = goal > 0 ? Math.min(Math.max(steps / goal, 0), 1) : 0;
   const strokeDashoffset = circumference - circumference * progressRatio;
+  const progressPercent = Math.round(progressRatio * 100);
 
   // Compute tip indicator coordinate
   const angleDeg = -90 + progressRatio * 360;
@@ -46,17 +47,23 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
     <TouchableOpacity
       activeOpacity={0.88}
       onPress={onPress}
-      style={styles.cardContainer}
+      style={[
+        styles.cardContainer,
+        {
+          backgroundColor: theme.colors.elevation.level1,
+          borderColor: theme.colors.outlineVariant,
+        },
+      ]}
       accessibilityRole="button"
       accessibilityLabel={`Steps today: ${steps.toLocaleString()} out of ${goal.toLocaleString()}`}>
       
-      {/* Decorative organic background blob */}
+      {/* Decorative organic background blob tinted with primaryContainer */}
       <View style={styles.organicBlobWrapper} pointerEvents="none">
         <Svg width="100%" height="100%" viewBox="0 0 320 280">
           <Path
             d="M50 30C120 -10 240 10 290 60C330 110 320 200 270 240C220 280 100 290 40 240C-10 190 -10 80 50 30Z"
-            fill="#F4ECFA"
-            opacity={0.65}
+            fill={theme.colors.primaryContainer}
+            opacity={0.35}
           />
         </Svg>
       </View>
@@ -65,19 +72,12 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
         {/* SVG Circular Progress Gauge */}
         <View style={{ width: GAUGE_SIZE, height: GAUGE_SIZE }}>
           <Svg width={GAUGE_SIZE} height={GAUGE_SIZE}>
-            <Defs>
-              <LinearGradient id="heroGaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#C49DE8" />
-                <Stop offset="100%" stopColor="#8C5AB8" />
-              </LinearGradient>
-            </Defs>
-
             {/* Background inactive track */}
             <Circle
               cx={center}
               cy={center}
               r={radius}
-              stroke="#EDE4F4"
+              stroke={theme.colors.surfaceVariant}
               strokeWidth={STROKE_WIDTH}
               fill="none"
             />
@@ -88,7 +88,7 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
                 cx={center}
                 cy={center}
                 r={radius}
-                stroke="url(#heroGaugeGrad)"
+                stroke={theme.colors.primary}
                 strokeWidth={STROKE_WIDTH}
                 fill="none"
                 strokeDasharray={`${circumference} ${circumference}`}
@@ -103,36 +103,40 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
               <Circle
                 cx={tipX}
                 cy={tipY}
-                r={6.5}
-                fill="#FFFFFF"
-                stroke="#8C5AB8"
-                strokeWidth={3}
+                r={5.5}
+                fill={theme.colors.surface}
+                stroke={theme.colors.primary}
+                strokeWidth={2.6}
               />
             )}
           </Svg>
 
           {/* Centered Content Inside Arc */}
           <View style={styles.centerContent}>
-            {/* Sneaker Icon in soft bubble */}
-            <View style={styles.iconBubble}>
-              <SneakerIcon size={28} color="#8C5AB8" />
+            {/* Sneaker Icon inside primaryContainer bubble */}
+            <View style={[styles.iconBubble, { backgroundColor: theme.colors.primaryContainer }]}>
+              <SneakerIcon size={22} color={theme.colors.onPrimaryContainer} />
             </View>
 
             {/* Step Count */}
             <Text
-              style={styles.stepValueText}
+              style={[styles.stepValueText, { color: theme.colors.onSurface }]}
               numberOfLines={1}
               adjustsFontSizeToFit>
               {steps.toLocaleString()}
             </Text>
 
             {/* Label */}
-            <Text style={styles.stepLabelText}>Steps</Text>
-
-            {/* Goal Target */}
-            <Text style={styles.goalText}>
-              Goal: {goal.toLocaleString()}
+            <Text style={[styles.stepLabelText, { color: theme.colors.onSurfaceVariant }]}>
+              Steps
             </Text>
+
+            {/* Expressive Goal Pill Tag */}
+            <View style={[styles.goalPill, { backgroundColor: theme.colors.primaryContainer }]}>
+              <Text style={[styles.goalPillText, { color: theme.colors.onPrimaryContainer }]}>
+                {progressPercent}% • Goal {goal.toLocaleString()}
+              </Text>
+            </View>
           </View>
         </View>
       </View>
@@ -142,16 +146,15 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
 
 const styles = StyleSheet.create({
   cardContainer: {
-    marginHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 16,
-    borderRadius: 36,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#7E57A0',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
-    elevation: 3,
+    marginHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 8,
+    borderRadius: 32,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -167,40 +170,43 @@ const styles = StyleSheet.create({
   innerCard: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 22,
+    paddingVertical: 12,
   },
   centerContent: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
   },
   iconBubble: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F3EAF9',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   stepValueText: {
-    fontSize: 42,
+    fontSize: 34,
     fontWeight: '800',
-    color: '#2A1D36',
     letterSpacing: -1,
-    lineHeight: 46,
+    lineHeight: 38,
   },
   stepLabelText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#3B294C',
     marginTop: -2,
     marginBottom: 4,
   },
-  goalText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#847395',
+  goalPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 2.5,
+    borderRadius: 12,
+    marginTop: 2,
+  },
+  goalPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });
