@@ -52,9 +52,9 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
             cx={center}
             cy={center}
             r={radius}
-            stroke={theme.colors.surfaceVariant}
+            stroke={theme.dark ? theme.colors.elevation.level2 : theme.colors.surfaceVariant}
             strokeWidth={STROKE_WIDTH}
-            strokeOpacity={0.4}
+            strokeOpacity={theme.dark ? 0.9 : 0.4}
             fill="none"
           />
 
