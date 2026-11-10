@@ -20,6 +20,7 @@ export const MotionTokens = {
     medium: 280,
     long: 360,
     reveal: 450,
+    chartWave: 820,
   },
 
   // Native Spring physics configurations
