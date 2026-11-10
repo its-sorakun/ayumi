@@ -55,8 +55,12 @@ export function BentoCard({
 }: BentoCardProps): React.JSX.Element {
   const theme = useTheme();
   const isInteractive = typeof onPress === 'function';
+  const isDark = theme.dark;
 
-  const defaultBg = theme.colors.surface;
+  const isDefaultSurface = !cardBgColor || cardBgColor === theme.colors.surface;
+  const resolvedBg = isDefaultSurface
+    ? (isDark ? theme.colors.elevation.level1 : theme.colors.surface)
+    : cardBgColor;
   const activeProgressColor = progressBarColor || theme.colors.primary;
 
   return (
@@ -69,7 +73,9 @@ export function BentoCard({
         {
           borderRadius: fullWidth ? 28 : 24,
           paddingHorizontal: fullWidth ? 16 : 13,
-          backgroundColor: cardBgColor || defaultBg,
+          backgroundColor: resolvedBg,
+          borderWidth: isDark && !fullWidth ? 1 : 0,
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
           flex: fullWidth ? 0 : 1,
           width: fullWidth ? '100%' : undefined,
           minHeight: fullWidth ? 98 : 108,
@@ -162,8 +168,8 @@ export function BentoCard({
             styles.progressTrack,
             {
               backgroundColor: fullWidth
-                ? theme.colors.surface
-                : theme.colors.surfaceVariant,
+                ? (isDark ? 'rgba(255, 255, 255, 0.15)' : theme.colors.surface)
+                : (isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.surfaceVariant),
               marginTop: subtitle ? 8 : 10,
             },
           ]}>
