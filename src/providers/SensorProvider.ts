@@ -31,6 +31,7 @@ import type {
   ExerciseSessionData,
 } from '../types/health';
 import { StepCounter } from './native/StepCounterBridge';
+import { formatLocalDateKey } from '../utils';
 
 /**
  * Physical constants for step-based health metric estimation.
@@ -242,7 +243,7 @@ export class SensorProvider implements HealthDataProvider {
         // The native step history only records up to yesterday (done at midnight).
         // We must manually append today's steps so the graph shows current progress.
         const todaySummary = await this.getTodaySummary();
-        const todayDateStr = todaySummary.date.toISOString().split('T')[0];
+        const todayDateStr = formatLocalDateKey(todaySummary.date);
         
         // Remove today's date from history if it somehow exists (e.g., timezone weirdness)
         const filteredHistory = history.filter(d => d.date !== todayDateStr);
