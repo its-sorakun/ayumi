@@ -246,17 +246,17 @@ export function DashboardScreen(): React.JSX.Element {
         {/* Bento Grid Metrics */}
         {formattedValues != null && (
           <View style={styles.bentoGrid}>
-            {/* Row 1: Active Calories (tertiaryContainer) & Distance (secondaryContainer) */}
+            {/* Row 1: Active Calories & Distance (neutral surface with dynamic tonal icon bubbles) */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title={'Active\nCalories'}
                 value={calValue}
                 unit={calUnit}
                 icon={<FlameIcon size={22} color={theme.colors.tertiary} />}
-                iconBgColor={theme.colors.surface}
-                cardBgColor={theme.colors.tertiaryContainer}
-                titleColor={theme.colors.onTertiaryContainer}
-                valueColor={theme.colors.onTertiaryContainer}
+                iconBgColor={theme.colors.tertiaryContainer}
+                cardBgColor={theme.colors.surface}
+                titleColor={theme.colors.onSurfaceVariant}
+                valueColor={theme.colors.onSurface}
               />
               <BentoCard
                 title="Distance"
@@ -264,11 +264,11 @@ export function DashboardScreen(): React.JSX.Element {
                 unit={distUnit}
                 subtitle={`Goal: ${formatDistance(distanceGoal)}`}
                 icon={<RouteMapIcon size={22} color={theme.colors.secondary} />}
-                iconBgColor={theme.colors.surface}
-                cardBgColor={theme.colors.secondaryContainer}
-                titleColor={theme.colors.onSecondaryContainer}
-                valueColor={theme.colors.onSecondaryContainer}
-                subtitleColor={theme.colors.onSecondaryContainer}
+                iconBgColor={theme.colors.secondaryContainer}
+                cardBgColor={theme.colors.surface}
+                titleColor={theme.colors.onSurfaceVariant}
+                valueColor={theme.colors.onSurface}
+                subtitleColor={theme.colors.onSurfaceVariant}
                 progress={formattedValues.distanceProgress}
                 progressBarColor={theme.colors.secondary}
                 onPress={() => navigation.navigate('DistanceDetails')}

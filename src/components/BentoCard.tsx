@@ -161,7 +161,9 @@ export function BentoCard({
           style={[
             styles.progressTrack,
             {
-              backgroundColor: theme.colors.surface,
+              backgroundColor: fullWidth
+                ? theme.colors.surface
+                : theme.colors.surfaceVariant,
               marginTop: subtitle ? 8 : 10,
             },
           ]}>
