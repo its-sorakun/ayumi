@@ -10,7 +10,14 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTheme } from 'react-native-paper';
 
-import { DashboardScreen, SettingsScreen, StepsDetailsScreen, DistanceDetailsScreen, WaterDetailsScreen } from '../screens';
+import {
+  DashboardScreen,
+  StatsScreen,
+  SettingsScreen,
+  StepsDetailsScreen,
+  DistanceDetailsScreen,
+  WaterDetailsScreen,
+} from '../screens';
 import type { RootStackParamList } from '../types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -37,6 +44,13 @@ export function AppNavigator(): React.JSX.Element {
         <Stack.Screen
           name="Dashboard"
           component={DashboardScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="Stats"
+          component={StatsScreen}
           options={{
             headerShown: false,
           }}
