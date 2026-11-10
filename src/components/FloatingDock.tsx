@@ -15,12 +15,14 @@ import { useTheme } from 'react-native-paper';
 import { DockHomeIcon, DockChartIcon, SettingsGearIcon } from './AestheticIcons';
 
 interface FloatingDockProps {
+  readonly activeTab?: 'home' | 'stats' | 'settings';
   readonly onHomePress?: () => void;
   readonly onAnalyticsPress?: () => void;
   readonly onProfilePress?: () => void;
 }
 
 export function FloatingDock({
+  activeTab = 'home',
   onHomePress,
   onAnalyticsPress,
   onProfilePress,
@@ -37,30 +39,44 @@ export function FloatingDock({
             borderColor: theme.dark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.outlineVariant,
           },
         ]}>
-        {/* Slot 1: Active Home Tab */}
+        {/* Slot 1: Home Tab */}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={onHomePress}
           style={styles.tabSlot}
           accessibilityRole="tab"
           accessibilityLabel="Home tab">
-          <View
-            style={[
-              styles.activeTabBubble,
-              { backgroundColor: theme.colors.primaryContainer },
-            ]}>
-            <DockHomeIcon size={20} color={theme.colors.onPrimaryContainer} />
-          </View>
+          {activeTab === 'home' ? (
+            <View
+              style={[
+                styles.activeTabBubble,
+                { backgroundColor: theme.colors.primaryContainer },
+              ]}>
+              <DockHomeIcon size={20} color={theme.colors.onPrimaryContainer} />
+            </View>
+          ) : (
+            <DockHomeIcon size={20} color={theme.colors.onSurfaceVariant} />
+          )}
         </TouchableOpacity>
 
-        {/* Slot 2: Analytics / Charts Tab */}
+        {/* Slot 2: Analytics / Stats Tab */}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={onAnalyticsPress}
           style={styles.tabSlot}
           accessibilityRole="tab"
-          accessibilityLabel="Analytics tab">
-          <DockChartIcon size={20} color={theme.colors.onSurfaceVariant} />
+          accessibilityLabel="Stats tab">
+          {activeTab === 'stats' ? (
+            <View
+              style={[
+                styles.activeTabBubble,
+                { backgroundColor: theme.colors.primaryContainer },
+              ]}>
+              <DockChartIcon size={20} color={theme.colors.onPrimaryContainer} />
+            </View>
+          ) : (
+            <DockChartIcon size={20} color={theme.colors.onSurfaceVariant} />
+          )}
         </TouchableOpacity>
 
         {/* Slot 3: Settings Tab */}
@@ -70,7 +86,17 @@ export function FloatingDock({
           style={styles.tabSlot}
           accessibilityRole="tab"
           accessibilityLabel="Settings tab">
-          <SettingsGearIcon size={20} color={theme.colors.onSurfaceVariant} />
+          {activeTab === 'settings' ? (
+            <View
+              style={[
+                styles.activeTabBubble,
+                { backgroundColor: theme.colors.primaryContainer },
+              ]}>
+              <SettingsGearIcon size={20} color={theme.colors.onPrimaryContainer} />
+            </View>
+          ) : (
+            <SettingsGearIcon size={20} color={theme.colors.onSurfaceVariant} />
+          )}
         </TouchableOpacity>
       </View>
     </View>
