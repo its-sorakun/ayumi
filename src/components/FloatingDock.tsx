@@ -2,7 +2,7 @@
  * FloatingDock — an aesthetic Material 3 Expressive bottom navigation capsule.
  *
  * Implements a floating pill dock with:
- *  - 32dp corner radius and dynamic Material You elevation
+ *  - 28dp corner radius and dynamic Material You elevation
  *  - Active Home indicator with dynamic primaryContainer pill styling
  *  - Analytics shortcut for exploring step, distance, and calorie charts
  *  - Profile and settings shortcut for configuring goals and sensor modes
@@ -32,7 +32,7 @@ export function FloatingDock({
         style={[
           styles.dockContainer,
           {
-            backgroundColor: theme.colors.elevation.level2,
+            backgroundColor: theme.colors.surface,
             borderColor: theme.colors.outlineVariant,
           },
         ]}>
@@ -76,7 +76,7 @@ export function FloatingDock({
 const styles = StyleSheet.create({
   dockWrapper: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 20,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '84%',
     maxWidth: 340,
-    height: 54,
+    height: 56,
     borderRadius: 28,
     paddingHorizontal: 12,
     shadowOffset: { width: 0, height: 4 },
