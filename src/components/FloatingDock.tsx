@@ -58,23 +58,21 @@ export function FloatingDock({
     Animated.sequence([
       Animated.timing(tabSqueezeAnim, {
         toValue: 1,
-        duration: 130,
+        duration: 250,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
       Animated.spring(tabSqueezeAnim, {
         toValue: 0,
-        damping: 15,
-        stiffness: 220,
+        damping: 17,
+        stiffness: 120,
         useNativeDriver: true,
       }),
     ]).start();
 
     Animated.spring(tabSlideAnim, {
       toValue: activeTabIndex,
-      damping: 22,
-      stiffness: 220,
-      mass: 0.8,
+      ...MotionTokens.spring.snappy,
       useNativeDriver: true,
     }).start();
   }, [activeTabIndex, tabSlideAnim, tabSqueezeAnim]);
