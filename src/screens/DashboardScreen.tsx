@@ -4,14 +4,14 @@
  * Implements a single-page, aesthetic widget dashboard driven entirely by
  * dynamic Material You Monet tokens extracted from the user's wallpaper:
  *  - Zero hardcoded colors: all containers, text, and icons use dynamic theme tokens
- *  - Dynamic Monet roles: primaryContainer, secondaryContainer, tertiaryContainer, surfaceVariant
- *  - High-priority contextual greeting and live sensor status in top header
- *  - HeroStepGauge centerpiece with circular progress arc and goal pill badge
+ *  - Expanded multi-layered fluid wave ambient background in the top-right
+ *  - Clean minimalist header featuring greeting and live sensor status
+ *  - Borderless, floating HeroStepGauge centerpiece with gradient progress arc
  *  - Scalloped 8-petal cookie widget for Active Calories in tertiaryContainer
  *  - Asymmetric BentoCard for Distance in secondaryContainer
- *  - Total Energy and Active Time widgets in surfaceVariant
+ *  - Crisp luminous surface cards for Total Energy and Active Time
  *  - Interactive Water Widget with fluid wave accent and instant in-widget +250ml logging
- *  - Floating pill navigation dock
+ *  - Perfectly aligned floating pill navigation dock with settings integration
  */
 
 import React, { useCallback, useMemo, useRef } from 'react';
@@ -20,7 +20,6 @@ import {
   ScrollView,
   StyleSheet,
   View,
-  TouchableOpacity,
   Dimensions,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
@@ -35,7 +34,6 @@ import {
   HeroStepGauge,
   BentoCard,
   FloatingDock,
-  SettingsGearIcon,
   RouteMapIcon,
   FlameIcon,
   BoltIcon,
@@ -182,18 +180,23 @@ export function DashboardScreen(): React.JSX.Element {
 
   return (
     <View style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}>
-      {/* Decorative top-right organic fluid wave */}
+      {/* Expanded multi-layered fluid wave ambient background */}
       <View style={styles.topWaveWrapper} pointerEvents="none">
-        <Svg width={SCREEN_WIDTH} height={170} viewBox="0 0 380 170">
+        <Svg width={SCREEN_WIDTH} height={260} viewBox="0 0 380 260">
           <Path
-            d="M140 0C210 20 280 85 380 70V0H140Z"
+            d="M70 0C140 30 200 170 380 130V0H70Z"
             fill={theme.colors.primaryContainer}
-            opacity={0.35}
+            opacity={0.42}
           />
           <Path
-            d="M200 0C250 40 310 120 380 110V0H200Z"
+            d="M160 0C220 50 260 210 380 180V0H160Z"
             fill={theme.colors.secondaryContainer}
-            opacity={0.25}
+            opacity={0.3}
+          />
+          <Path
+            d="M230 0C280 70 320 250 380 230V0H230Z"
+            fill={theme.colors.tertiaryContainer}
+            opacity={0.18}
           />
         </Svg>
       </View>
@@ -220,7 +223,7 @@ export function DashboardScreen(): React.JSX.Element {
         }
         accessibilityLabel="Ayumi Dashboard">
 
-        {/* Top Header Row with Greeting & Live Status on Left, Settings on Right */}
+        {/* Minimalist Top Header: Greeting & Live Status */}
         <View style={styles.topBarRow}>
           <View style={styles.greetingContainer}>
             <Text style={[styles.greetingTitleText, { color: theme.colors.onSurface }]}>
@@ -248,25 +251,9 @@ export function DashboardScreen(): React.JSX.Element {
               )}
             </View>
           </View>
-
-          {/* Settings Bubble Button */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('Settings')}
-            style={[
-              styles.settingsBubbleButton,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.outlineVariant,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Open settings">
-            <SettingsGearIcon size={20} color={theme.colors.onSurfaceVariant} />
-          </TouchableOpacity>
         </View>
 
-        {/* Centerpiece: Expressive Hero Step Circular Gauge */}
+        {/* Centerpiece: Borderless Floating Hero Step Circular Gauge */}
         <HeroStepGauge
           steps={formattedValues?.steps ?? 0}
           goal={stepGoal}
@@ -308,15 +295,15 @@ export function DashboardScreen(): React.JSX.Element {
               />
             </View>
 
-            {/* Row 2: Total Calories & Active Time (surfaceVariant) */}
+            {/* Row 2: Total Calories & Active Time (Luminous Surface Cards with Dynamic Accent Bubbles) */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title="Total Calories"
                 value={formattedValues.totalCalories}
                 subtitle={formattedValues.totalCalories === 'Setup' ? 'Tap to configure' : undefined}
                 icon={<BoltIcon size={22} color={theme.colors.primary} />}
-                iconBgColor={theme.colors.surface}
-                cardBgColor={theme.colors.surfaceVariant}
+                iconBgColor={theme.colors.primaryContainer}
+                cardBgColor={theme.colors.surface}
                 borderColor={theme.colors.outlineVariant}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
@@ -328,8 +315,8 @@ export function DashboardScreen(): React.JSX.Element {
                 title="Active Time"
                 value={formattedValues.activeTime}
                 icon={<StopwatchIcon size={22} color={theme.colors.secondary} />}
-                iconBgColor={theme.colors.surface}
-                cardBgColor={theme.colors.surfaceVariant}
+                iconBgColor={theme.colors.secondaryContainer}
+                cardBgColor={theme.colors.surface}
                 borderColor={theme.colors.outlineVariant}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
@@ -391,17 +378,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   topBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   greetingContainer: {
     flex: 1,
   },
   greetingTitleText: {
-    fontSize: 28,
+    fontSize: 29,
     fontWeight: '800',
     letterSpacing: -0.6,
   },
@@ -409,7 +393,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 2,
+    marginTop: 3,
   },
   dateBadgeText: {
     fontSize: 13.5,
@@ -431,14 +415,6 @@ const styles = StyleSheet.create({
   providerBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-  },
-  settingsBubbleButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
   },
   bentoGrid: {
     paddingHorizontal: 16,
