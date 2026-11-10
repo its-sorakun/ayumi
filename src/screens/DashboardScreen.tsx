@@ -1,12 +1,14 @@
 /**
  * DashboardScreen — the Material 3 Expressive homepage of Ayumi.
  *
- * Implements a Pinterest-grade, aesthetic Bento Grid fitness interface:
- *  - Organic background fluid wave shapes
- *  - Time-aware contextual greeting ("Good morning", "Good afternoon", "Good evening")
- *  - HeroStepGauge with circular progress arc and squircle organic background
- *  - Asymmetrical pastel-tinted BentoCards for Distance, Calories, Active Time, and Water
- *  - Floating rounded navigation dock with organic active tab highlight
+ * Implements a single-page, Pinterest-level aesthetic widget dashboard:
+ *  - Dynamic Material You Monet system theming with zero hardcoded colors
+ *  - High-priority contextual greeting and live sensor status in top header
+ *  - HeroStepGauge centerpiece with circular progress arc and goal pill badge
+ *  - Scalloped 8-petal cookie widget for Active Calories
+ *  - Asymmetric and pill-shaped BentoCards for Distance, Energy, and Time
+ *  - Interactive Water Widget with fluid wave accent and instant in-widget +250ml logging
+ *  - Floating pill navigation dock
  */
 
 import React, { useCallback, useMemo, useRef } from 'react';
@@ -30,7 +32,6 @@ import {
   HeroStepGauge,
   BentoCard,
   FloatingDock,
-  LeafLogo,
   SettingsGearIcon,
   RouteMapIcon,
   FlameIcon,
@@ -69,7 +70,7 @@ export function DashboardScreen(): React.JSX.Element {
   const { stepGoal, distanceGoal, gender, weight, height, age, customWaterGoal } = useSettings();
   
   // Water tracker hook
-  const { totalWater, refresh: refreshWater } = useWaterTracker();
+  const { totalWater, addWater, refresh: refreshWater } = useWaterTracker();
 
   useFocusEffect(
     useCallback(() => {
@@ -177,19 +178,19 @@ export function DashboardScreen(): React.JSX.Element {
   }
 
   return (
-    <View style={styles.screenWrapper}>
-      {/* Decorative top-right organic pastel wave */}
+    <View style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}>
+      {/* Decorative top-right organic fluid wave */}
       <View style={styles.topWaveWrapper} pointerEvents="none">
-        <Svg width={SCREEN_WIDTH} height={180} viewBox="0 0 380 180">
+        <Svg width={SCREEN_WIDTH} height={160} viewBox="0 0 380 160">
           <Path
             d="M140 0C210 20 280 85 380 70V0H140Z"
-            fill="#EADCF8"
-            opacity={0.55}
+            fill={theme.colors.primaryContainer}
+            opacity={0.35}
           />
           <Path
             d="M200 0C250 40 310 120 380 110V0H200Z"
-            fill="#F3E9FC"
-            opacity={0.4}
+            fill={theme.colors.secondaryContainer}
+            opacity={0.25}
           />
         </Svg>
       </View>
@@ -199,59 +200,70 @@ export function DashboardScreen(): React.JSX.Element {
         style={styles.container}
         contentContainerStyle={[
           styles.contentContainer,
-          { paddingTop: Math.max(insets.top, 16), paddingBottom: insets.bottom + 100 },
+          {
+            paddingTop: Math.max(insets.top, 12),
+            paddingBottom: insets.bottom + 76,
+          },
         ]}
+        bounces={false}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={loading}
             onRefresh={onRefresh}
-            colors={['#8C5AB8']}
-            progressBackgroundColor="#FFFFFF"
+            colors={[theme.colors.primary]}
+            progressBackgroundColor={theme.colors.surface}
           />
         }
         accessibilityLabel="Ayumi Dashboard">
 
-        {/* Top Header Row */}
+        {/* Top Header Row with Greeting & Live Status on Left, Settings on Right */}
         <View style={styles.topBarRow}>
-          {/* Brand Icon & Name */}
-          <View style={styles.brandContainer}>
-            <View style={styles.brandIconBubble}>
-              <LeafLogo size={22} color="#8A5BB8" />
+          <View style={styles.greetingContainer}>
+            <Text style={[styles.greetingTitleText, { color: theme.colors.onSurface }]}>
+              {getGreeting()}
+            </Text>
+            <View style={styles.dateBadgeRow}>
+              <Text style={[styles.dateBadgeText, { color: theme.colors.onSurfaceVariant }]}>
+                {formattedValues?.date ?? formatDate(new Date())}
+              </Text>
+              {providerName != null && (
+                <View
+                  style={[
+                    styles.providerBadge,
+                    { backgroundColor: theme.colors.primaryContainer },
+                  ]}>
+                  <View style={[styles.liveDot, { backgroundColor: theme.colors.primary }]} />
+                  <Text
+                    style={[
+                      styles.providerBadgeText,
+                      { color: theme.colors.onPrimaryContainer },
+                    ]}>
+                    {providerName}
+                  </Text>
+                </View>
+              )}
             </View>
-            <Text style={styles.brandTitleText}>Ayumi</Text>
           </View>
 
           {/* Settings Bubble Button */}
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => navigation.navigate('Settings')}
-            style={styles.settingsBubbleButton}
+            style={[
+              styles.settingsBubbleButton,
+              {
+                backgroundColor: theme.colors.surfaceVariant,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Open settings">
-            <SettingsGearIcon size={20} color="#7A569B" />
+            <SettingsGearIcon size={19} color={theme.colors.onSurfaceVariant} />
           </TouchableOpacity>
         </View>
 
-        {/* Greeting & Date Header */}
-        <View style={styles.greetingHeader}>
-          <Text style={styles.greetingTitleText}>
-            {getGreeting()}
-          </Text>
-          <View style={styles.dateBadgeRow}>
-            <Text style={styles.dateBadgeText}>
-              {formattedValues?.date ?? formatDate(new Date())}
-            </Text>
-            {providerName != null && (
-              <View style={styles.providerBadge}>
-                <View style={styles.liveDot} />
-                <Text style={styles.providerBadgeText}>{providerName}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Centerpiece: Hero Step Circular Gauge */}
+        {/* Centerpiece: Expressive Hero Step Circular Gauge */}
         <HeroStepGauge
           steps={formattedValues?.steps ?? 0}
           goal={stepGoal}
@@ -261,27 +273,29 @@ export function DashboardScreen(): React.JSX.Element {
         {/* Bento Grid Metrics */}
         {formattedValues != null && (
           <View style={styles.bentoGrid}>
-            {/* Row 1: Distance & Active Calories */}
+            {/* Row 1: Active Calories (Scalloped Cookie) & Distance (Asymmetric Pill) */}
             <View style={styles.bentoRow}>
+              <BentoCard
+                title="Active Calories"
+                value={formattedValues.calories}
+                icon={<FlameIcon size={20} color={theme.colors.onTertiaryContainer} />}
+                useScallopBadge={true}
+                iconBgColor={theme.colors.tertiaryContainer}
+                cardBgColor={theme.colors.elevation.level1}
+                borderColor={theme.colors.outlineVariant}
+              />
               <BentoCard
                 title="Distance"
                 value={formattedValues.distance}
                 subtitle={`Goal: ${formatDistance(distanceGoal)}`}
-                icon={<RouteMapIcon size={22} color="#7D49B8" />}
-                iconBgColor="#EFE8F9"
-                cardBgColor="#F9F5FD"
-                borderColor="#EFE6F8"
+                icon={<RouteMapIcon size={20} color={theme.colors.onSecondaryContainer} />}
+                iconBgColor={theme.colors.secondaryContainer}
+                cardBgColor={theme.colors.elevation.level1}
+                borderColor={theme.colors.outlineVariant}
+                shapeVariant="asymmetric"
                 progress={formattedValues.distanceProgress}
-                progressBarColor="#A27BC8"
+                progressBarColor={theme.colors.secondary}
                 onPress={() => navigation.navigate('DistanceDetails')}
-              />
-              <BentoCard
-                title="Active Calories"
-                value={formattedValues.calories}
-                icon={<FlameIcon size={22} color="#E85D3F" />}
-                iconBgColor="#FFEBE6"
-                cardBgColor="#FFF5F2"
-                borderColor="#FFE6DF"
               />
             </View>
 
@@ -291,49 +305,44 @@ export function DashboardScreen(): React.JSX.Element {
                 title="Total Calories"
                 value={formattedValues.totalCalories}
                 subtitle={formattedValues.totalCalories === 'Setup' ? 'Tap to configure' : undefined}
-                icon={<BoltIcon size={22} color="#D98A1E" />}
-                iconBgColor="#FFF3DC"
-                cardBgColor="#FFF9F1"
-                borderColor="#FFEECF"
+                icon={<BoltIcon size={20} color={theme.colors.primary} />}
+                iconBgColor={theme.colors.surfaceVariant}
+                cardBgColor={theme.colors.elevation.level1}
+                borderColor={theme.colors.outlineVariant}
+                shapeVariant="squircle"
                 onPress={formattedValues.totalCalories === 'Setup' ? () => navigation.navigate('Settings') : undefined}
               />
               <BentoCard
                 title="Active Time"
                 value={formattedValues.activeTime}
-                icon={<StopwatchIcon size={22} color="#8B57C6" />}
-                iconBgColor="#EFE8F9"
-                cardBgColor="#F9F5FD"
-                borderColor="#EFE6F8"
+                icon={<StopwatchIcon size={20} color={theme.colors.secondary} />}
+                iconBgColor={theme.colors.surfaceVariant}
+                cardBgColor={theme.colors.elevation.level1}
+                borderColor={theme.colors.outlineVariant}
+                shapeVariant="pill"
               />
             </View>
 
-            {/* Row 3 (Full Width): Water Fluid Card */}
+            {/* Row 3 (Full Width): Interactive Water Hydration Widget */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title="Water"
                 value={`${totalWater} ml`}
                 subtitle={`Goal: ${formattedValues.waterGoalText}`}
-                icon={<DropletIcon size={22} color="#3D78DB" />}
-                iconBgColor="#E3EEFB"
-                cardBgColor="#F0F6FD"
-                borderColor="#DFEBFB"
+                icon={<DropletIcon size={20} color={theme.colors.primary} />}
+                iconBgColor={theme.colors.primaryContainer}
+                cardBgColor={theme.colors.elevation.level1}
+                borderColor={theme.colors.outlineVariant}
+                shapeVariant="pill"
                 progress={formattedValues.waterProgress}
-                progressBarColor="#5E99EC"
+                progressBarColor={theme.colors.primary}
                 fullWidth={true}
                 showWaterWave={true}
+                actionLabel="+250 ml"
+                onActionPress={() => addWater(250)}
                 onPress={() => navigation.navigate('WaterDetails')}
               />
             </View>
-
-            {/* Hardware Status Footer */}
-            {formattedValues.sources != null && (
-              <View style={styles.footerStatusRow}>
-                <Text style={styles.footerBroadcastIcon}>((•))</Text>
-                <Text style={styles.footerStatusText}>
-                  Data from: {formattedValues.sources}
-                </Text>
-              </View>
-            )}
           </View>
         )}
       </ScrollView>
@@ -351,7 +360,6 @@ export function DashboardScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   screenWrapper: {
     flex: 1,
-    backgroundColor: '#FAF7FD',
   },
   topWaveWrapper: {
     position: 'absolute',
@@ -369,104 +377,59 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 22,
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    marginBottom: 6,
   },
-  brandContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  brandIconBubble: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#EBDDF8',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  brandTitleText: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#261933',
-    letterSpacing: -0.5,
-  },
-  settingsBubbleButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#F3EAFB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#EFE4F8',
-  },
-  greetingHeader: {
-    paddingHorizontal: 22,
-    marginBottom: 8,
+  greetingContainer: {
+    flex: 1,
   },
   greetingTitleText: {
-    fontSize: 34,
+    fontSize: 26,
     fontWeight: '800',
-    color: '#251733',
-    letterSpacing: -0.8,
+    letterSpacing: -0.6,
   },
   dateBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 4,
+    marginTop: 2,
   },
   dateBadgeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
-    color: '#7B678C',
   },
   providerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#F2E8FA',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
   liveDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#8C5AB8',
   },
   providerBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6F4A96',
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  settingsBubbleButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
   },
   bentoGrid: {
     paddingHorizontal: 16,
-    gap: 12,
-    marginTop: 4,
+    gap: 8,
+    marginTop: 2,
   },
   bentoRow: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  footerStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 18,
-    marginBottom: 10,
-  },
-  footerBroadcastIcon: {
-    fontSize: 12,
-    color: '#8E7A9F',
-    fontWeight: '700',
-  },
-  footerStatusText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#8E7A9F',
+    gap: 8,
   },
 });
