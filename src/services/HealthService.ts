@@ -79,6 +79,7 @@ class HealthService {
     if (sensorStatus === 'available') {
       this.provider = sensorProvider;
       this.providerStatus = 'available';
+      sensorProvider.onResume();
       return 'available';
     }
 
