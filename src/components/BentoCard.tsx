@@ -1,39 +1,32 @@
 /**
- * BentoCard — a Material 3 Expressive widget tile.
+ * BentoCard — a Material 3 Expressive metric card component.
  *
- * Implements aesthetic, tactile widget cells with:
- *  - Dynamic Material You tonal container backgrounds and contrast tokens
- *  - M3 Expressive shape modes (asymmetric corners, pill capsule, squircle)
- *  - Support for the 8-petal scalloped cookie icon badge
- *  - Optional in-widget micro-action pill buttons (such as quick-add water)
- *  - Rounded progress pill indicator and fluid water wave decoration
+ * Implements clean, borderless tonal containers matching the Material 3 Expressive guidelines:
+ *  - 24dp uniform corner radius for standard cards, 28dp for full-width cards
+ *  - Borderless soft tonal surfaces derived dynamically from Material You
+ *  - Prominent numerical display paired with matching unit typography
+ *  - Horizontal progress bar with rounded end caps
+ *  - Interactive quick-action pill buttons for micro-interactions
  */
 
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
-import Svg, { Path } from 'react-native-svg';
-import { ScallopCookieBadge, PlusIcon } from './AestheticIcons';
-
-export type BentoShapeVariant = 'squircle' | 'asymmetric' | 'pill';
 
 interface BentoCardProps {
   readonly title: string;
   readonly value: string;
+  readonly unit?: string;
   readonly subtitle?: string;
   readonly icon: React.ReactNode;
   readonly iconBgColor?: string;
   readonly cardBgColor?: string;
-  readonly borderColor?: string;
   readonly titleColor?: string;
   readonly valueColor?: string;
   readonly subtitleColor?: string;
   readonly progress?: number; // 0 to 1
   readonly progressBarColor?: string;
   readonly fullWidth?: boolean;
-  readonly showWaterWave?: boolean;
-  readonly shapeVariant?: BentoShapeVariant;
-  readonly useScallopBadge?: boolean;
   readonly actionLabel?: string;
   readonly onActionPress?: () => void;
   readonly onPress?: () => void;
@@ -43,20 +36,17 @@ interface BentoCardProps {
 export function BentoCard({
   title,
   value,
+  unit,
   subtitle,
   icon,
   iconBgColor,
   cardBgColor,
-  borderColor,
   titleColor,
   valueColor,
   subtitleColor,
   progress,
   progressBarColor,
   fullWidth = false,
-  showWaterWave = false,
-  shapeVariant = 'squircle',
-  useScallopBadge = false,
   actionLabel,
   onActionPress,
   onPress,
@@ -65,30 +55,7 @@ export function BentoCard({
   const theme = useTheme();
   const isInteractive = typeof onPress === 'function';
 
-  // Compute corner styles based on shapeVariant
-  const shapeStyle = React.useMemo(() => {
-    switch (shapeVariant) {
-      case 'asymmetric':
-        return {
-          borderTopLeftRadius: 28,
-          borderTopRightRadius: 14,
-          borderBottomRightRadius: 28,
-          borderBottomLeftRadius: 14,
-        };
-      case 'pill':
-        return {
-          borderRadius: 26,
-        };
-      case 'squircle':
-      default:
-        return {
-          borderRadius: 24,
-        };
-    }
-  }, [shapeVariant]);
-
-  const defaultBg = theme.colors.surfaceVariant;
-  const defaultBorder = theme.colors.outlineVariant;
+  const defaultBg = theme.colors.surface;
   const activeProgressColor = progressBarColor || theme.colors.primary;
 
   return (
@@ -98,53 +65,34 @@ export function BentoCard({
       disabled={!isInteractive}
       style={[
         styles.card,
-        shapeStyle,
         {
+          borderRadius: fullWidth ? 28 : 24,
           backgroundColor: cardBgColor || defaultBg,
-          borderColor: borderColor || defaultBorder,
           flex: fullWidth ? 0 : 1,
           width: fullWidth ? '100%' : undefined,
-          minHeight: fullWidth ? 96 : 106,
+          minHeight: fullWidth ? 98 : 108,
         },
         style,
       ]}
       accessibilityRole={isInteractive ? 'button' : 'text'}
-      accessibilityLabel={`${title}: ${value}${subtitle ? `, ${subtitle}` : ''}`}>
+      accessibilityLabel={`${title}: ${value}${unit ? ` ${unit}` : ''}${subtitle ? `, ${subtitle}` : ''}`}>
       
-      {/* Decorative organic corner wave for fluid full-width cards */}
-      {showWaterWave && (
-        <View style={styles.waterWaveWrapper} pointerEvents="none">
-          <Svg width={140} height={80} viewBox="0 0 140 80">
-            <Path
-              d="M0 60C30 50 70 80 110 50C130 35 140 10 140 0V80H0V60Z"
-              fill={theme.colors.primary}
-              opacity={0.15}
-            />
-          </Svg>
-        </View>
-      )}
-
       <View style={styles.contentRow}>
-        {/* Left: Icon container */}
-        {useScallopBadge ? (
-          <View style={styles.scallopWrapper}>
-            <ScallopCookieBadge
-              size={46}
-              bgColor={iconBgColor || theme.colors.surface}>
-              <View style={styles.scallopInnerIcon}>{icon}</View>
-            </ScallopCookieBadge>
-          </View>
-        ) : (
-          <View
-            style={[
-              styles.iconContainer,
-              { backgroundColor: iconBgColor || theme.colors.surface },
-            ]}>
-            {icon}
-          </View>
-        )}
+        {/* Left: Icon inside clean circular bubble */}
+        <View
+          style={[
+            styles.iconContainer,
+            {
+              backgroundColor: iconBgColor || theme.colors.surface,
+              width: fullWidth ? 48 : 44,
+              height: fullWidth ? 48 : 44,
+              borderRadius: fullWidth ? 24 : 22,
+            },
+          ]}>
+          {icon}
+        </View>
 
-        {/* Center: Metric details */}
+        {/* Center: Details */}
         <View style={styles.detailsContainer}>
           <Text
             style={[
@@ -154,15 +102,27 @@ export function BentoCard({
             numberOfLines={2}>
             {title}
           </Text>
-          <Text
-            style={[
-              styles.valueText,
-              { color: valueColor || theme.colors.onSurface },
-            ]}
-            numberOfLines={1}
-            adjustsFontSizeToFit>
-            {value}
-          </Text>
+
+          <View style={styles.valueRow}>
+            <Text
+              style={[
+                styles.valueText,
+                { color: valueColor || theme.colors.onSurface },
+              ]}
+              numberOfLines={1}>
+              {value}
+            </Text>
+            {unit != null && unit.length > 0 && (
+              <Text
+                style={[
+                  styles.unitText,
+                  { color: valueColor || theme.colors.onSurface },
+                ]}>
+                {' ' + unit}
+              </Text>
+            )}
+          </View>
+
           {subtitle != null && (
             <Text
               style={[
@@ -175,15 +135,14 @@ export function BentoCard({
           )}
         </View>
 
-        {/* Optional trailing in-widget action button */}
+        {/* Right: Optional in-widget quick-action button */}
         {actionLabel != null && onActionPress != null && (
           <TouchableOpacity
-            activeOpacity={0.75}
+            activeOpacity={0.8}
             onPress={onActionPress}
             style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
             accessibilityRole="button"
             accessibilityLabel={actionLabel}>
-            <PlusIcon size={14} color={theme.colors.onPrimary} />
             <Text style={[styles.actionButtonText, { color: theme.colors.onPrimary }]}>
               {actionLabel}
             </Text>
@@ -191,12 +150,15 @@ export function BentoCard({
         )}
       </View>
 
-      {/* Progress pill bar */}
+      {/* Horizontal progress bar */}
       {progress != null && (
         <View
           style={[
             styles.progressTrack,
-            { backgroundColor: theme.colors.surface },
+            {
+              backgroundColor: theme.colors.surface,
+              marginTop: subtitle ? 8 : 10,
+            },
           ]}>
           <View
             style={[
@@ -215,16 +177,13 @@ export function BentoCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderWidth: 1,
-    paddingHorizontal: 15,
+    paddingHorizontal: 16,
     paddingVertical: 14,
-    position: 'relative',
-    overflow: 'hidden',
+    justifyContent: 'center',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
     shadowRadius: 6,
     elevation: 1,
-    justifyContent: 'center',
   },
   contentRow: {
     flexDirection: 'row',
@@ -232,71 +191,57 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
-  },
-  scallopWrapper: {
-    width: 46,
-    height: 46,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexShrink: 0,
-    position: 'relative',
-  },
-  scallopInnerIcon: {
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   detailsContainer: {
     flex: 1,
     justifyContent: 'center',
   },
   titleText: {
-    fontSize: 12.5,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
     lineHeight: 16,
     marginBottom: 2,
   },
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
   valueText: {
-    fontSize: 21,
+    fontSize: 22,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
+  unitText: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
   subtitleText: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
   },
   actionButton: {
-    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    borderRadius: 18,
-    gap: 4,
     flexShrink: 0,
   },
   actionButtonText: {
-    fontSize: 11.5,
+    fontSize: 13,
     fontWeight: '700',
   },
   progressTrack: {
-    height: 5.5,
-    borderRadius: 3,
-    marginTop: 10,
+    height: 4.5,
+    borderRadius: 2.5,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 3,
-  },
-  waterWaveWrapper: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
+    borderRadius: 2.5,
   },
 });
