@@ -65,15 +65,24 @@ class MidnightStepWorker(
                 val historyStr = prefs.getString("stepHistory", "[]")
                 try {
                     val jsonArray = org.json.JSONArray(historyStr)
-                    val newObj = org.json.JSONObject()
-                    
                     val df = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
                     val dateStr = df.format(java.util.Date(prevBaselineDate))
                     
-                    newObj.put("date", dateStr)
-                    newObj.put("steps", stepsTaken)
-                    
-                    jsonArray.put(newObj)
+                    var dateFound = false
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.optJSONObject(i)
+                        if (obj != null && obj.optString("date") == dateStr) {
+                            dateFound = true
+                            break
+                        }
+                    }
+
+                    if (!dateFound) {
+                        val newObj = org.json.JSONObject()
+                        newObj.put("date", dateStr)
+                        newObj.put("steps", stepsTaken)
+                        jsonArray.put(newObj)
+                    }
                     
                     // keep only last 30 days
                     val trimmedArray = org.json.JSONArray()
