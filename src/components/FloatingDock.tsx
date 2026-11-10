@@ -33,8 +33,8 @@ export function FloatingDock({
         style={[
           styles.dockContainer,
           {
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.outlineVariant,
+            backgroundColor: theme.dark ? theme.colors.elevation.level2 : theme.colors.surface,
+            borderColor: theme.dark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.outlineVariant,
           },
         ]}>
         {/* Slot 1: Active Home Tab */}
