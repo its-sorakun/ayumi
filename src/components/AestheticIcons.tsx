@@ -1,9 +1,10 @@
 /**
- * AestheticIcons — lightweight, pure SVG vector icons for Ayumi.
+ * AestheticIcons — lightweight, pure SVG vector icons and expressive shapes for Ayumi.
  * 
  * Implemented using react-native-svg to guarantee crisp resolution across all
  * screen densities without depending on font asset linking or native icon font packs.
  * Each icon supports custom size and color props.
+ * Includes Material 3 Expressive shapes such as the 8-petal scalloped cookie.
  */
 
 import React from 'react';
@@ -12,6 +13,79 @@ import Svg, { Path, Circle, Rect, G } from 'react-native-svg';
 interface IconProps {
   readonly size?: number;
   readonly color?: string;
+}
+
+/** Generates a smooth 8-petal scalloped cookie SVG path in a square bounding box */
+export function generateScallopPath(size: number = 44, petals: number = 8, innerRatio: number = 0.82): string {
+  const cx = size / 2;
+  const cy = size / 2;
+  const rOuter = (size / 2) * 0.95;
+  const rInner = rOuter * innerRatio;
+  const totalPoints = petals * 2;
+  const step = (Math.PI * 2) / totalPoints;
+
+  const points: { x: number; y: number }[] = [];
+  for (let i = 0; i < totalPoints; i++) {
+    const angle = i * step - Math.PI / 2;
+    const r = i % 2 === 0 ? rOuter : rInner;
+    points.push({
+      x: cx + r * Math.cos(angle),
+      y: cy + r * Math.sin(angle),
+    });
+  }
+
+  let d = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+  for (let i = 0; i < totalPoints; i++) {
+    const curr = points[i];
+    const next = points[(i + 1) % totalPoints];
+    const prev = points[(i - 1 + totalPoints) % totalPoints];
+    const nextNext = points[(i + 2) % totalPoints];
+
+    const cp1x = curr.x + (next.x - prev.x) * 0.2;
+    const cp1y = curr.y + (next.y - prev.y) * 0.2;
+    const cp2x = next.x - (nextNext.x - curr.x) * 0.2;
+    const cp2y = next.y - (nextNext.y - curr.y) * 0.2;
+
+    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
+  }
+  return d + ' Z';
+}
+
+/** Material 3 Expressive 8-petal scalloped cookie container badge */
+export function ScallopCookieBadge({
+  size = 46,
+  bgColor = '#F2E8FA',
+  children,
+}: {
+  readonly size?: number;
+  readonly bgColor?: string;
+  readonly children?: React.ReactNode;
+}): React.JSX.Element {
+  const pathData = React.useMemo(() => generateScallopPath(size, 8, 0.8), [size]);
+
+  return (
+    <React.Fragment>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute' }}>
+        <Path d={pathData} fill={bgColor} />
+      </Svg>
+      {children}
+    </React.Fragment>
+  );
+}
+
+/** Quick add plus icon */
+export function PlusIcon({ size = 18, color = '#FFFFFF' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 5v14M5 12h14"
+        stroke={color}
+        strokeWidth={2.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
 }
 
 /** Leaf/Bloom organic brand logo */
