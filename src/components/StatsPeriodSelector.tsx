@@ -33,8 +33,8 @@ const PERIODS: readonly { type: StatPeriodType; label: string }[] = [
   { type: 'month', label: 'Month' },
 ];
 
-const CONTAINER_HEIGHT = 38;
-const PADDING = 3;
+const CONTAINER_HEIGHT = 42;
+const PADDING = 4;
 
 export function StatsPeriodSelector({
   selectedPeriod,
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   segmentText: {
-    fontSize: 12.5,
+    fontSize: 13,
     letterSpacing: -0.1,
   },
 });
