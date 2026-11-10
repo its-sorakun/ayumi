@@ -50,6 +50,7 @@ import { StatsPeriodNavigator } from '../components/StatsPeriodNavigator';
 import { StatsChart, type ChartDataPoint } from '../components/StatsChart';
 import { StatsSummaryCards } from '../components/StatsSummaryCards';
 import { FloatingDock } from '../components/FloatingDock';
+import { MotionTokens } from '../theme/motion';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -98,14 +99,14 @@ export function StatsScreen({
   // Animation for metric slide/crossfade
   const contentSlideAnim = useRef(new Animated.Value(0)).current;
 
-  // Initial choreographed entrance
+  // Initial choreographed entrance (relaxed Android 1x timing)
   useEffect(() => {
-    Animated.stagger(50, [
-      Animated.timing(entranceHeader, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.timing(entranceMetrics, { toValue: 1, duration: 220, useNativeDriver: true }),
-      Animated.timing(entrancePeriods, { toValue: 1, duration: 220, useNativeDriver: true }),
-      Animated.timing(entranceChart, { toValue: 1, duration: 280, useNativeDriver: true }),
-      Animated.timing(entranceSummaries, { toValue: 1, duration: 240, useNativeDriver: true }),
+    Animated.stagger(80, [
+      Animated.timing(entranceHeader, { toValue: 1, duration: 400, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entranceMetrics, { toValue: 1, duration: 420, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entrancePeriods, { toValue: 1, duration: 420, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entranceChart, { toValue: 1, duration: 480, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entranceSummaries, { toValue: 1, duration: 440, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
     ]).start();
   }, []);
 
@@ -200,9 +201,7 @@ export function StatsScreen({
 
     Animated.spring(contentSlideAnim, {
       toValue: 0,
-      damping: 22,
-      stiffness: 200,
-      mass: 0.8,
+      ...MotionTokens.spring.snappy,
       useNativeDriver: true,
     }).start();
   };
