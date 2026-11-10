@@ -25,6 +25,9 @@ interface BentoCardProps {
   readonly iconBgColor?: string;
   readonly cardBgColor?: string;
   readonly borderColor?: string;
+  readonly titleColor?: string;
+  readonly valueColor?: string;
+  readonly subtitleColor?: string;
   readonly progress?: number; // 0 to 1
   readonly progressBarColor?: string;
   readonly fullWidth?: boolean;
@@ -45,6 +48,9 @@ export function BentoCard({
   iconBgColor,
   cardBgColor,
   borderColor,
+  titleColor,
+  valueColor,
+  subtitleColor,
   progress,
   progressBarColor,
   fullWidth = false,
@@ -71,17 +77,17 @@ export function BentoCard({
         };
       case 'pill':
         return {
-          borderRadius: 24,
+          borderRadius: 26,
         };
       case 'squircle':
       default:
         return {
-          borderRadius: 22,
+          borderRadius: 24,
         };
     }
   }, [shapeVariant]);
 
-  const defaultBg = theme.colors.elevation.level1;
+  const defaultBg = theme.colors.surfaceVariant;
   const defaultBorder = theme.colors.outlineVariant;
   const activeProgressColor = progressBarColor || theme.colors.primary;
 
@@ -98,6 +104,7 @@ export function BentoCard({
           borderColor: borderColor || defaultBorder,
           flex: fullWidth ? 0 : 1,
           width: fullWidth ? '100%' : undefined,
+          minHeight: fullWidth ? 96 : 106,
         },
         style,
       ]}
@@ -107,11 +114,11 @@ export function BentoCard({
       {/* Decorative organic corner wave for fluid full-width cards */}
       {showWaterWave && (
         <View style={styles.waterWaveWrapper} pointerEvents="none">
-          <Svg width={130} height={70} viewBox="0 0 140 80">
+          <Svg width={140} height={80} viewBox="0 0 140 80">
             <Path
               d="M0 60C30 50 70 80 110 50C130 35 140 10 140 0V80H0V60Z"
-              fill={theme.colors.primaryContainer}
-              opacity={0.35}
+              fill={theme.colors.primary}
+              opacity={0.15}
             />
           </Svg>
         </View>
@@ -122,8 +129,8 @@ export function BentoCard({
         {useScallopBadge ? (
           <View style={styles.scallopWrapper}>
             <ScallopCookieBadge
-              size={44}
-              bgColor={iconBgColor || theme.colors.tertiaryContainer}>
+              size={46}
+              bgColor={iconBgColor || theme.colors.surface}>
               <View style={styles.scallopInnerIcon}>{icon}</View>
             </ScallopCookieBadge>
           </View>
@@ -131,7 +138,7 @@ export function BentoCard({
           <View
             style={[
               styles.iconContainer,
-              { backgroundColor: iconBgColor || theme.colors.surfaceVariant },
+              { backgroundColor: iconBgColor || theme.colors.surface },
             ]}>
             {icon}
           </View>
@@ -140,19 +147,28 @@ export function BentoCard({
         {/* Center: Metric details */}
         <View style={styles.detailsContainer}>
           <Text
-            style={[styles.titleText, { color: theme.colors.onSurfaceVariant }]}
-            numberOfLines={1}>
+            style={[
+              styles.titleText,
+              { color: titleColor || theme.colors.onSurfaceVariant },
+            ]}
+            numberOfLines={2}>
             {title}
           </Text>
           <Text
-            style={[styles.valueText, { color: theme.colors.onSurface }]}
+            style={[
+              styles.valueText,
+              { color: valueColor || theme.colors.onSurface },
+            ]}
             numberOfLines={1}
             adjustsFontSizeToFit>
             {value}
           </Text>
           {subtitle != null && (
             <Text
-              style={[styles.subtitleText, { color: theme.colors.onSurfaceVariant }]}
+              style={[
+                styles.subtitleText,
+                { color: subtitleColor || theme.colors.onSurfaceVariant },
+              ]}
               numberOfLines={1}>
               {subtitle}
             </Text>
@@ -180,7 +196,7 @@ export function BentoCard({
         <View
           style={[
             styles.progressTrack,
-            { backgroundColor: theme.colors.surfaceVariant },
+            { backgroundColor: theme.colors.surface },
           ]}>
           <View
             style={[
@@ -200,8 +216,8 @@ export function BentoCard({
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
     position: 'relative',
     overflow: 'hidden',
     shadowOffset: { width: 0, height: 2 },
@@ -213,19 +229,19 @@ const styles = StyleSheet.create({
   contentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
   },
   scallopWrapper: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
@@ -240,42 +256,43 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   titleText: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '600',
-    marginBottom: 1,
+    lineHeight: 16,
+    marginBottom: 2,
   },
   valueText: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
   subtitleText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '500',
-    marginTop: 1,
+    marginTop: 2,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 18,
     gap: 4,
     flexShrink: 0,
   },
   actionButtonText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
   },
   progressTrack: {
-    height: 5,
-    borderRadius: 2.5,
-    marginTop: 8,
+    height: 5.5,
+    borderRadius: 3,
+    marginTop: 10,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 2.5,
+    borderRadius: 3,
   },
   waterWaveWrapper: {
     position: 'absolute',
