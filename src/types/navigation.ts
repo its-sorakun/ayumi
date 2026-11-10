@@ -9,7 +9,7 @@ export type RootStackParamList = {
   DistanceDetails: undefined;
   WaterDetails: undefined;
   History: undefined;
-  Settings: undefined;
+  Settings: { initialPage?: number } | undefined;
 };
 
 declare global {
