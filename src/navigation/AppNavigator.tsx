@@ -12,7 +12,6 @@ import { useTheme } from 'react-native-paper';
 
 import {
   MainPagerScreen,
-  SettingsScreen,
   StepsDetailsScreen,
   DistanceDetailsScreen,
   WaterDetailsScreen,
@@ -73,11 +72,11 @@ export function AppNavigator(): React.JSX.Element {
         />
         <Stack.Screen
           name="Settings"
-          component={SettingsScreen}
+          component={MainPagerScreen}
           options={{
-            title: 'Settings',
-            headerLargeTitle: false,
+            headerShown: false,
           }}
+          initialParams={{ initialPage: 2 }}
         />
       </Stack.Navigator>
     </NavigationContainer>
