@@ -1,18 +1,21 @@
 /**
- * BentoCard — a Material 3 Expressive squircle metric tile.
+ * BentoCard — a Material 3 Expressive widget tile.
  *
- * Implements aesthetic, tactile bento cells with:
- *  - 26dp squircle corner radius
- *  - Pastel-tinted organic icon bubble badge
- *  - Bold display metric numbers paired with clean subtitle hierarchy
- *  - Optional goal progress bar with smooth rounded pill styling
- *  - Decorative organic wave accent for full-width cards (e.g. Water)
+ * Implements aesthetic, tactile widget cells with:
+ *  - Dynamic Material You tonal container backgrounds and contrast tokens
+ *  - M3 Expressive shape modes (asymmetric corners, pill capsule, squircle)
+ *  - Support for the 8-petal scalloped cookie icon badge
+ *  - Optional in-widget micro-action pill buttons (such as quick-add water)
+ *  - Rounded progress pill indicator and fluid water wave decoration
  */
 
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
 import Svg, { Path } from 'react-native-svg';
+import { ScallopCookieBadge, PlusIcon } from './AestheticIcons';
+
+export type BentoShapeVariant = 'squircle' | 'asymmetric' | 'pill';
 
 interface BentoCardProps {
   readonly title: string;
@@ -26,6 +29,10 @@ interface BentoCardProps {
   readonly progressBarColor?: string;
   readonly fullWidth?: boolean;
   readonly showWaterWave?: boolean;
+  readonly shapeVariant?: BentoShapeVariant;
+  readonly useScallopBadge?: boolean;
+  readonly actionLabel?: string;
+  readonly onActionPress?: () => void;
   readonly onPress?: () => void;
   readonly style?: ViewStyle;
 }
@@ -35,17 +42,48 @@ export function BentoCard({
   value,
   subtitle,
   icon,
-  iconBgColor = '#F2E8FA',
-  cardBgColor = '#FFFFFF',
-  borderColor = '#F0E7F8',
+  iconBgColor,
+  cardBgColor,
+  borderColor,
   progress,
-  progressBarColor = '#A479CE',
+  progressBarColor,
   fullWidth = false,
   showWaterWave = false,
+  shapeVariant = 'squircle',
+  useScallopBadge = false,
+  actionLabel,
+  onActionPress,
   onPress,
   style,
 }: BentoCardProps): React.JSX.Element {
+  const theme = useTheme();
   const isInteractive = typeof onPress === 'function';
+
+  // Compute corner styles based on shapeVariant
+  const shapeStyle = React.useMemo(() => {
+    switch (shapeVariant) {
+      case 'asymmetric':
+        return {
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 14,
+          borderBottomRightRadius: 28,
+          borderBottomLeftRadius: 14,
+        };
+      case 'pill':
+        return {
+          borderRadius: 24,
+        };
+      case 'squircle':
+      default:
+        return {
+          borderRadius: 22,
+        };
+    }
+  }, [shapeVariant]);
+
+  const defaultBg = theme.colors.elevation.level1;
+  const defaultBorder = theme.colors.outlineVariant;
+  const activeProgressColor = progressBarColor || theme.colors.primary;
 
   return (
     <TouchableOpacity
@@ -54,9 +92,10 @@ export function BentoCard({
       disabled={!isInteractive}
       style={[
         styles.card,
+        shapeStyle,
         {
-          backgroundColor: cardBgColor,
-          borderColor,
+          backgroundColor: cardBgColor || defaultBg,
+          borderColor: borderColor || defaultBorder,
           flex: fullWidth ? 0 : 1,
           width: fullWidth ? '100%' : undefined,
         },
@@ -68,46 +107,86 @@ export function BentoCard({
       {/* Decorative organic corner wave for fluid full-width cards */}
       {showWaterWave && (
         <View style={styles.waterWaveWrapper} pointerEvents="none">
-          <Svg width={140} height={80} viewBox="0 0 140 80">
+          <Svg width={130} height={70} viewBox="0 0 140 80">
             <Path
               d="M0 60C30 50 70 80 110 50C130 35 140 10 140 0V80H0V60Z"
-              fill="#D9E6F9"
-              opacity={0.45}
+              fill={theme.colors.primaryContainer}
+              opacity={0.35}
             />
           </Svg>
         </View>
       )}
 
       <View style={styles.contentRow}>
-        {/* Left: Icon inside organic bubble */}
-        <View style={[styles.iconContainer, { backgroundColor: iconBgColor }]}>
-          {icon}
-        </View>
+        {/* Left: Icon container */}
+        {useScallopBadge ? (
+          <View style={styles.scallopWrapper}>
+            <ScallopCookieBadge
+              size={44}
+              bgColor={iconBgColor || theme.colors.tertiaryContainer}>
+              <View style={styles.scallopInnerIcon}>{icon}</View>
+            </ScallopCookieBadge>
+          </View>
+        ) : (
+          <View
+            style={[
+              styles.iconContainer,
+              { backgroundColor: iconBgColor || theme.colors.surfaceVariant },
+            ]}>
+            {icon}
+          </View>
+        )}
 
-        {/* Right: Metric details */}
+        {/* Center: Metric details */}
         <View style={styles.detailsContainer}>
-          <Text style={styles.titleText} numberOfLines={1}>
+          <Text
+            style={[styles.titleText, { color: theme.colors.onSurfaceVariant }]}
+            numberOfLines={1}>
             {title}
           </Text>
-          <Text style={styles.valueText} numberOfLines={1} adjustsFontSizeToFit>
+          <Text
+            style={[styles.valueText, { color: theme.colors.onSurface }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit>
             {value}
           </Text>
           {subtitle != null && (
-            <Text style={styles.subtitleText} numberOfLines={1}>
+            <Text
+              style={[styles.subtitleText, { color: theme.colors.onSurfaceVariant }]}
+              numberOfLines={1}>
               {subtitle}
             </Text>
           )}
         </View>
+
+        {/* Optional trailing in-widget action button */}
+        {actionLabel != null && onActionPress != null && (
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={onActionPress}
+            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}>
+            <PlusIcon size={14} color={theme.colors.onPrimary} />
+            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimary }]}>
+              {actionLabel}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Progress pill bar */}
       {progress != null && (
-        <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressTrack,
+            { backgroundColor: theme.colors.surfaceVariant },
+          ]}>
           <View
             style={[
               styles.progressFill,
               {
-                backgroundColor: progressBarColor,
+                backgroundColor: activeProgressColor,
                 width: `${Math.min(Math.max(progress * 100, 0), 100)}%`,
               },
             ]}
@@ -120,63 +199,83 @@ export function BentoCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 24,
-    borderWidth: 1.2,
-    padding: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     position: 'relative',
     overflow: 'hidden',
-    shadowColor: '#8E67AF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
     justifyContent: 'center',
   },
   contentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   iconContainer: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
+  },
+  scallopWrapper: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+    position: 'relative',
+  },
+  scallopInnerIcon: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   detailsContainer: {
     flex: 1,
     justifyContent: 'center',
   },
   titleText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#4B3B59',
-    marginBottom: 2,
+    marginBottom: 1,
   },
   valueText: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#271A33',
     letterSpacing: -0.5,
   },
   subtitleText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
-    color: '#847395',
-    marginTop: 2,
+    marginTop: 1,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+    flexShrink: 0,
+  },
+  actionButtonText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   progressTrack: {
-    height: 5.5,
-    borderRadius: 3,
-    backgroundColor: '#EDE4F3',
-    marginTop: 12,
+    height: 5,
+    borderRadius: 2.5,
+    marginTop: 8,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 2.5,
   },
   waterWaveWrapper: {
     position: 'absolute',
@@ -184,4 +283,3 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
 });
-
