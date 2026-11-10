@@ -54,7 +54,7 @@ const METRICS: readonly MetricItemConfig[] = [
 ];
 
 const GAP = 10;
-const CONTAINER_HEIGHT = 64;
+const CONTAINER_HEIGHT = 74;
 
 export function StatsMetricSelector({
   selectedMetric,
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     height: CONTAINER_HEIGHT,
-    borderRadius: 18,
+    borderRadius: 20,
     zIndex: 1,
     elevation: 2,
     shadowOffset: { width: 0, height: 2 },
@@ -280,16 +280,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
   iconWrapper: {
-    marginBottom: 2,
-    height: 24,
+    marginBottom: 4,
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
-    fontSize: 12.5,
+    fontSize: 13,
     letterSpacing: -0.2,
   },
 });
