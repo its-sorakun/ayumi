@@ -240,7 +240,7 @@ export function DashboardScreen(): React.JSX.Element {
         <HeroStepGauge
           steps={formattedValues?.steps ?? 0}
           goal={stepGoal}
-          onPress={() => navigation.navigate('StepsDetails')}
+          onPress={() => navigation.navigate('Stats', { metric: 'steps' })}
         />
 
         {/* Bento Grid Metrics */}
@@ -271,7 +271,7 @@ export function DashboardScreen(): React.JSX.Element {
                 subtitleColor={theme.colors.onSurfaceVariant}
                 progress={formattedValues.distanceProgress}
                 progressBarColor={theme.colors.primary}
-                onPress={() => navigation.navigate('DistanceDetails')}
+                onPress={() => navigation.navigate('Stats', { metric: 'distance' })}
               />
             </View>
 
@@ -320,7 +320,7 @@ export function DashboardScreen(): React.JSX.Element {
                 progressBarColor={theme.colors.primary}
                 actionLabel="+ 250 ml"
                 onActionPress={() => addWater(250)}
-                onPress={() => navigation.navigate('WaterDetails')}
+                onPress={() => navigation.navigate('Stats', { metric: 'water' })}
               />
             </View>
           </View>
@@ -329,8 +329,9 @@ export function DashboardScreen(): React.JSX.Element {
 
       {/* Floating Bottom Navigation Dock */}
       <FloatingDock
+        activeTab="home"
         onHomePress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
-        onAnalyticsPress={() => navigation.navigate('StepsDetails')}
+        onAnalyticsPress={() => navigation.navigate('Stats', { metric: 'steps' })}
         onProfilePress={() => navigation.navigate('Settings')}
       />
     </View>
