@@ -99,24 +99,24 @@ export function FloatingDock({
   let indicatorScaleX: any = 1;
   let indicatorScaleY: any = 1;
 
-  if (pagerProgress && activeTab !== 'settings' && containerWidth > 0) {
-    // Real-time finger-drag tracking between Home (0) and Stats (1)
+  if (pagerProgress && containerWidth > 0) {
+    // Real-time finger-drag tracking across Home (0), Stats (1), and Settings (2)
     indicatorTranslateX = pagerProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [slot0X, slot1X],
+      inputRange: [0, 1, 2],
+      outputRange: [slot0X, slot1X, slot2X],
       extrapolate: 'clamp',
     });
 
-    // Squash & Stretch: pill elongates horizontally during travel and thins vertically
+    // Squash & Stretch: pill elongates horizontally during travel and thins vertically across both transitions
     indicatorScaleX = pagerProgress.interpolate({
-      inputRange: [0, 0.25, 0.5, 0.75, 1],
-      outputRange: [1.0, 1.20, 1.34, 1.20, 1.0],
+      inputRange: [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+      outputRange: [1.0, 1.20, 1.34, 1.20, 1.0, 1.20, 1.34, 1.20, 1.0],
       extrapolate: 'clamp',
     });
 
     indicatorScaleY = pagerProgress.interpolate({
-      inputRange: [0, 0.25, 0.5, 0.75, 1],
-      outputRange: [1.0, 0.88, 0.76, 0.88, 1.0],
+      inputRange: [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+      outputRange: [1.0, 0.88, 0.76, 0.88, 1.0, 0.88, 0.76, 0.88, 1.0],
       extrapolate: 'clamp',
     });
   } else if (containerWidth > 0) {
