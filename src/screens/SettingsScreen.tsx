@@ -1,10 +1,28 @@
+/**
+ * SettingsScreen — user preferences, goals, and hardware configuration.
+ *
+ * Implements the third destination of Ayumi's horizontal pager:
+ *  - Theme appearance mode (System Auto, Light, Dark)
+ *  - Data source provider selection (Health Connect or hardware sensor)
+ *  - Physical metrics for BMR formula calculations
+ *  - Daily goals configuration (Steps, Distance, Water)
+ *  - Consistent Material 3 typography header and safe-area insets adaptation
+ *  - Keyboard-aware scrolling with dock clearance
+ */
+
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, useTheme, RadioButton, List, Divider, TextInput } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '../contexts/SettingsContext';
 
-export function SettingsScreen(): React.JSX.Element {
+export interface SettingsScreenProps {
+  readonly hideDock?: boolean;
+}
+
+export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { 
     theme: currentTheme, provider: currentProvider, stepGoal, distanceGoal, 
     gender, weight, height, age, customWaterGoal,
@@ -24,7 +42,7 @@ export function SettingsScreen(): React.JSX.Element {
     if (!isNaN(val) && val > 0) {
       setStepGoal(val);
     } else {
-      setStepInput(stepGoal.toString()); // Revert to valid number
+      setStepInput(stepGoal.toString());
     }
   };
 
@@ -33,7 +51,7 @@ export function SettingsScreen(): React.JSX.Element {
     if (!isNaN(val) && val > 0) {
       setDistanceGoal(val);
     } else {
-      setDistanceInput(distanceGoal.toString()); // Revert to valid number
+      setDistanceInput(distanceGoal.toString());
     }
   };
 
@@ -43,7 +61,7 @@ export function SettingsScreen(): React.JSX.Element {
       setCustomWaterGoal(val);
     } else {
       setWaterInput('');
-      setCustomWaterGoal(null); // Revert to auto-calculated if cleared or invalid
+      setCustomWaterGoal(null);
     }
   };
 
@@ -66,13 +84,26 @@ export function SettingsScreen(): React.JSX.Element {
   };
 
   return (
-      <ScrollView 
-        style={[styles.container, { backgroundColor: theme.colors.background }]} 
-        contentContainerStyle={{ paddingBottom: 300 }}
-        automaticallyAdjustKeyboardInsets
-      >
-        
-        <List.Section>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: theme.colors.background }]} 
+      contentContainerStyle={{
+        paddingTop: insets.top + 6,
+        paddingBottom: insets.bottom + (hideDock ? 96 : 140),
+      }}
+      automaticallyAdjustKeyboardInsets
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Top Header: Settings Title & Subtitle matching Stats style */}
+      <View style={styles.headerRow}>
+        <Text style={[styles.screenTitleText, { color: theme.colors.onSurface }]}>
+          Settings
+        </Text>
+        <Text style={[styles.screenSubtitleText, { color: theme.colors.onSurfaceVariant }]}>
+          Preferences, goals and hardware configuration
+        </Text>
+      </View>
+
+      <List.Section>
         <List.Subheader>Appearance</List.Subheader>
         <RadioButton.Group onValueChange={value => setTheme(value as any)} value={currentTheme}>
           <List.Item
@@ -252,8 +283,7 @@ export function SettingsScreen(): React.JSX.Element {
             />
           )}
         />
-        </List.Section>
-
+      </List.Section>
     </ScrollView>
   );
 }
@@ -261,6 +291,20 @@ export function SettingsScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerRow: {
+    paddingHorizontal: 20,
+    marginBottom: 6,
+  },
+  screenTitleText: {
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -0.7,
+  },
+  screenSubtitleText: {
+    fontSize: 13.5,
+    fontWeight: '500',
+    marginTop: 2,
   },
   divider: {
     marginVertical: 8,
