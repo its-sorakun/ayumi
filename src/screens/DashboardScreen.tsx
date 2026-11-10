@@ -1,12 +1,15 @@
 /**
  * DashboardScreen — the Material 3 Expressive homepage of Ayumi.
  *
- * Implements a single-page, Pinterest-level aesthetic widget dashboard:
- *  - Dynamic Material You Monet system theming with zero hardcoded colors
+ * Implements a single-page, aesthetic widget dashboard driven entirely by
+ * dynamic Material You Monet tokens extracted from the user's wallpaper:
+ *  - Zero hardcoded colors: all containers, text, and icons use dynamic theme tokens
+ *  - Dynamic Monet roles: primaryContainer, secondaryContainer, tertiaryContainer, surfaceVariant
  *  - High-priority contextual greeting and live sensor status in top header
  *  - HeroStepGauge centerpiece with circular progress arc and goal pill badge
- *  - Scalloped 8-petal cookie widget for Active Calories
- *  - Asymmetric and pill-shaped BentoCards for Distance, Energy, and Time
+ *  - Scalloped 8-petal cookie widget for Active Calories in tertiaryContainer
+ *  - Asymmetric BentoCard for Distance in secondaryContainer
+ *  - Total Energy and Active Time widgets in surfaceVariant
  *  - Interactive Water Widget with fluid wave accent and instant in-widget +250ml logging
  *  - Floating pill navigation dock
  */
@@ -181,7 +184,7 @@ export function DashboardScreen(): React.JSX.Element {
     <View style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}>
       {/* Decorative top-right organic fluid wave */}
       <View style={styles.topWaveWrapper} pointerEvents="none">
-        <Svg width={SCREEN_WIDTH} height={160} viewBox="0 0 380 160">
+        <Svg width={SCREEN_WIDTH} height={170} viewBox="0 0 380 170">
           <Path
             d="M140 0C210 20 280 85 380 70V0H140Z"
             fill={theme.colors.primaryContainer}
@@ -201,8 +204,8 @@ export function DashboardScreen(): React.JSX.Element {
         contentContainerStyle={[
           styles.contentContainer,
           {
-            paddingTop: Math.max(insets.top, 12),
-            paddingBottom: insets.bottom + 76,
+            paddingTop: Math.max(insets.top, 14),
+            paddingBottom: insets.bottom + 84,
           },
         ]}
         bounces={false}
@@ -253,13 +256,13 @@ export function DashboardScreen(): React.JSX.Element {
             style={[
               styles.settingsBubbleButton,
               {
-                backgroundColor: theme.colors.surfaceVariant,
+                backgroundColor: theme.colors.surface,
                 borderColor: theme.colors.outlineVariant,
               },
             ]}
             accessibilityRole="button"
             accessibilityLabel="Open settings">
-            <SettingsGearIcon size={19} color={theme.colors.onSurfaceVariant} />
+            <SettingsGearIcon size={20} color={theme.colors.onSurfaceVariant} />
           </TouchableOpacity>
         </View>
 
@@ -273,25 +276,31 @@ export function DashboardScreen(): React.JSX.Element {
         {/* Bento Grid Metrics */}
         {formattedValues != null && (
           <View style={styles.bentoGrid}>
-            {/* Row 1: Active Calories (Scalloped Cookie) & Distance (Asymmetric Pill) */}
+            {/* Row 1: Active Calories (Scalloped Cookie in tertiaryContainer) & Distance (Asymmetric in secondaryContainer) */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title="Active Calories"
                 value={formattedValues.calories}
-                icon={<FlameIcon size={20} color={theme.colors.onTertiaryContainer} />}
+                icon={<FlameIcon size={22} color={theme.colors.tertiary} />}
                 useScallopBadge={true}
-                iconBgColor={theme.colors.tertiaryContainer}
-                cardBgColor={theme.colors.elevation.level1}
+                iconBgColor={theme.colors.surface}
+                cardBgColor={theme.colors.tertiaryContainer}
                 borderColor={theme.colors.outlineVariant}
+                titleColor={theme.colors.onTertiaryContainer}
+                valueColor={theme.colors.onTertiaryContainer}
+                shapeVariant="squircle"
               />
               <BentoCard
                 title="Distance"
                 value={formattedValues.distance}
                 subtitle={`Goal: ${formatDistance(distanceGoal)}`}
-                icon={<RouteMapIcon size={20} color={theme.colors.onSecondaryContainer} />}
-                iconBgColor={theme.colors.secondaryContainer}
-                cardBgColor={theme.colors.elevation.level1}
+                icon={<RouteMapIcon size={22} color={theme.colors.secondary} />}
+                iconBgColor={theme.colors.surface}
+                cardBgColor={theme.colors.secondaryContainer}
                 borderColor={theme.colors.outlineVariant}
+                titleColor={theme.colors.onSecondaryContainer}
+                valueColor={theme.colors.onSecondaryContainer}
+                subtitleColor={theme.colors.onSecondaryContainer}
                 shapeVariant="asymmetric"
                 progress={formattedValues.distanceProgress}
                 progressBarColor={theme.colors.secondary}
@@ -299,40 +308,48 @@ export function DashboardScreen(): React.JSX.Element {
               />
             </View>
 
-            {/* Row 2: Total Calories & Active Time */}
+            {/* Row 2: Total Calories & Active Time (surfaceVariant) */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title="Total Calories"
                 value={formattedValues.totalCalories}
                 subtitle={formattedValues.totalCalories === 'Setup' ? 'Tap to configure' : undefined}
-                icon={<BoltIcon size={20} color={theme.colors.primary} />}
-                iconBgColor={theme.colors.surfaceVariant}
-                cardBgColor={theme.colors.elevation.level1}
+                icon={<BoltIcon size={22} color={theme.colors.primary} />}
+                iconBgColor={theme.colors.surface}
+                cardBgColor={theme.colors.surfaceVariant}
                 borderColor={theme.colors.outlineVariant}
+                titleColor={theme.colors.onSurfaceVariant}
+                valueColor={theme.colors.onSurface}
+                subtitleColor={theme.colors.onSurfaceVariant}
                 shapeVariant="squircle"
                 onPress={formattedValues.totalCalories === 'Setup' ? () => navigation.navigate('Settings') : undefined}
               />
               <BentoCard
                 title="Active Time"
                 value={formattedValues.activeTime}
-                icon={<StopwatchIcon size={20} color={theme.colors.secondary} />}
-                iconBgColor={theme.colors.surfaceVariant}
-                cardBgColor={theme.colors.elevation.level1}
+                icon={<StopwatchIcon size={22} color={theme.colors.secondary} />}
+                iconBgColor={theme.colors.surface}
+                cardBgColor={theme.colors.surfaceVariant}
                 borderColor={theme.colors.outlineVariant}
+                titleColor={theme.colors.onSurfaceVariant}
+                valueColor={theme.colors.onSurface}
                 shapeVariant="pill"
               />
             </View>
 
-            {/* Row 3 (Full Width): Interactive Water Hydration Widget */}
+            {/* Row 3 (Full Width): Interactive Water Hydration Widget in primaryContainer */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title="Water"
                 value={`${totalWater} ml`}
                 subtitle={`Goal: ${formattedValues.waterGoalText}`}
-                icon={<DropletIcon size={20} color={theme.colors.primary} />}
-                iconBgColor={theme.colors.primaryContainer}
-                cardBgColor={theme.colors.elevation.level1}
+                icon={<DropletIcon size={22} color={theme.colors.primary} />}
+                iconBgColor={theme.colors.surface}
+                cardBgColor={theme.colors.primaryContainer}
                 borderColor={theme.colors.outlineVariant}
+                titleColor={theme.colors.onPrimaryContainer}
+                valueColor={theme.colors.onPrimaryContainer}
+                subtitleColor={theme.colors.onPrimaryContainer}
                 shapeVariant="pill"
                 progress={formattedValues.waterProgress}
                 progressBarColor={theme.colors.primary}
@@ -378,13 +395,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   greetingContainer: {
     flex: 1,
   },
   greetingTitleText: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     letterSpacing: -0.6,
   },
@@ -395,15 +412,15 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   dateBadgeText: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '500',
   },
   providerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
     borderRadius: 10,
   },
   liveDot: {
@@ -412,24 +429,24 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   providerBadgeText: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '700',
   },
   settingsBubbleButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
   },
   bentoGrid: {
     paddingHorizontal: 16,
-    gap: 8,
-    marginTop: 2,
+    gap: 12,
+    marginTop: 4,
   },
   bentoRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
   },
 });
