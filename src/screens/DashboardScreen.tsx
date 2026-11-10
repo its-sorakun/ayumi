@@ -55,11 +55,27 @@ function getGreeting(): string {
   return 'Good night';
 }
 
-export function DashboardScreen(): React.JSX.Element {
+interface DashboardScreenProps {
+  readonly hideDock?: boolean;
+  readonly onNavigateToStats?: (metric: 'steps' | 'distance' | 'water') => void;
+}
+
+export function DashboardScreen({
+  hideDock = false,
+  onNavigateToStats,
+}: DashboardScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+  const navigateToStatsMetric = (metric: 'steps' | 'distance' | 'water') => {
+    if (onNavigateToStats) {
+      onNavigateToStats(metric);
+    } else {
+      navigation.navigate('Stats', { metric });
+    }
+  };
 
   const { stepGoal, distanceGoal, gender, weight, height, age, customWaterGoal } = useSettings();
   
@@ -240,7 +256,7 @@ export function DashboardScreen(): React.JSX.Element {
         <HeroStepGauge
           steps={formattedValues?.steps ?? 0}
           goal={stepGoal}
-          onPress={() => navigation.navigate('Stats', { metric: 'steps' })}
+          onPress={() => navigateToStatsMetric('steps')}
         />
 
         {/* Bento Grid Metrics */}
@@ -271,7 +287,7 @@ export function DashboardScreen(): React.JSX.Element {
                 subtitleColor={theme.colors.onSurfaceVariant}
                 progress={formattedValues.distanceProgress}
                 progressBarColor={theme.colors.primary}
-                onPress={() => navigation.navigate('Stats', { metric: 'distance' })}
+                onPress={() => navigateToStatsMetric('distance')}
               />
             </View>
 
@@ -320,7 +336,7 @@ export function DashboardScreen(): React.JSX.Element {
                 progressBarColor={theme.colors.primary}
                 actionLabel="+ 250 ml"
                 onActionPress={() => addWater(250)}
-                onPress={() => navigation.navigate('Stats', { metric: 'water' })}
+                onPress={() => navigateToStatsMetric('water')}
               />
             </View>
           </View>
@@ -328,12 +344,14 @@ export function DashboardScreen(): React.JSX.Element {
       </ScrollView>
 
       {/* Floating Bottom Navigation Dock */}
-      <FloatingDock
-        activeTab="home"
-        onHomePress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
-        onAnalyticsPress={() => navigation.navigate('Stats', { metric: 'steps' })}
-        onProfilePress={() => navigation.navigate('Settings')}
-      />
+      {!hideDock && (
+        <FloatingDock
+          activeTab="home"
+          onHomePress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
+          onAnalyticsPress={() => navigateToStatsMetric('steps')}
+          onProfilePress={() => navigation.navigate('Settings')}
+        />
+      )}
     </View>
   );
 }
