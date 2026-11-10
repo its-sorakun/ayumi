@@ -8,6 +8,7 @@ import { useWaterTracker } from '../hooks';
 import type { HistoricalWaterData } from '../types/health';
 import type { WaterLog } from '../hooks/useWaterTracker';
 import { WaterLoggingModal } from '../components';
+import { formatLocalDateKey } from '../utils/index';
 
 export function WaterDetailsScreen() {
   const theme = useTheme();
@@ -263,7 +264,7 @@ export function WaterDetailsScreen() {
                         {log.time}
                       </Text>
                       {/* Only allow deleting if it's today's log, as deleteWater only works on today's logs for now */}
-                      {!selectedDate || selectedDate === new Date().toISOString().split('T')[0] ? (
+                      {!selectedDate || selectedDate === formatLocalDateKey() ? (
                         <IconButton
                           icon={() => <Text style={{ fontSize: 16 }}>🗑️</Text>}
                           size={20}
