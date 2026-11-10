@@ -3,8 +3,8 @@
  */
 
 export type RootStackParamList = {
-  Dashboard: undefined;
-  Stats: { metric?: 'steps' | 'distance' | 'water' } | undefined;
+  Dashboard: { initialPage?: number; metric?: 'steps' | 'distance' | 'water' } | undefined;
+  Stats: { initialPage?: number; metric?: 'steps' | 'distance' | 'water' } | undefined;
   StepsDetails: undefined;
   DistanceDetails: undefined;
   WaterDetails: undefined;
