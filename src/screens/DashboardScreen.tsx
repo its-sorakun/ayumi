@@ -384,12 +384,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   bentoGrid: {
-    paddingHorizontal: 20,
-    gap: 14,
+    paddingHorizontal: 16,
+    gap: 12,
     marginTop: 4,
   },
   bentoRow: {
     flexDirection: 'row',
-    gap: 14,
+    gap: 12,
   },
 });
