@@ -18,6 +18,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
+  Easing,
   LayoutChangeEvent,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
@@ -72,8 +73,8 @@ export function StatsChart({
     growthAnim.setValue(0);
     Animated.timing(growthAnim, {
       toValue: 1,
-      duration: MotionTokens.duration.chartWave,
-      easing: MotionTokens.easing.emphasizedDecel,
+      duration: 1000,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
     setSelectedIndex(null);
@@ -297,8 +298,8 @@ export function StatsChart({
                 const isSelected = selectedIndex === index;
 
                 // Sequential Wave Timing: staggered progress across dataset
-                const startFrac = (index / dataCount) * 0.55;
-                const endFrac = Math.min(startFrac + 0.45, 1.0);
+                const startFrac = (index / dataCount) * 0.65;
+                const endFrac = Math.min(startFrac + 0.35, 1.0);
                 const barWave = growthAnim.interpolate({
                   inputRange: [startFrac, endFrac],
                   outputRange: [0, 1],
