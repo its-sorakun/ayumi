@@ -1,17 +1,14 @@
 /**
  * DashboardScreen — the Material 3 Expressive homepage of Ayumi.
  *
- * Implements a single-page, aesthetic widget dashboard driven entirely by
- * dynamic Material You Monet tokens extracted from the user's wallpaper:
- *  - Zero hardcoded colors: all containers, text, and icons use dynamic theme tokens
- *  - Expanded multi-layered fluid wave ambient background in the top-right
- *  - Clean minimalist header featuring greeting and live sensor status
- *  - Borderless, floating HeroStepGauge centerpiece with gradient progress arc
- *  - Scalloped 8-petal cookie widget for Active Calories in tertiaryContainer
- *  - Asymmetric BentoCard for Distance in secondaryContainer
- *  - Crisp luminous surface cards for Total Energy and Active Time
- *  - Interactive Water Widget with fluid wave accent and instant in-widget +250ml logging
- *  - Perfectly aligned floating pill navigation dock with settings integration
+ * Implements the refined, minimalist homepage faithfully matching the reference design:
+ *  - 100% dynamic Material You Monet tokens extracted from user wallpaper
+ *  - Minimal, calm background with clean edge-to-edge typography
+ *  - High-priority contextual greeting and dynamic Health Connect status chip
+ *  - Perfectly circular StepProgressIndicator with rounded endpoints and centered shoe icon
+ *  - Two-row metric card grid with uniform 24dp corner radii and borderless tonal surfaces
+ *  - Full-width water tracking card with +250ml quick-add action and progress indicator
+ *  - Symmetrical floating bottom navigation capsule
  */
 
 import React, { useCallback, useMemo, useRef } from 'react';
@@ -20,13 +17,11 @@ import {
   ScrollView,
   StyleSheet,
   View,
-  Dimensions,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 
 import type { RootStackParamList } from '../types';
 import {
@@ -50,8 +45,6 @@ import {
   calculateTotalCalories,
   calculateWaterGoal,
 } from '../utils';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 /** Computes dynamic greeting based on local hour */
 function getGreeting(): string {
@@ -124,6 +117,19 @@ export function DashboardScreen(): React.JSX.Element {
     };
   }, [todaySummary, providerName, distanceGoal, gender, weight, height, age, customWaterGoal, totalWater]);
 
+  // Helper to split numerical value and unit
+  const splitValue = (rawStr: string | undefined): [string, string] => {
+    if (!rawStr) return ['0', ''];
+    const parts = rawStr.trim().split(' ');
+    if (parts.length === 1) return [parts[0], ''];
+    return [parts[0], parts.slice(1).join(' ')];
+  };
+
+  const [calValue, calUnit] = splitValue(formattedValues?.calories);
+  const [distValue, distUnit] = splitValue(formattedValues?.distance);
+  const [totalCalValue, totalCalUnit] = splitValue(formattedValues?.totalCalories);
+  const [activeTimeValue, activeTimeUnit] = splitValue(formattedValues?.activeTime);
+
   // Handle provider unavailable
   if (providerStatus === 'not_installed' || providerStatus === 'not_supported') {
     return (
@@ -180,35 +186,14 @@ export function DashboardScreen(): React.JSX.Element {
 
   return (
     <View style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}>
-      {/* Expanded multi-layered fluid wave ambient background */}
-      <View style={styles.topWaveWrapper} pointerEvents="none">
-        <Svg width={SCREEN_WIDTH} height={260} viewBox="0 0 380 260">
-          <Path
-            d="M70 0C140 30 200 170 380 130V0H70Z"
-            fill={theme.colors.primaryContainer}
-            opacity={0.42}
-          />
-          <Path
-            d="M160 0C220 50 260 210 380 180V0H160Z"
-            fill={theme.colors.secondaryContainer}
-            opacity={0.3}
-          />
-          <Path
-            d="M230 0C280 70 320 250 380 230V0H230Z"
-            fill={theme.colors.tertiaryContainer}
-            opacity={0.18}
-          />
-        </Svg>
-      </View>
-
       <ScrollView
         ref={scrollViewRef}
         style={styles.container}
         contentContainerStyle={[
           styles.contentContainer,
           {
-            paddingTop: Math.max(insets.top, 14),
-            paddingBottom: insets.bottom + 84,
+            paddingTop: Math.max(insets.top, 16),
+            paddingBottom: insets.bottom + 88,
           },
         ]}
         bounces={false}
@@ -223,37 +208,35 @@ export function DashboardScreen(): React.JSX.Element {
         }
         accessibilityLabel="Ayumi Dashboard">
 
-        {/* Minimalist Top Header: Greeting & Live Status */}
+        {/* Minimalist Top Header: Greeting & Status Chip */}
         <View style={styles.topBarRow}>
-          <View style={styles.greetingContainer}>
-            <Text style={[styles.greetingTitleText, { color: theme.colors.onSurface }]}>
-              {getGreeting()}
+          <Text style={[styles.greetingTitleText, { color: theme.colors.onSurface }]}>
+            {getGreeting()}
+          </Text>
+          <View style={styles.dateBadgeRow}>
+            <Text style={[styles.dateBadgeText, { color: theme.colors.onSurfaceVariant }]}>
+              {formattedValues?.date ?? formatDate(new Date())}
             </Text>
-            <View style={styles.dateBadgeRow}>
-              <Text style={[styles.dateBadgeText, { color: theme.colors.onSurfaceVariant }]}>
-                {formattedValues?.date ?? formatDate(new Date())}
-              </Text>
-              {providerName != null && (
-                <View
+            {providerName != null && (
+              <View
+                style={[
+                  styles.providerBadge,
+                  { backgroundColor: theme.colors.primaryContainer },
+                ]}>
+                <View style={[styles.liveDot, { backgroundColor: theme.colors.primary }]} />
+                <Text
                   style={[
-                    styles.providerBadge,
-                    { backgroundColor: theme.colors.primaryContainer },
+                    styles.providerBadgeText,
+                    { color: theme.colors.onPrimaryContainer },
                   ]}>
-                  <View style={[styles.liveDot, { backgroundColor: theme.colors.primary }]} />
-                  <Text
-                    style={[
-                      styles.providerBadgeText,
-                      { color: theme.colors.onPrimaryContainer },
-                    ]}>
-                    {providerName}
-                  </Text>
-                </View>
-              )}
-            </View>
+                  {providerName}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
-        {/* Centerpiece: Borderless Floating Hero Step Circular Gauge */}
+        {/* Central Step Progress Indicator */}
         <HeroStepGauge
           steps={formattedValues?.steps ?? 0}
           goal={stepGoal}
@@ -263,86 +246,79 @@ export function DashboardScreen(): React.JSX.Element {
         {/* Bento Grid Metrics */}
         {formattedValues != null && (
           <View style={styles.bentoGrid}>
-            {/* Row 1: Active Calories (Scalloped Cookie in tertiaryContainer) & Distance (Asymmetric in secondaryContainer) */}
+            {/* Row 1: Active Calories (tertiaryContainer) & Distance (secondaryContainer) */}
             <View style={styles.bentoRow}>
               <BentoCard
-                title="Active Calories"
-                value={formattedValues.calories}
+                title={'Active\nCalories'}
+                value={calValue}
+                unit={calUnit}
                 icon={<FlameIcon size={22} color={theme.colors.tertiary} />}
-                useScallopBadge={true}
                 iconBgColor={theme.colors.surface}
                 cardBgColor={theme.colors.tertiaryContainer}
-                borderColor={theme.colors.outlineVariant}
                 titleColor={theme.colors.onTertiaryContainer}
                 valueColor={theme.colors.onTertiaryContainer}
-                shapeVariant="squircle"
               />
               <BentoCard
                 title="Distance"
-                value={formattedValues.distance}
+                value={distValue}
+                unit={distUnit}
                 subtitle={`Goal: ${formatDistance(distanceGoal)}`}
                 icon={<RouteMapIcon size={22} color={theme.colors.secondary} />}
                 iconBgColor={theme.colors.surface}
                 cardBgColor={theme.colors.secondaryContainer}
-                borderColor={theme.colors.outlineVariant}
                 titleColor={theme.colors.onSecondaryContainer}
                 valueColor={theme.colors.onSecondaryContainer}
                 subtitleColor={theme.colors.onSecondaryContainer}
-                shapeVariant="asymmetric"
                 progress={formattedValues.distanceProgress}
                 progressBarColor={theme.colors.secondary}
                 onPress={() => navigation.navigate('DistanceDetails')}
               />
             </View>
 
-            {/* Row 2: Total Calories & Active Time (Luminous Surface Cards with Dynamic Accent Bubbles) */}
+            {/* Row 2: Total Calories & Active Time (surface tonal containers) */}
             <View style={styles.bentoRow}>
               <BentoCard
-                title="Total Calories"
-                value={formattedValues.totalCalories}
+                title={'Total\nCalories'}
+                value={totalCalValue}
+                unit={totalCalUnit}
                 subtitle={formattedValues.totalCalories === 'Setup' ? 'Tap to configure' : undefined}
                 icon={<BoltIcon size={22} color={theme.colors.primary} />}
                 iconBgColor={theme.colors.primaryContainer}
                 cardBgColor={theme.colors.surface}
-                borderColor={theme.colors.outlineVariant}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
                 subtitleColor={theme.colors.onSurfaceVariant}
-                shapeVariant="squircle"
                 onPress={formattedValues.totalCalories === 'Setup' ? () => navigation.navigate('Settings') : undefined}
               />
               <BentoCard
                 title="Active Time"
-                value={formattedValues.activeTime}
+                value={activeTimeValue}
+                unit={activeTimeUnit}
                 icon={<StopwatchIcon size={22} color={theme.colors.secondary} />}
                 iconBgColor={theme.colors.secondaryContainer}
                 cardBgColor={theme.colors.surface}
-                borderColor={theme.colors.outlineVariant}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
-                shapeVariant="pill"
               />
             </View>
 
-            {/* Row 3 (Full Width): Interactive Water Hydration Widget in primaryContainer */}
+            {/* Row 3 (Full Width): Water Hydration Card in primaryContainer */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title="Water"
-                value={`${totalWater} ml`}
+                value={`${totalWater}`}
+                unit="ml"
                 subtitle={`Goal: ${formattedValues.waterGoalText}`}
                 icon={<DropletIcon size={22} color={theme.colors.primary} />}
                 iconBgColor={theme.colors.surface}
                 cardBgColor={theme.colors.primaryContainer}
-                borderColor={theme.colors.outlineVariant}
                 titleColor={theme.colors.onPrimaryContainer}
                 valueColor={theme.colors.onPrimaryContainer}
                 subtitleColor={theme.colors.onPrimaryContainer}
-                shapeVariant="pill"
+                fullWidth={true}
                 progress={formattedValues.waterProgress}
                 progressBarColor={theme.colors.primary}
-                fullWidth={true}
-                showWaterWave={true}
-                actionLabel="+250 ml"
+                actionLabel="+ 250 ml"
                 onActionPress={() => addWater(250)}
                 onPress={() => navigation.navigate('WaterDetails')}
               />
@@ -365,12 +341,6 @@ const styles = StyleSheet.create({
   screenWrapper: {
     flex: 1,
   },
-  topWaveWrapper: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    left: 0,
-  },
   container: {
     flex: 1,
   },
@@ -379,15 +349,12 @@ const styles = StyleSheet.create({
   },
   topBarRow: {
     paddingHorizontal: 20,
-    marginBottom: 6,
-  },
-  greetingContainer: {
-    flex: 1,
+    marginBottom: 4,
   },
   greetingTitleText: {
-    fontSize: 29,
+    fontSize: 32,
     fontWeight: '800',
-    letterSpacing: -0.6,
+    letterSpacing: -0.7,
   },
   dateBadgeRow: {
     flexDirection: 'row',
@@ -396,16 +363,16 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   dateBadgeText: {
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: '500',
   },
   providerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    borderRadius: 10,
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
   liveDot: {
     width: 6,
@@ -413,16 +380,16 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   providerBadgeText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
   },
   bentoGrid: {
-    paddingHorizontal: 16,
-    gap: 12,
+    paddingHorizontal: 20,
+    gap: 14,
     marginTop: 4,
   },
   bentoRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 14,
   },
 });
