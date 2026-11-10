@@ -12,6 +12,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { ChevronLeftIcon, ChevronRightIcon } from './AestheticIcons';
+import { MotionTokens } from '../theme/motion';
 
 interface StatsPeriodNavigatorProps {
   readonly dateRangeText: string;
@@ -36,14 +37,15 @@ export function StatsPeriodNavigator({
     animValue.setValue(transitionDirection === 'next' ? 1 : -1);
     Animated.timing(animValue, {
       toValue: 0,
-      duration: 220,
+      duration: MotionTokens.duration.short,
+      easing: MotionTokens.easing.standard,
       useNativeDriver: true,
     }).start();
   }, [dateRangeText, transitionDirection, animValue]);
 
   const translateX = animValue.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: [-18, 0, 18],
+    outputRange: [-16, 0, 16],
   });
 
   const opacity = animValue.interpolate({
@@ -59,7 +61,7 @@ export function StatsPeriodNavigator({
         style={styles.navButton}
         accessibilityRole="button"
         accessibilityLabel="Previous period">
-        <ChevronLeftIcon size={22} color={theme.colors.onSurface} />
+        <ChevronLeftIcon size={20} color={theme.colors.onSurface} />
       </TouchableOpacity>
 
       <View style={styles.labelContainer}>
@@ -76,11 +78,11 @@ export function StatsPeriodNavigator({
         activeOpacity={canGoNext ? 0.65 : 1}
         onPress={canGoNext ? onNext : undefined}
         disabled={!canGoNext}
-        style={[styles.navButton, { opacity: canGoNext ? 1 : 0.3 }]}
+        style={[styles.navButton, { opacity: canGoNext ? 1 : 0.25 }]}
         accessibilityRole="button"
         accessibilityLabel="Next period"
         accessibilityState={{ disabled: !canGoNext }}>
-        <ChevronRightIcon size={22} color={theme.colors.onSurface} />
+        <ChevronRightIcon size={20} color={theme.colors.onSurface} />
       </TouchableOpacity>
     </View>
   );
@@ -92,15 +94,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginHorizontal: 20,
-    marginTop: 14,
-    height: 40,
+    marginTop: 4,
+    height: 32,
   },
   navButton: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
+    borderRadius: 16,
   },
   labelContainer: {
     flex: 1,
@@ -109,7 +111,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   dateText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     letterSpacing: -0.2,
   },
