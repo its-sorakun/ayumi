@@ -108,6 +108,10 @@ export function createLightTheme(
       ...MD3LightTheme.colors,
       ...BASELINE_LIGHT_COLORS,
       ...dynamicColors,
+      elevation: {
+        ...BASELINE_LIGHT_COLORS.elevation,
+        ...dynamicColors?.elevation,
+      },
     },
   };
 }
@@ -122,6 +126,10 @@ export function createDarkTheme(
       ...MD3DarkTheme.colors,
       ...BASELINE_DARK_COLORS,
       ...dynamicColors,
+      elevation: {
+        ...BASELINE_DARK_COLORS.elevation,
+        ...dynamicColors?.elevation,
+      },
     },
   };
 }
