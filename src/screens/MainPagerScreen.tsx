@@ -144,6 +144,13 @@ export function MainPagerScreen(): React.JSX.Element {
     })
   ).current;
 
+  // Interpolate continuous 0 -> 1 progress between Page 0 (Home) and Page 1 (Stats)
+  const pagerProgress = translateX.interpolate({
+    inputRange: [-SCREEN_WIDTH, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
   return (
     <View style={[styles.rootContainer, { backgroundColor: theme.colors.background }]}>
       {/* Horizontally paged viewports */}
@@ -174,9 +181,10 @@ export function MainPagerScreen(): React.JSX.Element {
         </View>
       </Animated.View>
 
-      {/* Shared Interactive Floating Bottom Navigation Dock */}
+      {/* Shared Interactive Floating Bottom Navigation Dock with Squeeze Pill Animation */}
       <FloatingDock
         activeTab={activePageIndex === 0 ? 'home' : 'stats'}
+        pagerProgress={pagerProgress}
         onHomePress={() => goToPage(0)}
         onAnalyticsPress={() => goToPage(1)}
         onProfilePress={() => navigation.navigate('Settings')}
@@ -199,3 +207,4 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 });
+
