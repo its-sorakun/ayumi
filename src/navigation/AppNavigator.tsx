@@ -11,8 +11,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTheme } from 'react-native-paper';
 
 import {
-  DashboardScreen,
-  StatsScreen,
+  MainPagerScreen,
   SettingsScreen,
   StepsDetailsScreen,
   DistanceDetailsScreen,
@@ -43,17 +42,19 @@ export function AppNavigator(): React.JSX.Element {
         }}>
         <Stack.Screen
           name="Dashboard"
-          component={DashboardScreen}
+          component={MainPagerScreen}
           options={{
             headerShown: false,
           }}
+          initialParams={{ initialPage: 0 }}
         />
         <Stack.Screen
           name="Stats"
-          component={StatsScreen}
+          component={MainPagerScreen}
           options={{
             headerShown: false,
           }}
+          initialParams={{ initialPage: 1 }}
         />
         <Stack.Screen 
           name="StepsDetails" 
