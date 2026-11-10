@@ -1,13 +1,16 @@
 /**
- * MainPagerScreen — fluid, gesture-driven horizontal pager between Home and Stats.
+ * MainPagerScreen — fluid, gesture-driven horizontal pager between Home, Stats, and Settings.
  *
  * Implements interactive finger-tracked page transitions inspired by OxygenOS 16 / ColorOS 16:
- *  - Continuous real-time horizontal tracking of finger displacement across viewports
- *  - Both Home (Dashboard) and Stats move synchronously during drag gestures
- *  - Directional rubber-banding resistance when overscrolling outer boundaries
+ *  - Continuous real-time horizontal tracking of finger displacement across 3 viewports:
+ *      Page 0: Dashboard (Home)
+ *      Page 1: Unified Stats Screen
+ *      Page 2: Settings Screen
+ *  - Both outgoing and incoming viewports move synchronously during drag gestures
+ *  - Directional rubber-banding resistance (0.32x) when overscrolling outer boundaries
  *  - Velocity-aware and distance-thresholded spring settlement physics
- *  - Unified bottom FloatingDock that seamlessly reflects active destination
- *  - Unhindered vertical scrolling on both pages via strict directional gesture arbitration
+ *  - Unified bottom FloatingDock with dynamic sliding pill indicator and squeeze deformation
+ *  - Unhindered vertical scrolling on all three pages via strict directional gesture arbitration
  */
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
@@ -25,6 +28,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import { DashboardScreen } from './DashboardScreen';
 import { StatsScreen } from './StatsScreen';
+import { SettingsScreen } from './SettingsScreen';
 import { FloatingDock } from '../components/FloatingDock';
 import { MotionTokens } from '../theme/motion';
 import type { StatMetricType } from '../components/StatsMetricSelector';
@@ -38,8 +42,10 @@ export function MainPagerScreen(): React.JSX.Element {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
 
-  // Page index: 0 = Home, 1 = Stats
-  const initialPage = route.params?.initialPage ?? (route.name === 'Stats' ? 1 : 0);
+  // Page index: 0 = Home, 1 = Stats, 2 = Settings
+  const initialPage = route.params?.initialPage ?? (
+    route.name === 'Stats' ? 1 : route.name === 'Settings' ? 2 : 0
+  );
   const [activePageIndex, setActivePageIndex] = useState<number>(initialPage);
   const [activeStatsMetric, setActiveStatsMetric] = useState<StatMetricType>(
     route.params?.metric || 'steps'
@@ -74,6 +80,18 @@ export function MainPagerScreen(): React.JSX.Element {
     [goToPage]
   );
 
+  // Real-time listener on translateX to synchronize activePageIndex when dragging past halfway mark
+  useEffect(() => {
+    const id = translateX.addListener(({ value }) => {
+      const page = Math.min(Math.max(Math.round(-value / SCREEN_WIDTH), 0), 2);
+      if (page !== currentPageRef.current) {
+        currentPageRef.current = page;
+        setActivePageIndex(page);
+      }
+    });
+    return () => translateX.removeListener(id);
+  }, [translateX]);
+
   // Sync route params changes
   useEffect(() => {
     if (route.params?.metric) {
@@ -106,12 +124,12 @@ export function MainPagerScreen(): React.JSX.Element {
         const base = dragStartX.current;
         let newOffset = base + gestureState.dx;
 
-        // Apply rubber-banding resistance if overscrolling outer bounds
+        // Apply rubber-banding resistance if overscrolling outer bounds (Page 0 left or Page 2 right)
         if (newOffset > 0) {
           newOffset = gestureState.dx * 0.32;
-        } else if (newOffset < -SCREEN_WIDTH) {
-          const overscroll = newOffset - -SCREEN_WIDTH;
-          newOffset = -SCREEN_WIDTH + overscroll * 0.32;
+        } else if (newOffset < -SCREEN_WIDTH * 2) {
+          const overscroll = newOffset - -SCREEN_WIDTH * 2;
+          newOffset = -SCREEN_WIDTH * 2 + overscroll * 0.32;
         }
 
         translateX.setValue(newOffset);
@@ -128,10 +146,20 @@ export function MainPagerScreen(): React.JSX.Element {
           if (dx < -distThreshold || vx < -velThreshold) {
             targetIndex = 1;
           }
-        } else {
-          // On Stats: drag right qualifies to return to Home
+        } else if (currentPageRef.current === 1) {
+          // On Stats:
+          // drag right qualifies to return to Home
           if (dx > distThreshold || vx > velThreshold) {
             targetIndex = 0;
+          }
+          // drag left qualifies to advance to Settings
+          else if (dx < -distThreshold || vx < -velThreshold) {
+            targetIndex = 2;
+          }
+        } else if (currentPageRef.current === 2) {
+          // On Settings: drag right qualifies to return to Stats
+          if (dx > distThreshold || vx > velThreshold) {
+            targetIndex = 1;
           }
         }
 
@@ -144,21 +172,21 @@ export function MainPagerScreen(): React.JSX.Element {
     })
   ).current;
 
-  // Interpolate continuous 0 -> 1 progress between Page 0 (Home) and Page 1 (Stats)
+  // Interpolate continuous 0 -> 2 progress across the 3 pages (0=Home, 1=Stats, 2=Settings)
   const pagerProgress = translateX.interpolate({
-    inputRange: [-SCREEN_WIDTH, 0],
-    outputRange: [1, 0],
+    inputRange: [-SCREEN_WIDTH * 2, -SCREEN_WIDTH, 0],
+    outputRange: [2, 1, 0],
     extrapolate: 'clamp',
   });
 
   return (
     <View style={[styles.rootContainer, { backgroundColor: theme.colors.background }]}>
-      {/* Horizontally paged viewports */}
+      {/* Horizontally paged viewports across 3 screens */}
       <Animated.View
         style={[
           styles.pagerRow,
           {
-            width: SCREEN_WIDTH * 2,
+            width: SCREEN_WIDTH * 3,
             transform: [{ translateX }],
           },
         ]}
@@ -179,15 +207,22 @@ export function MainPagerScreen(): React.JSX.Element {
             onSelectMetricProp={setActiveStatsMetric}
           />
         </View>
+
+        {/* Page 2: Settings Screen */}
+        <View style={styles.pageViewport}>
+          <SettingsScreen hideDock={true} />
+        </View>
       </Animated.View>
 
-      {/* Shared Interactive Floating Bottom Navigation Dock with Squeeze Pill Animation */}
+      {/* Shared Interactive Floating Bottom Navigation Dock with Squeeze Pill Animation across all 3 pages */}
       <FloatingDock
-        activeTab={activePageIndex === 0 ? 'home' : 'stats'}
+        activeTab={
+          activePageIndex === 0 ? 'home' : activePageIndex === 1 ? 'stats' : 'settings'
+        }
         pagerProgress={pagerProgress}
         onHomePress={() => goToPage(0)}
         onAnalyticsPress={() => goToPage(1)}
-        onProfilePress={() => navigation.navigate('Settings')}
+        onProfilePress={() => goToPage(2)}
       />
     </View>
   );
@@ -207,4 +242,3 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 });
-
