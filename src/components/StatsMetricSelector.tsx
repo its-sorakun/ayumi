@@ -15,7 +15,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  PanResponder,
   LayoutChangeEvent,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
@@ -74,77 +73,41 @@ export function StatsMetricSelector({
 
   // Animate sliding and fluid squish/stretch when selection changes
   useEffect(() => {
-    // 1. Stretch during motion
     Animated.parallel([
-      Animated.sequence([
-        Animated.timing(stretchXAnim, {
-          toValue: MotionTokens.squish.stretchX,
-          duration: 220,
-          useNativeDriver: true,
-        }),
+      Animated.timing(stretchXAnim, {
+        toValue: 1.18,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(compressYAnim, {
+        toValue: 0.88,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: activeIndex >= 0 ? activeIndex : 0,
+        stiffness: 140,
+        damping: 18,
+        mass: 0.9,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      Animated.parallel([
         Animated.spring(stretchXAnim, {
           toValue: 1.0,
-          ...MotionTokens.spring.snappy,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.sequence([
-        Animated.timing(compressYAnim, {
-          toValue: MotionTokens.squish.compressY,
-          duration: 220,
+          damping: 14,
+          stiffness: 180,
           useNativeDriver: true,
         }),
         Animated.spring(compressYAnim, {
           toValue: 1.0,
-          ...MotionTokens.spring.snappy,
+          damping: 14,
+          stiffness: 180,
           useNativeDriver: true,
         }),
-      ]),
-      Animated.spring(slideAnim, {
-        toValue: activeIndex >= 0 ? activeIndex : 0,
-        ...MotionTokens.spring.snappy,
-        useNativeDriver: true,
-      }),
-    ]).start();
+      ]).start();
+    });
   }, [activeIndex, slideAnim, stretchXAnim, compressYAnim]);
-
-  // PanResponder to track finger dragging across the metric pills
-  const dragStartSlot = useRef(0);
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return (
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) &&
-          Math.abs(gestureState.dx) > 10
-        );
-      },
-      onPanResponderGrant: () => {
-        dragStartSlot.current = activeIndex >= 0 ? activeIndex : 0;
-        slideAnim.stopAnimation();
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (currentSlotWidth <= 0) return;
-        const slotDelta = gestureState.dx / (currentSlotWidth + GAP);
-        const rawTarget = dragStartSlot.current + slotDelta;
-        const clampedTarget = Math.max(0, Math.min(rawTarget, 2));
-        slideAnim.setValue(clampedTarget);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (currentSlotWidth <= 0) return;
-        const slotDelta = gestureState.dx / (currentSlotWidth + GAP);
-        let targetIndex = dragStartSlot.current;
-
-        if (slotDelta > 0.35 || gestureState.vx > 0.4) {
-          targetIndex = Math.min(dragStartSlot.current + 1, 2);
-        } else if (slotDelta < -0.35 || gestureState.vx < -0.4) {
-          targetIndex = Math.max(dragStartSlot.current - 1, 0);
-        }
-
-        onSelectMetric(METRICS[targetIndex].type);
-      },
-    })
-  ).current;
 
   const onLayout = (e: LayoutChangeEvent) => {
     setContainerWidth(e.nativeEvent.layout.width);
@@ -159,8 +122,7 @@ export function StatsMetricSelector({
   return (
     <View
       style={styles.container}
-      onLayout={onLayout}
-      {...panResponder.panHandlers}>
+      onLayout={onLayout}>
       {/* Background Track Slots for Unselected State */}
       {METRICS.map((metric, i) => {
         const isSelected = selectedMetric === metric.type;
