@@ -2,16 +2,17 @@
  * FloatingDock — an aesthetic Material 3 Expressive bottom navigation capsule.
  *
  * Implements a floating pill dock with:
- *  - 28dp corner radius and dynamic Material You elevation
+ *  - 28dp corner radius and dynamic Material You surface styling
+ *  - Mathematically symmetrical three-column layout (flex: 1 per slot)
  *  - Active Home indicator with dynamic primaryContainer pill styling
  *  - Analytics shortcut for exploring step, distance, and calorie charts
- *  - Profile and settings shortcut for configuring goals and sensor modes
+ *  - Settings gear shortcut for configuring goals and sensor modes
  */
 
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from 'react-native-paper';
-import { DockHomeIcon, DockChartIcon, DockUserIcon } from './AestheticIcons';
+import { DockHomeIcon, DockChartIcon, SettingsGearIcon } from './AestheticIcons';
 
 interface FloatingDockProps {
   readonly onHomePress?: () => void;
@@ -36,37 +37,40 @@ export function FloatingDock({
             borderColor: theme.colors.outlineVariant,
           },
         ]}>
-        {/* Active Home Tab with Expressive Pill highlight */}
+        {/* Slot 1: Active Home Tab */}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={onHomePress}
-          style={[
-            styles.activeTabBubble,
-            { backgroundColor: theme.colors.primaryContainer },
-          ]}
+          style={styles.tabSlot}
           accessibilityRole="tab"
           accessibilityLabel="Home tab">
-          <DockHomeIcon size={20} color={theme.colors.onPrimaryContainer} />
+          <View
+            style={[
+              styles.activeTabBubble,
+              { backgroundColor: theme.colors.primaryContainer },
+            ]}>
+            <DockHomeIcon size={20} color={theme.colors.onPrimaryContainer} />
+          </View>
         </TouchableOpacity>
 
-        {/* Analytics / Charts Tab */}
+        {/* Slot 2: Analytics / Charts Tab */}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={onAnalyticsPress}
-          style={styles.tabButton}
+          style={styles.tabSlot}
           accessibilityRole="tab"
           accessibilityLabel="Analytics tab">
           <DockChartIcon size={20} color={theme.colors.onSurfaceVariant} />
         </TouchableOpacity>
 
-        {/* Settings / Profile Tab */}
+        {/* Slot 3: Settings Tab */}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={onProfilePress}
-          style={styles.tabButton}
+          style={styles.tabSlot}
           accessibilityRole="tab"
-          accessibilityLabel="Settings and profile tab">
-          <DockUserIcon size={20} color={theme.colors.onSurfaceVariant} />
+          accessibilityLabel="Settings tab">
+          <SettingsGearIcon size={20} color={theme.colors.onSurfaceVariant} />
         </TouchableOpacity>
       </View>
     </View>
@@ -90,23 +94,23 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     height: 56,
     borderRadius: 28,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
     borderWidth: 1,
   },
-  activeTabBubble: {
-    width: 60,
-    height: 38,
-    borderRadius: 19,
+  tabSlot: {
+    flex: 1,
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  tabButton: {
-    flex: 1,
-    height: '100%',
+  activeTabBubble: {
+    width: 64,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
   },
