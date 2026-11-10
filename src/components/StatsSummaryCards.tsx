@@ -5,12 +5,12 @@
  *  - Average card with dynamic Bullseye / Target icon bubble
  *  - Highest (Day) card with dynamic Trophy icon bubble
  *  - Large prominent numerical typography paired with subtle unit labels
- *  - Animated odometer counter transition when statistics update
- *  - Uniform 20dp corner radii with Material 3 dark/light surface adaptation
+ *  - Compact vertical sizing ensuring full viewport fit on mobile screens
+ *  - Uniform 18dp corner radii with Material 3 dark/light surface adaptation
  */
 
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { TargetBullseyeIcon, TrophyIcon } from './AestheticIcons';
 
@@ -48,7 +48,7 @@ export function StatsSummaryCards({
         ]}>
         <View style={styles.contentRow}>
           <View style={[styles.iconBubble, { backgroundColor: theme.colors.primaryContainer }]}>
-            <TargetBullseyeIcon size={20} color={theme.colors.primary} />
+            <TargetBullseyeIcon size={18} color={theme.colors.primary} />
           </View>
           <Text style={[styles.cardLabel, { color: theme.colors.onSurfaceVariant }]}>
             Average
@@ -78,7 +78,7 @@ export function StatsSummaryCards({
         ]}>
         <View style={styles.contentRow}>
           <View style={[styles.iconBubble, { backgroundColor: theme.colors.primaryContainer }]}>
-            <TrophyIcon size={20} color={theme.colors.primary} />
+            <TrophyIcon size={18} color={theme.colors.primary} />
           </View>
           <Text style={[styles.cardLabel, { color: theme.colors.onSurfaceVariant }]}>
             Highest (Day)
@@ -104,44 +104,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 24,
+    marginTop: 6,
+    marginBottom: 6,
   },
   card: {
     flex: 1,
-    borderRadius: 20,
-    padding: 14,
+    borderRadius: 18,
+    padding: 10,
     elevation: 1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
   },
   contentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
+    gap: 6,
+    marginBottom: 4,
   },
   iconBubble: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardLabel: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '600',
     flex: 1,
   },
   valueText: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
-    letterSpacing: -0.5,
-    lineHeight: 26,
+    letterSpacing: -0.4,
+    lineHeight: 22,
   },
   unitText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '500',
     marginTop: 1,
   },
