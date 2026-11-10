@@ -7,7 +7,7 @@ import { BarChart } from 'react-native-gifted-charts';
 import { healthService } from '../services';
 import { useHealthData } from '../hooks';
 import type { HistoricalStepData, ExerciseSessionData } from '../types/health';
-import { formatDistance } from '../utils/index';
+import { formatDistance, formatLocalDateKey } from '../utils/index';
 
 export function StepsDetailsScreen() {
   const theme = useTheme();
@@ -21,7 +21,7 @@ export function StepsDetailsScreen() {
 
   useEffect(() => {
     // Reset selected date to today when time range changes
-    setSelectedDate(new Date().toISOString().split('T')[0]);
+    setSelectedDate(formatLocalDateKey());
   }, [timeRange]);
 
   useEffect(() => {
@@ -105,9 +105,10 @@ export function StepsDetailsScreen() {
   };
 
   const chartData = paddedHistory.map((d, index) => {
+    const todayKey = formatLocalDateKey();
     const isToday = timeRange === 'year' 
-      ? new Date().toISOString().split('T')[0].substring(0,7) === d.date.substring(0,7)
-      : new Date().toISOString().split('T')[0] === d.date;
+      ? todayKey.substring(0,7) === d.date.substring(0,7)
+      : todayKey === d.date;
     
     const isSelected = timeRange === 'year' && selectedDate
       ? selectedDate.substring(0,7) === d.date.substring(0,7)
