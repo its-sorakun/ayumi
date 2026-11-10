@@ -482,8 +482,8 @@ export function StatsScreen({
         contentContainerStyle={[
           styles.contentContainer,
           {
-            paddingTop: insets.top + 4,
-            paddingBottom: insets.bottom + (hideDock ? 88 : 94),
+            paddingTop: insets.top + 6,
+            paddingBottom: insets.bottom + 84,
           },
         ]}
         showsVerticalScrollIndicator={false}>
@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     paddingHorizontal: 20,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   screenTitleText: {
     fontSize: 32,
@@ -621,7 +621,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.7,
   },
   screenSubtitleText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '500',
     marginTop: 2,
   },
