@@ -22,6 +22,14 @@ export function today(): Date {
   return startOfDay(new Date());
 }
 
+/** Formats a date into a local "YYYY-MM-DD" key matching device timezone */
+export function formatLocalDateKey(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /** Formats a date into a human-readable string (e.g. "3 Aug 2026") */
 export function formatDate(date: Date): string {
   return date.toLocaleDateString('en-GB', {
