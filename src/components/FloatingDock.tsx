@@ -1,15 +1,16 @@
 /**
- * FloatingDock — an aesthetic bottom navigation capsule.
+ * FloatingDock — an aesthetic Material 3 Expressive bottom navigation capsule.
  *
  * Implements a floating pill dock with:
- *  - High corner radius (34dp) and soft tonal elevation
- *  - Active Home indicator with an organic lilac blob container
- *  - Analytics / Charts shortcut for exploring step and distance history
- *  - Settings / Profile shortcut for configuring goals and sensor modes
+ *  - 32dp corner radius and dynamic Material You elevation
+ *  - Active Home indicator with dynamic primaryContainer pill styling
+ *  - Analytics shortcut for exploring step, distance, and calorie charts
+ *  - Profile and settings shortcut for configuring goals and sensor modes
  */
 
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTheme } from 'react-native-paper';
 import { DockHomeIcon, DockChartIcon, DockUserIcon } from './AestheticIcons';
 
 interface FloatingDockProps {
@@ -23,17 +24,29 @@ export function FloatingDock({
   onAnalyticsPress,
   onProfilePress,
 }: FloatingDockProps): React.JSX.Element {
+  const theme = useTheme();
+
   return (
     <View style={styles.dockWrapper} pointerEvents="box-none">
-      <View style={styles.dockContainer}>
-        {/* Active Home Tab with Organic Blob highlight */}
+      <View
+        style={[
+          styles.dockContainer,
+          {
+            backgroundColor: theme.colors.elevation.level2,
+            borderColor: theme.colors.outlineVariant,
+          },
+        ]}>
+        {/* Active Home Tab with Expressive Pill highlight */}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={onHomePress}
-          style={styles.activeTabBubble}
+          style={[
+            styles.activeTabBubble,
+            { backgroundColor: theme.colors.primaryContainer },
+          ]}
           accessibilityRole="tab"
           accessibilityLabel="Home tab">
-          <DockHomeIcon size={20} color="#FFFFFF" />
+          <DockHomeIcon size={20} color={theme.colors.onPrimaryContainer} />
         </TouchableOpacity>
 
         {/* Analytics / Charts Tab */}
@@ -43,7 +56,7 @@ export function FloatingDock({
           style={styles.tabButton}
           accessibilityRole="tab"
           accessibilityLabel="Analytics tab">
-          <DockChartIcon size={22} color="#7E659A" />
+          <DockChartIcon size={20} color={theme.colors.onSurfaceVariant} />
         </TouchableOpacity>
 
         {/* Settings / Profile Tab */}
@@ -53,7 +66,7 @@ export function FloatingDock({
           style={styles.tabButton}
           accessibilityRole="tab"
           accessibilityLabel="Settings and profile tab">
-          <DockUserIcon size={22} color="#7E659A" />
+          <DockUserIcon size={20} color={theme.colors.onSurfaceVariant} />
         </TouchableOpacity>
       </View>
     </View>
@@ -63,7 +76,7 @@ export function FloatingDock({
 const styles = StyleSheet.create({
   dockWrapper: {
     position: 'absolute',
-    bottom: 22,
+    bottom: 16,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -73,25 +86,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    width: '88%',
-    maxWidth: 360,
-    height: 64,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 36,
-    paddingHorizontal: 16,
-    shadowColor: '#784E9D',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 8,
+    width: '84%',
+    maxWidth: 340,
+    height: 54,
+    borderRadius: 28,
+    paddingHorizontal: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: '#F2E8FA',
   },
   activeTabBubble: {
-    width: 68,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#9868C3',
+    width: 60,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -102,4 +111,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-
