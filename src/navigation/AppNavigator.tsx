@@ -36,7 +36,7 @@ export function AppNavigator(): React.JSX.Element {
             backgroundColor: theme.colors.background,
           },
           animation: 'slide_from_bottom',
-          animationDuration: 280,
+          animationDuration: 380,
           gestureEnabled: true,
         }}>
         <Stack.Screen
