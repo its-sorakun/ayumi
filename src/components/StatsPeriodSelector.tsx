@@ -58,7 +58,7 @@ export function StatsPeriodSelector({
       Animated.sequence([
         Animated.timing(stretchXAnim, {
           toValue: MotionTokens.squish.stretchX,
-          duration: 90,
+          duration: 220,
           useNativeDriver: true,
         }),
         Animated.spring(stretchXAnim, {
@@ -70,7 +70,7 @@ export function StatsPeriodSelector({
       Animated.sequence([
         Animated.timing(compressYAnim, {
           toValue: MotionTokens.squish.compressY,
-          duration: 90,
+          duration: 220,
           useNativeDriver: true,
         }),
         Animated.spring(compressYAnim, {
