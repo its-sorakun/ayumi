@@ -246,15 +246,15 @@ export function DashboardScreen(): React.JSX.Element {
         {/* Bento Grid Metrics */}
         {formattedValues != null && (
           <View style={styles.bentoGrid}>
-            {/* Row 1: Active Calories & Distance (neutral surface with dynamic tonal icon bubbles) */}
+            {/* Row 1: Active Calories & Distance (neutral surface with primary dynamic icon bubbles) */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title={'Active\nCalories'}
                 value={calValue}
                 unit={calUnit}
-                icon={<FlameIcon size={22} color={theme.colors.tertiary} />}
-                iconBgColor={theme.colors.tertiaryContainer}
-                cardBgColor={theme.colors.surface}
+                icon={<FlameIcon size={22} color={theme.colors.primary} />}
+                iconBgColor={theme.colors.primaryContainer}
+                cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
               />
@@ -263,19 +263,19 @@ export function DashboardScreen(): React.JSX.Element {
                 value={distValue}
                 unit={distUnit}
                 subtitle={`Goal: ${formatDistance(distanceGoal)}`}
-                icon={<RouteMapIcon size={22} color={theme.colors.secondary} />}
-                iconBgColor={theme.colors.secondaryContainer}
-                cardBgColor={theme.colors.surface}
+                icon={<RouteMapIcon size={22} color={theme.colors.primary} />}
+                iconBgColor={theme.colors.primaryContainer}
+                cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
                 subtitleColor={theme.colors.onSurfaceVariant}
                 progress={formattedValues.distanceProgress}
-                progressBarColor={theme.colors.secondary}
+                progressBarColor={theme.colors.primary}
                 onPress={() => navigation.navigate('DistanceDetails')}
               />
             </View>
 
-            {/* Row 2: Total Calories & Active Time (surface tonal containers) */}
+            {/* Row 2: Total Calories & Active Time (neutral surface with primary dynamic icon bubbles) */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title={'Total\nCalories'}
@@ -284,7 +284,7 @@ export function DashboardScreen(): React.JSX.Element {
                 subtitle={formattedValues.totalCalories === 'Setup' ? 'Tap to configure' : undefined}
                 icon={<BoltIcon size={22} color={theme.colors.primary} />}
                 iconBgColor={theme.colors.primaryContainer}
-                cardBgColor={theme.colors.surface}
+                cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
                 subtitleColor={theme.colors.onSurfaceVariant}
@@ -294,9 +294,9 @@ export function DashboardScreen(): React.JSX.Element {
                 title="Active Time"
                 value={activeTimeValue}
                 unit={activeTimeUnit}
-                icon={<StopwatchIcon size={22} color={theme.colors.secondary} />}
-                iconBgColor={theme.colors.secondaryContainer}
-                cardBgColor={theme.colors.surface}
+                icon={<StopwatchIcon size={22} color={theme.colors.primary} />}
+                iconBgColor={theme.colors.primaryContainer}
+                cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
               />
@@ -310,7 +310,7 @@ export function DashboardScreen(): React.JSX.Element {
                 unit="ml"
                 subtitle={`Goal: ${formattedValues.waterGoalText}`}
                 icon={<DropletIcon size={22} color={theme.colors.primary} />}
-                iconBgColor={theme.colors.surface}
+                iconBgColor={theme.dark ? 'rgba(255, 255, 255, 0.12)' : theme.colors.surface}
                 cardBgColor={theme.colors.primaryContainer}
                 titleColor={theme.colors.onPrimaryContainer}
                 valueColor={theme.colors.onPrimaryContainer}
