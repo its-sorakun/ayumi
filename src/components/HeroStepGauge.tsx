@@ -22,8 +22,8 @@ interface HeroStepGaugeProps {
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const GAUGE_SIZE = Math.min(SCREEN_WIDTH - 110, 186);
-const STROKE_WIDTH = 11;
+const GAUGE_SIZE = Math.min(SCREEN_WIDTH - 84, 220);
+const STROKE_WIDTH = 13;
 
 export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): React.JSX.Element {
   const theme = useTheme();
@@ -50,20 +50,20 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
       style={[
         styles.cardContainer,
         {
-          backgroundColor: theme.colors.elevation.level1,
+          backgroundColor: theme.colors.surface,
           borderColor: theme.colors.outlineVariant,
         },
       ]}
       accessibilityRole="button"
       accessibilityLabel={`Steps today: ${steps.toLocaleString()} out of ${goal.toLocaleString()}`}>
       
-      {/* Decorative organic background blob tinted with primaryContainer */}
+      {/* Decorative organic background blob tinted with wallpaper primaryContainer */}
       <View style={styles.organicBlobWrapper} pointerEvents="none">
         <Svg width="100%" height="100%" viewBox="0 0 320 280">
           <Path
             d="M50 30C120 -10 240 10 290 60C330 110 320 200 270 240C220 280 100 290 40 240C-10 190 -10 80 50 30Z"
             fill={theme.colors.primaryContainer}
-            opacity={0.35}
+            opacity={0.45}
           />
         </Svg>
       </View>
@@ -103,19 +103,19 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
               <Circle
                 cx={tipX}
                 cy={tipY}
-                r={5.5}
+                r={6.5}
                 fill={theme.colors.surface}
                 stroke={theme.colors.primary}
-                strokeWidth={2.6}
+                strokeWidth={3}
               />
             )}
           </Svg>
 
           {/* Centered Content Inside Arc */}
           <View style={styles.centerContent}>
-            {/* Sneaker Icon inside primaryContainer bubble */}
+            {/* Sneaker Icon inside dynamic primaryContainer bubble */}
             <View style={[styles.iconBubble, { backgroundColor: theme.colors.primaryContainer }]}>
-              <SneakerIcon size={22} color={theme.colors.onPrimaryContainer} />
+              <SneakerIcon size={26} color={theme.colors.onPrimaryContainer} />
             </View>
 
             {/* Step Count */}
@@ -147,8 +147,8 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
 const styles = StyleSheet.create({
   cardContainer: {
     marginHorizontal: 16,
-    marginTop: 6,
-    marginBottom: 8,
+    marginTop: 4,
+    marginBottom: 10,
     borderRadius: 32,
     borderWidth: 1,
     shadowOffset: { width: 0, height: 4 },
@@ -170,42 +170,41 @@ const styles = StyleSheet.create({
   innerCard: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 18,
   },
   centerContent: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
   },
   iconBubble: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 2,
   },
   stepValueText: {
-    fontSize: 34,
+    fontSize: 40,
     fontWeight: '800',
     letterSpacing: -1,
-    lineHeight: 38,
+    lineHeight: 44,
   },
   stepLabelText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
     marginTop: -2,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   goalPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 2.5,
-    borderRadius: 12,
-    marginTop: 2,
+    paddingHorizontal: 11,
+    paddingVertical: 3.5,
+    borderRadius: 14,
   },
   goalPillText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
