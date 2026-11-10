@@ -5,8 +5,9 @@
  *  - Supports 24-hour Daily (hourly), 7-day Weekly, and 28-31-day Monthly granularities
  *  - Responsive coordinate calculations guaranteeing exact fit within card bounds
  *  - Rounded top bar geometry with solid wallpaper-derived Monet primary colors
- *  - Animated bar entrance growth from baseline with staggered timing
- *  - Interactive bar tapping with highlighted state and contextual tooltip bubble
+ *  - Sequential wave-like bar growth from baseline with staggered timing
+ *  - Compact vertical rhythm optimized to prevent viewport scrolling on target devices
+ *  - Interactive bar tapping with highlighted state and animated tooltip bubble
  *  - Clean Y-axis scaling with sparse X-axis intervals and subtle horizontal gridlines
  *  - Native loading skeleton and empty state handling
  */
@@ -25,6 +26,7 @@ import Svg, { Rect, Line, G } from 'react-native-svg';
 import type { StatMetricType } from './StatsMetricSelector';
 import type { StatPeriodType } from './StatsPeriodSelector';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
+import { MotionTokens } from '../theme/motion';
 
 export interface ChartDataPoint {
   readonly key: string;
@@ -43,8 +45,8 @@ interface StatsChartProps {
   readonly loading?: boolean;
 }
 
-const CHART_HEIGHT = 168;
-const Y_AXIS_WIDTH = 38;
+const CHART_HEIGHT = 132;
+const Y_AXIS_WIDTH = 34;
 
 export function StatsChart({
   metric,
@@ -63,40 +65,31 @@ export function StatsChart({
 
   // Animated bar growth multiplier (0 -> 1)
   const growthAnim = useRef(new Animated.Value(0)).current;
+  const tooltipAnim = useRef(new Animated.Value(0)).current;
 
-  // Loading skeleton pulse
-  const pulseAnim = useRef(new Animated.Value(0.25)).current;
-
+  // Staggered wave reveal animation
   useEffect(() => {
     growthAnim.setValue(0);
     Animated.timing(growthAnim, {
       toValue: 1,
-      duration: 380,
+      duration: MotionTokens.duration.long,
+      easing: MotionTokens.easing.emphasizedDecel,
       useNativeDriver: false,
     }).start();
     setSelectedIndex(null);
   }, [metric, period, data, growthAnim]);
 
+  // Tooltip entrance animation
   useEffect(() => {
-    if (loading) {
-      const pulseLoop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 0.65,
-            duration: 650,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 0.25,
-            duration: 650,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulseLoop.start();
-      return () => pulseLoop.stop();
+    if (selectedIndex !== null) {
+      tooltipAnim.setValue(0);
+      Animated.spring(tooltipAnim, {
+        toValue: 1,
+        ...MotionTokens.spring.snappy,
+        useNativeDriver: true,
+      }).start();
     }
-  }, [loading, pulseAnim]);
+  }, [selectedIndex, tooltipAnim]);
 
   const onLayout = (e: LayoutChangeEvent) => {
     setContainerWidth(e.nativeEvent.layout.width);
@@ -107,11 +100,11 @@ export function StatsChart({
     const iconColor = theme.colors.primary;
     switch (metric) {
       case 'steps':
-        return <SneakerIcon size={22} color={iconColor} />;
+        return <SneakerIcon size={20} color={iconColor} />;
       case 'distance':
-        return <RouteMapIcon size={22} color={iconColor} />;
+        return <RouteMapIcon size={20} color={iconColor} />;
       case 'water':
-        return <DropletIcon size={22} color={iconColor} />;
+        return <DropletIcon size={20} color={iconColor} />;
     }
   }, [metric, theme.colors.primary]);
 
@@ -130,7 +123,6 @@ export function StatsChart({
   const maxValue = useMemo(() => {
     const max = Math.max(...data.map(d => d.value), 0);
     if (max <= 0) return 100;
-    // Round up nicely to significant intervals
     if (metric === 'steps') {
       return max > 5000 ? Math.ceil(max / 2000) * 2000 : Math.ceil(max / 500) * 500;
     }
@@ -161,34 +153,28 @@ export function StatsChart({
   // Responsive bar width and spacing
   const { barWidth, barSpacing } = useMemo(() => {
     if (period === 'week') {
-      // 7 bars: generous width
       const totalWidth = chartPlotWidth;
-      const bWidth = Math.min(Math.max((totalWidth - 6 * 14) / 7, 18), 28);
+      const bWidth = Math.min(Math.max((totalWidth - 6 * 14) / 7, 18), 26);
       const bSpacing = (totalWidth - bWidth * 7) / 6;
       return { barWidth: bWidth, barSpacing: Math.max(bSpacing, 8) };
     }
     if (period === 'daily') {
-      // 24 hourly bars
       const totalWidth = chartPlotWidth;
-      const bWidth = Math.min(Math.max((totalWidth - 23 * 4) / 24, 4), 9);
+      const bWidth = Math.min(Math.max((totalWidth - 23 * 4) / 24, 4), 8.5);
       const bSpacing = (totalWidth - bWidth * 24) / 23;
       return { barWidth: bWidth, barSpacing: Math.max(bSpacing, 2) };
     }
-    // Monthly: 28 to 31 bars
     const totalWidth = chartPlotWidth;
     const bWidth = Math.min(Math.max((totalWidth - (dataCount - 1) * 3) / dataCount, 3.5), 7.5);
     const bSpacing = (totalWidth - bWidth * dataCount) / (dataCount - 1);
     return { barWidth: bWidth, barSpacing: Math.max(bSpacing, 1.5) };
   }, [period, chartPlotWidth, dataCount]);
 
-  // Determine whether an X-axis label should be displayed
   const shouldShowLabel = (index: number, total: number) => {
-    if (period === 'week') return true; // Show all 7 day labels
+    if (period === 'week') return true;
     if (period === 'daily') {
-      // Sparse: 00, 03, 06, 09, 12, 15, 18, 21
       return index % 3 === 0 && index < 24;
     }
-    // Monthly: show 1, 5, 10, 15, 20, 25, 30
     const day = index + 1;
     return day === 1 || day % 5 === 0;
   };
@@ -238,12 +224,16 @@ export function StatsChart({
         </View>
       </View>
 
-      {/* Selected Data Point Tooltip Pill */}
+      {/* Selected Data Point Tooltip Pill with spring pop */}
       {selectedPoint != null && (
-        <View
+        <Animated.View
           style={[
             styles.tooltipBubble,
-            { backgroundColor: theme.colors.primaryContainer },
+            {
+              backgroundColor: theme.colors.primaryContainer,
+              transform: [{ scale: tooltipAnim }],
+              opacity: tooltipAnim,
+            },
           ]}>
           <Text style={[styles.tooltipText, { color: theme.colors.onPrimaryContainer }]}>
             {selectedPoint.subLabel || selectedPoint.label}:{' '}
@@ -255,7 +245,7 @@ export function StatsChart({
                 : `${selectedPoint.value.toLocaleString()} ${unitText}`}
             </Text>
           </Text>
-        </View>
+        </Animated.View>
       )}
 
       {/* Main Chart Graphic Area */}
@@ -277,7 +267,7 @@ export function StatsChart({
             <Svg width={chartPlotWidth} height={CHART_HEIGHT}>
               {/* Horizontal faint grid lines */}
               {yTicks.map((_, i) => {
-                const y = (i / (yTicks.length - 1)) * (CHART_HEIGHT - 12) + 6;
+                const y = (i / (yTicks.length - 1)) * (CHART_HEIGHT - 10) + 5;
                 return (
                   <Line
                     key={`grid-${i}`}
@@ -286,22 +276,22 @@ export function StatsChart({
                     x2={chartPlotWidth}
                     y2={y}
                     stroke={theme.colors.outlineVariant}
-                    strokeOpacity={isDark ? 0.2 : 0.3}
+                    strokeOpacity={isDark ? 0.15 : 0.25}
                     strokeWidth={1}
                   />
                 );
               })}
 
-              {/* Data Bars or Loading Placeholders */}
+              {/* Data Bars */}
               <G>
                 {data.map((point, index) => {
                   const x = index * (barWidth + barSpacing);
-                  const rawHeight = (point.value / maxValue) * (CHART_HEIGHT - 20);
-                  const barHeight = Math.max(Math.min(rawHeight, CHART_HEIGHT - 20), point.value > 0 ? 3 : 0);
-                  const y = CHART_HEIGHT - 6 - barHeight;
+                  const rawHeight = (point.value / maxValue) * (CHART_HEIGHT - 16);
+                  const barHeight = Math.max(Math.min(rawHeight, CHART_HEIGHT - 16), point.value > 0 ? 3 : 0);
+                  const y = CHART_HEIGHT - 5 - barHeight;
                   const isSelected = selectedIndex === index;
                   const barColor = isSelected ? theme.colors.secondary : theme.colors.primary;
-                  const barOpacity = isSelected ? 1 : point.value > 0 ? 0.8 : 0.2;
+                  const barOpacity = isSelected ? 1 : point.value > 0 ? 0.82 : 0.18;
 
                   return (
                     <Rect
@@ -310,7 +300,7 @@ export function StatsChart({
                       y={y}
                       width={barWidth}
                       height={barHeight}
-                      rx={Math.min(barWidth / 2, 4)}
+                      rx={Math.min(barWidth / 2, 3.5)}
                       fill={barColor}
                       fillOpacity={barOpacity}
                       onPress={() => setSelectedIndex(index === selectedIndex ? null : index)}
@@ -379,30 +369,30 @@ export function StatsChart({
 const styles = StyleSheet.create({
   card: {
     marginHorizontal: 20,
-    marginTop: 14,
-    borderRadius: 24,
-    padding: 16,
+    marginTop: 6,
+    borderRadius: 20,
+    padding: 12,
     elevation: 1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 6,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     flex: 1,
   },
   iconBubble: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -411,12 +401,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   metricTitleText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     letterSpacing: -0.3,
   },
   subtitleText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '500',
     marginTop: 1,
   },
@@ -425,25 +415,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   totalValueText: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.5,
-    lineHeight: 24,
+    lineHeight: 22,
   },
   unitText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
     marginTop: 1,
   },
   tooltipBubble: {
     alignSelf: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginBottom: 6,
   },
   tooltipText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
   },
   chartAreaRow: {
@@ -455,7 +445,7 @@ const styles = StyleSheet.create({
     height: CHART_HEIGHT,
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    paddingRight: 8,
+    paddingRight: 6,
     paddingVertical: 2,
   },
   svgWrapper: {
@@ -464,9 +454,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   xAxisRow: {
-    height: 22,
+    height: 20,
     position: 'relative',
-    marginTop: 6,
+    marginTop: 4,
   },
   xAxisLabelWrapper: {
     position: 'absolute',
@@ -475,7 +465,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   axisLabelText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '500',
   },
 });
