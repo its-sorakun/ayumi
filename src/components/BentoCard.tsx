@@ -4,7 +4,8 @@
  * Implements clean, borderless tonal containers matching the Material 3 Expressive guidelines:
  *  - 24dp uniform corner radius for standard cards, 28dp for full-width cards
  *  - Borderless soft tonal surfaces derived dynamically from Material You
- *  - Prominent numerical display paired with matching unit typography
+ *  - Prominent numerical display paired with inline, visually subordinate unit typography
+ *  - Adaptive font scaling preventing text clipping and horizontal overflow
  *  - Horizontal progress bar with rounded end caps
  *  - Interactive quick-action pill buttons for micro-interactions
  */
@@ -67,6 +68,7 @@ export function BentoCard({
         styles.card,
         {
           borderRadius: fullWidth ? 28 : 24,
+          paddingHorizontal: fullWidth ? 16 : 13,
           backgroundColor: cardBgColor || defaultBg,
           flex: fullWidth ? 0 : 1,
           width: fullWidth ? '100%' : undefined,
@@ -77,16 +79,16 @@ export function BentoCard({
       accessibilityRole={isInteractive ? 'button' : 'text'}
       accessibilityLabel={`${title}: ${value}${unit ? ` ${unit}` : ''}${subtitle ? `, ${subtitle}` : ''}`}>
       
-      <View style={styles.contentRow}>
+      <View style={[styles.contentRow, { gap: fullWidth ? 12 : 9 }]}>
         {/* Left: Icon inside clean circular bubble */}
         <View
           style={[
             styles.iconContainer,
             {
               backgroundColor: iconBgColor || theme.colors.surface,
-              width: fullWidth ? 48 : 44,
-              height: fullWidth ? 48 : 44,
-              borderRadius: fullWidth ? 24 : 22,
+              width: fullWidth ? 48 : 40,
+              height: fullWidth ? 48 : 40,
+              borderRadius: fullWidth ? 24 : 20,
             },
           ]}>
           {icon}
@@ -103,15 +105,16 @@ export function BentoCard({
             {title}
           </Text>
 
-          <View style={styles.valueRow}>
-            <Text
-              style={[
-                styles.valueText,
-                { color: valueColor || theme.colors.onSurface },
-              ]}
-              numberOfLines={1}>
-              {value}
-            </Text>
+          {/* Value and unit rendered inline to guarantee baseline alignment and adaptive fit */}
+          <Text
+            style={[
+              styles.valueText,
+              { color: valueColor || theme.colors.onSurface },
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.82}>
+            {value}
             {unit != null && unit.length > 0 && (
               <Text
                 style={[
@@ -121,7 +124,7 @@ export function BentoCard({
                 {' ' + unit}
               </Text>
             )}
-          </View>
+          </Text>
 
           {subtitle != null && (
             <Text
@@ -129,7 +132,9 @@ export function BentoCard({
                 styles.subtitleText,
                 { color: subtitleColor || theme.colors.onSurfaceVariant },
               ]}
-              numberOfLines={1}>
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}>
               {subtitle}
             </Text>
           )}
@@ -177,7 +182,6 @@ export function BentoCard({
 
 const styles = StyleSheet.create({
   card: {
-    paddingHorizontal: 16,
     paddingVertical: 14,
     justifyContent: 'center',
     shadowOffset: { width: 0, height: 2 },
@@ -188,7 +192,6 @@ const styles = StyleSheet.create({
   contentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
   iconContainer: {
     justifyContent: 'center',
@@ -200,26 +203,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   titleText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '500',
-    lineHeight: 16,
+    lineHeight: 15,
     marginBottom: 2,
   },
-  valueRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
   valueText: {
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
   },
   unitText: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 13.5,
+    fontWeight: '600',
   },
   subtitleText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '500',
     marginTop: 2,
   },
