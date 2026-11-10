@@ -13,41 +13,41 @@
 import { Easing } from 'react-native';
 
 export const MotionTokens = {
-  // Standard durations in milliseconds
+  // Standard durations in milliseconds (calibrated to Android 1x system motion)
   duration: {
-    instant: 120,
-    short: 200,
-    medium: 280,
-    long: 360,
-    reveal: 450,
-    chartWave: 820,
+    instant: 150,
+    short: 280,
+    medium: 420,
+    long: 600,
+    reveal: 800,
+    chartWave: 1150,
   },
 
-  // Native Spring physics configurations
+  // Native Spring physics configurations (calibrated to Android 1x natural physics)
   spring: {
-    // Quick, tactile response for small buttons, tabs and pills
+    // Smooth, relaxed response for buttons, tabs, pills, and indicators
     snappy: {
-      stiffness: 280,
-      damping: 24,
-      mass: 0.8,
+      stiffness: 140,
+      damping: 18,
+      mass: 1.0,
     },
-    // Fluid, expressive hand-off for page-level horizontal gestures
+    // Fluid, expressive hand-off for page-level horizontal gestures (like Android ViewPager2)
     pager: {
-      stiffness: 200,
-      damping: 22,
-      mass: 0.85,
+      stiffness: 110,
+      damping: 17,
+      mass: 1.0,
     },
     // Soft, organic settling for data bars and tooltips
     gentle: {
-      stiffness: 160,
-      damping: 18,
-      mass: 0.9,
+      stiffness: 90,
+      damping: 15,
+      mass: 1.0,
     },
     // Interactive drag spring for touch-following indicators
     interactive: {
-      stiffness: 340,
-      damping: 28,
-      mass: 0.6,
+      stiffness: 160,
+      damping: 20,
+      mass: 0.9,
     },
   },
 
