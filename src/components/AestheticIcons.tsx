@@ -284,3 +284,66 @@ export function DockUserIcon({ size = 22, color = '#7F6799' }: IconProps): React
   );
 }
 
+/** Bullseye / Target icon for average summary cards */
+export function TargetBullseyeIcon({ size = 22, color = '#006E60' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={2} />
+      <Circle cx={12} cy={12} r={5.5} stroke={color} strokeWidth={1.8} />
+      <Circle cx={12} cy={12} r={2} fill={color} />
+    </Svg>
+  );
+}
+
+/** Trophy / Achievement icon for highest summary cards */
+export function TrophyIcon({ size = 22, color = '#006E60' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4z"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M7 6H4a2 2 0 00-2 2v1a4 4 0 004 4h1M17 6h3a2 2 0 012 2v1a4 4 0 01-4 4h-1"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/** Chevron left navigation icon */
+export function ChevronLeftIcon({ size = 20, color = '#6B5782' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M15 18l-6-6 6-6"
+        stroke={color}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/** Chevron right navigation icon */
+export function ChevronRightIcon({ size = 20, color = '#6B5782' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M9 18l6-6-6-6"
+        stroke={color}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
