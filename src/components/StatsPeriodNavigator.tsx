@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { ChevronLeftIcon, ChevronRightIcon } from './AestheticIcons';
 import { MotionTokens } from '../theme/motion';
@@ -37,8 +37,8 @@ export function StatsPeriodNavigator({
     animValue.setValue(transitionDirection === 'next' ? 1 : -1);
     Animated.timing(animValue, {
       toValue: 0,
-      duration: MotionTokens.duration.short,
-      easing: MotionTokens.easing.standard,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
   }, [dateRangeText, transitionDirection, animValue]);
