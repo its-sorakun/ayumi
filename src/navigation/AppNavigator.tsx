@@ -30,14 +30,15 @@ export function AppNavigator(): React.JSX.Element {
           contentStyle: {
             backgroundColor: theme.colors.background,
           },
-          animation: 'fade_from_bottom',
+          animation: 'slide_from_bottom',
+          animationDuration: 280,
+          gestureEnabled: true,
         }}>
         <Stack.Screen
           name="Dashboard"
           component={DashboardScreen}
           options={{
-            title: 'Ayumi',
-            headerLargeTitle: false,
+            headerShown: false,
           }}
         />
         <Stack.Screen 
