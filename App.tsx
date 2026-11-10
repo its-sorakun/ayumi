@@ -73,6 +73,14 @@ function mapPaletteToTheme(palette: MaterialYouPalette) {
       onSurfaceVariant: system_neutral2[S.T700],
       outline: system_neutral2[S.T500],
       outlineVariant: system_neutral2[S.T200],
+      elevation: {
+        level0: 'transparent',
+        level1: system_neutral1[S.T50],
+        level2: system_neutral1[S.T100],
+        level3: system_neutral1[S.T200],
+        level4: system_neutral1[S.T200],
+        level5: system_neutral1[S.T300],
+      },
     },
     dark: {
       primary: system_accent1[S.T200],
@@ -95,6 +103,14 @@ function mapPaletteToTheme(palette: MaterialYouPalette) {
       onSurfaceVariant: system_neutral2[S.T200],
       outline: system_neutral2[S.T400],
       outlineVariant: system_neutral2[S.T700],
+      elevation: {
+        level0: 'transparent',
+        level1: system_neutral1[S.T800],
+        level2: system_neutral1[S.T700],
+        level3: system_neutral1[S.T600],
+        level4: system_neutral1[S.T600],
+        level5: system_neutral1[S.T500],
+      },
     },
   };
 }
