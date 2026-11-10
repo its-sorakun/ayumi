@@ -31,11 +31,11 @@ export const MotionTokens = {
       damping: 18,
       mass: 1.0,
     },
-    // Fluid, expressive hand-off for page-level horizontal gestures (like Android ViewPager2)
+    // Responsive, snappy hand-off for page-level horizontal swipe navigation
     pager: {
-      stiffness: 110,
-      damping: 17,
-      mass: 1.0,
+      stiffness: 220,
+      damping: 24,
+      mass: 0.8,
     },
     // Soft, organic settling for data bars and tooltips
     gentle: {
