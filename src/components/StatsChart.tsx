@@ -72,7 +72,7 @@ export function StatsChart({
     growthAnim.setValue(0);
     Animated.timing(growthAnim, {
       toValue: 1,
-      duration: MotionTokens.duration.reveal,
+      duration: MotionTokens.duration.chartWave,
       easing: MotionTokens.easing.emphasizedDecel,
       useNativeDriver: false,
     }).start();
