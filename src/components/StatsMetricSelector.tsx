@@ -79,7 +79,7 @@ export function StatsMetricSelector({
       Animated.sequence([
         Animated.timing(stretchXAnim, {
           toValue: MotionTokens.squish.stretchX,
-          duration: 100,
+          duration: 220,
           useNativeDriver: true,
         }),
         Animated.spring(stretchXAnim, {
@@ -91,7 +91,7 @@ export function StatsMetricSelector({
       Animated.sequence([
         Animated.timing(compressYAnim, {
           toValue: MotionTokens.squish.compressY,
-          duration: 100,
+          duration: 220,
           useNativeDriver: true,
         }),
         Animated.spring(compressYAnim, {
