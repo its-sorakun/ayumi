@@ -53,9 +53,19 @@ import { FloatingDock } from '../components/FloatingDock';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+export interface StatsScreenProps {
+  hideDock?: boolean;
+  activeMetricProp?: StatMetricType;
+  onSelectMetricProp?: (metric: StatMetricType) => void;
+}
+
 const METRIC_ORDER: readonly StatMetricType[] = ['steps', 'distance', 'water'];
 
-export function StatsScreen(): React.JSX.Element {
+export function StatsScreen({
+  hideDock = false,
+  activeMetricProp,
+  onSelectMetricProp,
+}: StatsScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
@@ -65,7 +75,7 @@ export function StatsScreen(): React.JSX.Element {
   const { getLogsForDate } = useWaterTracker();
 
   // Primary state
-  const initialMetric: StatMetricType = route.params?.metric || 'steps';
+  const initialMetric: StatMetricType = activeMetricProp || route.params?.metric || 'steps';
   const [selectedMetric, setSelectedMetric] = useState<StatMetricType>(initialMetric);
   const [selectedPeriod, setSelectedPeriod] = useState<StatPeriodType>('daily');
   const [anchorDate, setAnchorDate] = useState<Date>(today());
@@ -99,12 +109,14 @@ export function StatsScreen(): React.JSX.Element {
     ]).start();
   }, []);
 
-  // Update metric if passed via route params
+  // Update metric if passed via route params or props
   useEffect(() => {
-    if (route.params?.metric && route.params.metric !== selectedMetric) {
+    if (activeMetricProp && activeMetricProp !== selectedMetric) {
+      handleSelectMetric(activeMetricProp);
+    } else if (route.params?.metric && route.params.metric !== selectedMetric) {
       handleSelectMetric(route.params.metric);
     }
-  }, [route.params?.metric]);
+  }, [activeMetricProp, route.params?.metric]);
 
   // Load historical data whenever anchor date or period changes
   const loadData = useCallback(async () => {
@@ -184,6 +196,7 @@ export function StatsScreen(): React.JSX.Element {
     // Trigger horizontal slide transition
     contentSlideAnim.setValue(direction);
     setSelectedMetric(newMetric);
+    onSelectMetricProp?.(newMetric);
 
     Animated.spring(contentSlideAnim, {
       toValue: 0,
@@ -203,11 +216,13 @@ export function StatsScreen(): React.JSX.Element {
     handleSelectMetric(METRIC_ORDER[nextIndex]);
   };
 
-  // PanResponder to intercept horizontal swipes across chart content
+  // PanResponder to intercept horizontal swipes across chart content (active only in standalone mode)
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gestureState) => {
+          // If embedded in horizontal pager, yield horizontal gestures to the parent pager
+          if (hideDock) return false;
           // Intercept horizontal swipes with clear horizontal intent
           return (
             Math.abs(gestureState.dx) > 30 &&
@@ -222,7 +237,7 @@ export function StatsScreen(): React.JSX.Element {
           }
         },
       }),
-    [selectedMetric]
+    [selectedMetric, hideDock]
   );
 
   // Navigation handlers
@@ -467,8 +482,8 @@ export function StatsScreen(): React.JSX.Element {
         contentContainerStyle={[
           styles.contentContainer,
           {
-            paddingTop: insets.top + 8,
-            paddingBottom: insets.bottom + 94,
+            paddingTop: insets.top + 4,
+            paddingBottom: insets.bottom + (hideDock ? 88 : 94),
           },
         ]}
         showsVerticalScrollIndicator={false}>
@@ -573,13 +588,15 @@ export function StatsScreen(): React.JSX.Element {
         </View>
       </ScrollView>
 
-      {/* Floating Bottom Navigation Dock with Stats active */}
-      <FloatingDock
-        activeTab="stats"
-        onHomePress={() => navigation.navigate('Dashboard')}
-        onAnalyticsPress={() => {}}
-        onProfilePress={() => navigation.navigate('Settings')}
-      />
+      {/* Floating Bottom Navigation Dock with Stats active (rendered only when not embedded) */}
+      {!hideDock && (
+        <FloatingDock
+          activeTab="stats"
+          onHomePress={() => navigation.navigate('Dashboard')}
+          onAnalyticsPress={() => {}}
+          onProfilePress={() => navigation.navigate('Settings')}
+        />
+      )}
     </View>
   );
 }
@@ -609,3 +626,4 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+
