@@ -22,6 +22,7 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import { useTheme } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DockHomeIcon, DockChartIcon, SettingsGearIcon } from './AestheticIcons';
 import { MotionTokens, useReducedMotion } from '../theme/motion';
 
@@ -41,6 +42,7 @@ export function FloatingDock({
   onProfilePress,
 }: FloatingDockProps): React.JSX.Element {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
 
   // Container width measured on layout for accurate slot centering
@@ -110,27 +112,46 @@ export function FloatingDock({
   let indicatorScaleY: any = 1;
 
   if (pagerProgress && containerWidth > 0) {
-    // Real-time finger-drag tracking across Home (0), Stats (1), and Settings (2)
-    indicatorTranslateX = pagerProgress.interpolate({
-      inputRange: [0, 1, 2],
-      outputRange: [slot0X, slot1X, slot2X],
-      extrapolate: 'clamp',
-    });
+    // Destination-anchored curve: pill clings near origin on launch, stretches mid-flight,
+    // and anchors cleanly onto destination slot before tail snaps into rest.
+    const d01 = slot1X - slot0X;
+    const d12 = slot2X - slot1X;
+    indicatorTranslateX = reducedMotion
+      ? pagerProgress.interpolate({
+          inputRange: [0, 1, 2],
+          outputRange: [slot0X, slot1X, slot2X],
+          extrapolate: 'clamp',
+        })
+      : pagerProgress.interpolate({
+          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2],
+          outputRange: [
+            slot0X,
+            slot0X + d01 * 0.14,
+            slot0X + d01 * 0.5,
+            slot0X + d01 * 0.86,
+            slot1X,
+            slot1X + d12 * 0.14,
+            slot1X + d12 * 0.5,
+            slot1X + d12 * 0.86,
+            slot2X,
+          ],
+          extrapolate: 'clamp',
+        });
 
     // Fluid pill squeeze deformation clipped cleanly inside trackClip (disabled for reduced motion)
     indicatorScaleX = reducedMotion
       ? 1
       : pagerProgress.interpolate({
-          inputRange: [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-          outputRange: [1.0, 1.14, 1.24, 1.14, 1.0, 1.14, 1.24, 1.14, 1.0],
+          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2],
+          outputRange: [1.0, 1.18, 1.26, 1.18, 1.0, 1.18, 1.26, 1.18, 1.0],
           extrapolate: 'clamp',
         });
 
     indicatorScaleY = reducedMotion
       ? 1
       : pagerProgress.interpolate({
-          inputRange: [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-          outputRange: [1.0, 0.9, 0.84, 0.9, 1.0, 0.9, 0.84, 0.9, 1.0],
+          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2],
+          outputRange: [1.0, 0.9, 0.83, 0.9, 1.0, 0.9, 0.83, 0.9, 1.0],
           extrapolate: 'clamp',
         });
   } else if (containerWidth > 0) {
@@ -152,7 +173,12 @@ export function FloatingDock({
   }
 
   return (
-    <View style={styles.dockWrapper} pointerEvents="box-none">
+    <View
+      style={[
+        styles.dockWrapper,
+        { bottom: Math.max(insets.bottom + 8, 16) },
+      ]}
+      pointerEvents="box-none">
       <View
         onLayout={onLayout}
         style={[
