@@ -8,15 +8,17 @@
  *  - Clear contrast typography adapting to Material You primary roles
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
   Animated,
+  Easing,
   LayoutChangeEvent,
   PanResponder,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
+import { useReducedMotion } from '../theme/motion';
 
 export type StatPeriodType = 'week' | 'daily' | 'month';
 
@@ -41,6 +43,7 @@ export function StatsPeriodSelector({
 }: StatsPeriodSelectorProps): React.JSX.Element {
   const theme = useTheme();
   const isDark = theme.dark;
+  const reducedMotion = useReducedMotion();
 
   const [containerWidth, setContainerWidth] = useState(0);
   const activeIndex = Math.max(PERIODS.findIndex(p => p.type === selectedPeriod), 0);
@@ -53,8 +56,10 @@ export function StatsPeriodSelector({
   const containerWidthRef = useRef(0);
   const activeIndexRef = useRef(activeIndex);
   const onSelectRef = useRef(onSelectPeriod);
+  const reducedMotionRef = useRef(reducedMotion);
   activeIndexRef.current = activeIndex;
   onSelectRef.current = onSelectPeriod;
+  reducedMotionRef.current = reducedMotion;
 
   const pressLocalXRef = useRef(0);
   const dragStartSlotRef = useRef(activeIndex);
@@ -63,59 +68,91 @@ export function StatsPeriodSelector({
 
   const segmentWidth = containerWidth > 0 ? (containerWidth - PADDING * 2) / 3 : 0;
 
-  const resetCapsuleShape = () => {
+  const resetCapsuleShape = useCallback(() => {
+    const reduced = reducedMotionRef.current;
     Animated.parallel([
       Animated.spring(stretchXAnim, {
         toValue: 1,
-        stiffness: 310,
-        damping: 26,
+        stiffness: reduced ? 380 : 185,
+        damping: reduced ? 36 : 14,
         useNativeDriver: true,
       }),
       Animated.spring(compressYAnim, {
         toValue: 1,
-        stiffness: 310,
-        damping: 26,
+        stiffness: reduced ? 380 : 185,
+        damping: reduced ? 36 : 14,
         useNativeDriver: true,
       }),
       Animated.spring(pressScaleAnim, {
         toValue: 1,
-        stiffness: 320,
-        damping: 24,
+        stiffness: 280,
+        damping: 20,
         useNativeDriver: true,
       }),
     ]).start();
-  };
+  }, [stretchXAnim, compressYAnim, pressScaleAnim]);
 
-  // Distinct segmented capsule motion: taut, disciplined critically-damped glide with minimal squish
+  // Distinct segmented capsule motion: crisp, viscous capsule glide with fast mid-flight
+  // squeeze rebound constrained cleanly inside the rounded pill track.
   useEffect(() => {
     if (skipNextEffectAnimRef.current) {
       skipNextEffectAnimRef.current = false;
       return;
     }
 
+    if (reducedMotion) {
+      stretchXAnim.setValue(1);
+      compressYAnim.setValue(1);
+      pressScaleAnim.setValue(1);
+      Animated.timing(slideAnim, {
+        toValue: activeIndex,
+        duration: 110,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: activeIndex,
-        stiffness: 290,
-        damping: 26,
-        mass: 0.72,
+        stiffness: 205,
+        damping: 16,
+        mass: 0.82,
         useNativeDriver: true,
       }),
       Animated.sequence([
-        Animated.timing(pressScaleAnim, {
-          toValue: 0.96,
-          duration: 70,
-          useNativeDriver: true,
-        }),
-        Animated.spring(pressScaleAnim, {
-          toValue: 1,
-          stiffness: 320,
-          damping: 24,
-          useNativeDriver: true,
-        }),
+        Animated.parallel([
+          Animated.timing(stretchXAnim, {
+            toValue: 1.14,
+            duration: 90,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(compressYAnim, {
+            toValue: 0.87,
+            duration: 90,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.spring(stretchXAnim, {
+            toValue: 1,
+            stiffness: 185,
+            damping: 14,
+            useNativeDriver: true,
+          }),
+          Animated.spring(compressYAnim, {
+            toValue: 1,
+            stiffness: 185,
+            damping: 14,
+            useNativeDriver: true,
+          }),
+        ]),
       ]),
     ]).start();
-  }, [activeIndex, slideAnim, pressScaleAnim]);
+  }, [activeIndex, reducedMotion, slideAnim, stretchXAnim, compressYAnim, pressScaleAnim]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -162,12 +199,17 @@ export function StatsPeriodSelector({
         const clampedSlot = Math.min(Math.max(rawSlot, 0), 2);
         slideAnim.setValue(clampedSlot);
 
-        const stretchFactor = Math.min(
-          Math.abs(vx) * 0.045 + Math.min(Math.abs(dx) / segW, 1) * 0.035,
-          0.07
-        );
-        stretchXAnim.setValue(1 + stretchFactor);
-        compressYAnim.setValue(1 - stretchFactor * 0.75);
+        if (reducedMotionRef.current) {
+          stretchXAnim.setValue(1);
+          compressYAnim.setValue(1);
+        } else {
+          const wrappedFrac = clampedSlot % 1;
+          const midStretch = Math.sin(Math.PI * wrappedFrac);
+          const velocityBoost = Math.min(Math.abs(vx) * 0.08, 0.08);
+          const stretchFactor = Math.min(midStretch * 0.11 + velocityBoost, 0.18);
+          stretchXAnim.setValue(1 + stretchFactor);
+          compressYAnim.setValue(1 - stretchFactor * 0.72);
+        }
       },
 
       onPanResponderRelease: (_, gestureState) => {
@@ -178,12 +220,14 @@ export function StatsPeriodSelector({
             const innerX = Math.min(Math.max(pressLocalXRef.current - PADDING, 0), Math.max(width - PADDING * 2, 1));
             const segW = Math.max((width - PADDING * 2) / 3, 1);
             const tappedSlot = Math.min(Math.max(Math.floor(innerX / segW), 0), 2);
-            onSelectRef.current(PERIODS[tappedSlot].type);
+            if (tappedSlot !== activeIndexRef.current) {
+              onSelectRef.current(PERIODS[tappedSlot].type);
+            }
           } else {
             Animated.spring(slideAnim, {
               toValue: activeIndexRef.current,
-              stiffness: 290,
-              damping: 26,
+              stiffness: 205,
+              damping: 16,
               useNativeDriver: true,
             }).start();
           }
@@ -207,31 +251,32 @@ export function StatsPeriodSelector({
           onSelectRef.current(PERIODS[targetSlot].type);
         }
 
+        const reduced = reducedMotionRef.current;
         Animated.parallel([
           Animated.spring(slideAnim, {
             toValue: targetSlot,
             velocity: swipeVelocitySlots,
-            stiffness: 290,
-            damping: 26,
-            mass: 0.72,
+            stiffness: reduced ? 360 : 205,
+            damping: reduced ? 34 : 16,
+            mass: 0.82,
             useNativeDriver: true,
           }),
           Animated.spring(stretchXAnim, {
             toValue: 1,
-            stiffness: 310,
-            damping: 26,
+            stiffness: reduced ? 380 : 185,
+            damping: reduced ? 36 : 14,
             useNativeDriver: true,
           }),
           Animated.spring(compressYAnim, {
             toValue: 1,
-            stiffness: 310,
-            damping: 26,
+            stiffness: reduced ? 380 : 185,
+            damping: reduced ? 36 : 14,
             useNativeDriver: true,
           }),
           Animated.spring(pressScaleAnim, {
             toValue: 1,
-            stiffness: 320,
-            damping: 24,
+            stiffness: 280,
+            damping: 20,
             useNativeDriver: true,
           }),
         ]).start();
@@ -241,8 +286,8 @@ export function StatsPeriodSelector({
         isHorizontalDragRef.current = false;
         Animated.spring(slideAnim, {
           toValue: activeIndexRef.current,
-          stiffness: 290,
-          damping: 26,
+          stiffness: 205,
+          damping: 16,
           useNativeDriver: true,
         }).start();
         resetCapsuleShape();
@@ -295,7 +340,7 @@ export function StatsPeriodSelector({
         </View>
       )}
 
-      <View style={styles.labelsRow} pointerEvents="none">
+      <View style={styles.labelsRow} pointerEvents="none" collapsable={false}>
         {PERIODS.map(period => {
           const isSelected = selectedPeriod === period.type;
           const textColor = isSelected
@@ -328,7 +373,7 @@ const styles = StyleSheet.create({
     height: CONTAINER_HEIGHT,
     borderRadius: CONTAINER_HEIGHT / 2,
     marginHorizontal: 20,
-    marginTop: 8,
+    marginTop: 12,
     padding: PADDING,
     position: 'relative',
     alignItems: 'center',
@@ -354,13 +399,14 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     borderRadius: (CONTAINER_HEIGHT - PADDING * 2) / 2,
-    elevation: 2,
+    elevation: 0,
   },
   labelsRow: {
     flex: 1,
     flexDirection: 'row',
     height: '100%',
-    zIndex: 2,
+    zIndex: 10,
+    elevation: 2,
   },
   segmentButton: {
     flex: 1,
