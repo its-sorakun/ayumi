@@ -19,7 +19,6 @@ import {
   ScrollView,
   Animated,
   PanResponder,
-  Dimensions,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -29,10 +28,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../types';
 import { healthService } from '../services';
 import { useHealthData, useWaterTracker } from '../hooks';
-import type { HistoricalStepData, HistoricalDistanceData } from '../types/health';
+import type {
+  HistoricalStepData,
+  HistoricalDistanceData,
+  HourlyStepData,
+  HourlyDistanceData,
+} from '../types/health';
 import {
-  formatDate,
-  formatDistance,
   formatLocalDateKey,
   startOfDay,
   today,
@@ -58,24 +60,104 @@ export interface StatsScreenProps {
   hideDock?: boolean;
   activeMetricProp?: StatMetricType;
   onSelectMetricProp?: (metric: StatMetricType) => void;
+  isPageActive?: boolean;
 }
 
 const METRIC_ORDER: readonly StatMetricType[] = ['steps', 'distance', 'water'];
+
+interface PeriodDataset {
+  readonly period: StatPeriodType;
+  readonly anchorKey: string;
+  readonly anchorDate: Date;
+  readonly stepsRange: readonly HistoricalStepData[];
+  readonly distanceRange: readonly HistoricalDistanceData[];
+  readonly hourlyStepsSupported: boolean;
+  readonly hourlySteps: readonly HourlyStepData[];
+  readonly hourlyDistanceSupported: boolean;
+  readonly hourlyDistance: readonly HourlyDistanceData[];
+  readonly dailyWaterHours: readonly number[];
+  readonly periodWaterDays: ReadonlyMap<string, { amount: number; hasLog: boolean }>;
+}
+
+/**
+ * Resolves the local hour (0..23) for a logged water record.
+ * Prefers the millisecond timestamp stored in `log.id` before parsing 12h/24h formatted strings.
+ */
+export function extractWaterLogHour(
+  log: { readonly id: string; readonly time: string },
+  expectedDateKey: string,
+): number | null {
+  if (/^\d{12,15}$/.test(log.id)) {
+    const parsed = new Date(Number(log.id));
+    if (!Number.isNaN(parsed.getTime()) && formatLocalDateKey(parsed) === expectedDateKey) {
+      return parsed.getHours();
+    }
+  }
+
+  const timeMatch = log.time.trim().match(/^(\d{1,2}):(\d{2})(?:\s*(am|pm))?/i);
+  if (!timeMatch) return null;
+
+  let hour = parseInt(timeMatch[1], 10);
+  const meridiem = timeMatch[3]?.toLowerCase();
+  if (meridiem === 'pm' && hour < 12) hour += 12;
+  if (meridiem === 'am' && hour === 12) hour = 0;
+
+  return hour >= 0 && hour < 24 ? hour : null;
+}
+
+/** Advances calendar month without JS Date day-of-month rollover (e.g. Mar 31 -> Feb 28). */
+function shiftMonthSafely(base: Date, deltaMonths: number): Date {
+  const targetYear = base.getFullYear();
+  const targetMonth = base.getMonth() + deltaMonths;
+  const firstOfTarget = new Date(targetYear, targetMonth, 1);
+  const daysInTarget = new Date(firstOfTarget.getFullYear(), firstOfTarget.getMonth() + 1, 0).getDate();
+  const clampedDay = Math.min(base.getDate(), daysInTarget);
+  return new Date(firstOfTarget.getFullYear(), firstOfTarget.getMonth(), clampedDay);
+}
+
+function formatDistanceSummary(meters: number, unitSuffix?: string): { value: string; unit: string } {
+  if (meters >= 1000) {
+    const km = Number((meters / 1000).toFixed(2));
+    return {
+      value: km.toLocaleString(),
+      unit: unitSuffix ? `km/${unitSuffix}` : 'km',
+    };
+  }
+  return {
+    value: Math.round(meters).toLocaleString(),
+    unit: unitSuffix ? `m/${unitSuffix}` : 'm',
+  };
+}
+
+function formatWaterSummary(ml: number, unitSuffix?: string): { value: string; unit: string } {
+  if (ml >= 1000) {
+    const liters = Number((ml / 1000).toFixed(2));
+    return {
+      value: liters.toString(),
+      unit: unitSuffix ? `L/${unitSuffix}` : 'L',
+    };
+  }
+  return {
+    value: Math.round(ml).toLocaleString(),
+    unit: unitSuffix ? `ml/${unitSuffix}` : 'ml',
+  };
+}
 
 export function StatsScreen({
   hideDock = false,
   activeMetricProp,
   onSelectMetricProp,
+  isPageActive = true,
 }: StatsScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
 
-  const { providerStatus } = useHealthData();
-  const { getLogsForDate } = useWaterTracker();
+  const { todaySummary, providerName } = useHealthData();
+  const { totalWater, getLogsForDate } = useWaterTracker();
 
-  // Primary state
+  // Primary selection state (drives selectors & navigator immediately on user tap)
   const initialMetric: StatMetricType = activeMetricProp || route.params?.metric || 'steps';
   const [selectedMetric, setSelectedMetric] = useState<StatMetricType>(initialMetric);
   const [selectedPeriod, setSelectedPeriod] = useState<StatPeriodType>('daily');
@@ -83,11 +165,12 @@ export function StatsScreen({
   const [navDirection, setNavDirection] = useState<'prev' | 'next'>('next');
   const [loading, setLoading] = useState(false);
 
-  // Raw fetched history
-  const [stepsHistory, setStepsHistory] = useState<HistoricalStepData[]>([]);
-  const [distanceHistory, setDistanceHistory] = useState<HistoricalDistanceData[]>([]);
-  const [dailyWaterLogs, setDailyWaterLogs] = useState<{ hour: number; amount: number }[]>([]);
-  const [periodWaterDaily, setPeriodWaterDaily] = useState<Map<string, number>>(new Map());
+  // Atomic committed dataset ensures chart title, total, bars, and summary always match
+  const [committedDataset, setCommittedDataset] = useState<PeriodDataset | null>(null);
+  const datasetCacheRef = useRef<Map<string, PeriodDataset>>(new Map());
+  const requestIdRef = useRef(0);
+  const prevLiveSigRef = useRef('');
+  const wasPageActiveRef = useRef(isPageActive);
 
   // Animation values for screen entrance
   const entranceHeader = useRef(new Animated.Value(0)).current;
@@ -96,19 +179,41 @@ export function StatsScreen({
   const entranceChart = useRef(new Animated.Value(0)).current;
   const entranceSummaries = useRef(new Animated.Value(0)).current;
 
-  // Animation for metric slide/crossfade
+  // Crisp subtle horizontal nudge for metric switch (zero opacity wash-out)
   const contentSlideAnim = useRef(new Animated.Value(0)).current;
 
-  // Initial choreographed entrance (relaxed Android 1x timing)
+  // Initial choreographed entrance
   useEffect(() => {
-    Animated.stagger(80, [
-      Animated.timing(entranceHeader, { toValue: 1, duration: 400, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
-      Animated.timing(entranceMetrics, { toValue: 1, duration: 420, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
-      Animated.timing(entrancePeriods, { toValue: 1, duration: 420, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
-      Animated.timing(entranceChart, { toValue: 1, duration: 480, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
-      Animated.timing(entranceSummaries, { toValue: 1, duration: 440, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
+    Animated.stagger(65, [
+      Animated.timing(entranceHeader, { toValue: 1, duration: 340, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entranceMetrics, { toValue: 1, duration: 360, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entrancePeriods, { toValue: 1, duration: 360, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entranceChart, { toValue: 1, duration: 400, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entranceSummaries, { toValue: 1, duration: 380, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
     ]).start();
-  }, []);
+  }, [entranceHeader, entranceMetrics, entrancePeriods, entranceChart, entranceSummaries]);
+
+  // Transition handler when switching metric
+  const handleSelectMetric = useCallback((newMetric: StatMetricType) => {
+    if (newMetric === selectedMetric) return;
+
+    const currentIndex = METRIC_ORDER.indexOf(selectedMetric);
+    const newIndex = METRIC_ORDER.indexOf(newMetric);
+    const direction = newIndex > currentIndex ? -1 : 1;
+
+    contentSlideAnim.stopAnimation();
+    contentSlideAnim.setValue(direction);
+    setSelectedMetric(newMetric);
+    onSelectMetricProp?.(newMetric);
+
+    Animated.spring(contentSlideAnim, {
+      toValue: 0,
+      stiffness: 240,
+      damping: 22,
+      mass: 0.85,
+      useNativeDriver: true,
+    }).start();
+  }, [selectedMetric, contentSlideAnim, onSelectMetricProp]);
 
   // Update metric if passed via route params or props
   useEffect(() => {
@@ -117,103 +222,161 @@ export function StatsScreen({
     } else if (route.params?.metric && route.params.metric !== selectedMetric) {
       handleSelectMetric(route.params.metric);
     }
-  }, [activeMetricProp, route.params?.metric]);
+  }, [activeMetricProp, route.params?.metric, selectedMetric, handleSelectMetric]);
 
-  // Load historical data whenever anchor date or period changes
-  const loadData = useCallback(async () => {
+  // Fetch all metrics for a period+date atomically so switching metrics never flashes empty bars
+  const loadData = useCallback(async (bypassCache = false) => {
+    const anchorKey = formatLocalDateKey(anchorDate);
+    const cacheKey = `${selectedPeriod}:${anchorKey}:${providerName}`;
+    const cached = !bypassCache ? datasetCacheRef.current.get(cacheKey) : undefined;
+    if (cached) {
+      setCommittedDataset(cached);
+      return;
+    }
+
+    const reqId = ++requestIdRef.current;
     setLoading(true);
     try {
-      if (selectedMetric === 'water') {
-        const dateKey = formatLocalDateKey(anchorDate);
-        const logs = await getLogsForDate(dateKey);
-        const hourMap: Record<number, number> = {};
-        for (let h = 0; h < 24; h++) hourMap[h] = 0;
+      const todayMid = today().getTime();
 
-        logs.forEach(log => {
-          // Parse hour from log time string (HH:MM)
-          const parts = log.time.split(':');
-          const hr = parseInt(parts[0], 10);
-          if (!isNaN(hr) && hr >= 0 && hr < 24) {
-            hourMap[hr] = (hourMap[hr] || 0) + log.amount;
+      if (selectedPeriod === 'daily') {
+        const [hourlyStepsRes, hourlyDistRes, waterLogs] = await Promise.all([
+          healthService.getHourlySteps(anchorDate),
+          healthService.getHourlyDistance(anchorDate),
+          getLogsForDate(anchorKey),
+        ]);
+
+        const dailyWaterHours = new Array<number>(24).fill(0);
+        waterLogs.forEach(log => {
+          const hr = extractWaterLogHour(log, anchorKey);
+          if (hr !== null) {
+            dailyWaterHours[hr] += log.amount;
           }
         });
 
-        setDailyWaterLogs(
-          Object.entries(hourMap).map(([h, amt]) => ({
-            hour: parseInt(h, 10),
-            amount: amt,
-          }))
-        );
+        const dataset: PeriodDataset = {
+          period: 'daily',
+          anchorKey,
+          anchorDate: new Date(anchorDate),
+          stepsRange: [],
+          distanceRange: [],
+          hourlyStepsSupported: hourlyStepsRes.supported,
+          hourlySteps: hourlyStepsRes.buckets,
+          hourlyDistanceSupported: hourlyDistRes.supported,
+          hourlyDistance: hourlyDistRes.buckets,
+          dailyWaterHours,
+          periodWaterDays: new Map(),
+        };
 
-        // Fetch logs for the multi-day period (week: 7 days, month: 28-31 days)
-        const daysToFetch = selectedPeriod === 'week' ? 7 : 31;
-        const waterMap = new Map<string, number>();
-        const fetchPromises = [];
-
-        for (let i = 0; i < daysToFetch; i++) {
-          const d = new Date(anchorDate);
-          d.setDate(d.getDate() - i);
-          const key = formatLocalDateKey(d);
-          fetchPromises.push(
-            getLogsForDate(key).then(dayLogs => {
-              const sum = dayLogs.reduce((acc, curr) => acc + curr.amount, 0);
-              waterMap.set(key, sum);
-            })
-          );
+        if (reqId === requestIdRef.current) {
+          datasetCacheRef.current.set(cacheKey, dataset);
+          setCommittedDataset(dataset);
         }
-        await Promise.all(fetchPromises);
-        setPeriodWaterDaily(waterMap);
+        return;
+      }
+
+      // Compute exact inclusive local calendar bounds for Week (7d) or Month (28-31d)
+      let rangeStart: Date;
+      let rangeEnd: Date;
+      if (selectedPeriod === 'week') {
+        rangeStart = new Date(anchorDate);
+        rangeStart.setDate(rangeStart.getDate() - 6);
+        rangeEnd = new Date(anchorDate);
       } else {
-        // Steps or Distance
-        const timeRangeQuery = selectedPeriod === 'month' ? 'month' : 'week';
-        const [stepsRes, distRes] = await Promise.all([
-          healthService.getHistoricalSteps(timeRangeQuery),
-          healthService.getHistoricalDistance(timeRangeQuery),
-        ]);
-        setStepsHistory(stepsRes as HistoricalStepData[]);
-        setDistanceHistory(distRes as HistoricalDistanceData[]);
+        const year = anchorDate.getFullYear();
+        const month = anchorDate.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        rangeStart = new Date(year, month, 1);
+        rangeEnd = new Date(year, month, daysInMonth);
+      }
+
+      const dayKeysToFetch: string[] = [];
+      const cursor = new Date(rangeStart);
+      while (startOfDay(cursor).getTime() <= startOfDay(rangeEnd).getTime()) {
+        if (startOfDay(cursor).getTime() <= todayMid) {
+          dayKeysToFetch.push(formatLocalDateKey(cursor));
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      const periodWaterDays = new Map<string, { amount: number; hasLog: boolean }>();
+      const [stepsRange, distanceRange] = await Promise.all([
+        healthService.getHistoricalStepsRange(rangeStart, rangeEnd),
+        healthService.getHistoricalDistanceRange(rangeStart, rangeEnd),
+        Promise.all(
+          dayKeysToFetch.map(key =>
+            getLogsForDate(key).then(dayLogs => {
+              const amount = dayLogs.reduce((acc, curr) => acc + curr.amount, 0);
+              periodWaterDays.set(key, {
+                amount,
+                hasLog: dayLogs.length > 0,
+              });
+            })
+          )
+        ),
+      ]);
+
+      const dataset: PeriodDataset = {
+        period: selectedPeriod,
+        anchorKey,
+        anchorDate: new Date(anchorDate),
+        stepsRange,
+        distanceRange,
+        hourlyStepsSupported: true,
+        hourlySteps: [],
+        hourlyDistanceSupported: true,
+        hourlyDistance: [],
+        dailyWaterHours: [],
+        periodWaterDays,
+      };
+
+      if (reqId === requestIdRef.current) {
+        datasetCacheRef.current.set(cacheKey, dataset);
+        setCommittedDataset(dataset);
       }
     } catch (err) {
       console.warn('Failed to load stats data', err);
     } finally {
-      setLoading(false);
+      if (reqId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-  }, [selectedMetric, selectedPeriod, anchorDate, getLogsForDate]);
+  }, [selectedPeriod, anchorDate, providerName, getLogsForDate]);
+
+  useEffect(() => {
+    loadData(false);
+  }, [loadData]);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      datasetCacheRef.current.clear();
+      loadData(true);
     }, [loadData])
   );
 
-  // Transition handler when switching metric
-  const handleSelectMetric = (newMetric: StatMetricType) => {
-    if (newMetric === selectedMetric) return;
+  // Sync automatically when live home telemetry changes or user swipes back onto Stats page
+  const liveSteps = todaySummary?.steps ?? 0;
+  const liveDistance = Math.round(todaySummary?.distance ?? 0);
+  useEffect(() => {
+    const liveSig = `${liveSteps}:${liveDistance}:${totalWater}:${providerName}`;
+    const becameActive = isPageActive && !wasPageActiveRef.current;
+    wasPageActiveRef.current = isPageActive;
 
-    const currentIndex = METRIC_ORDER.indexOf(selectedMetric);
-    const newIndex = METRIC_ORDER.indexOf(newMetric);
-    const direction = newIndex > currentIndex ? -1 : 1;
-
-    // Trigger horizontal slide transition
-    contentSlideAnim.setValue(direction);
-    setSelectedMetric(newMetric);
-    onSelectMetricProp?.(newMetric);
-
-    Animated.spring(contentSlideAnim, {
-      toValue: 0,
-      ...MotionTokens.spring.snappy,
-      useNativeDriver: true,
-    }).start();
-  };
+    if (prevLiveSigRef.current !== '' && (liveSig !== prevLiveSigRef.current || becameActive)) {
+      datasetCacheRef.current.clear();
+      loadData(true);
+    }
+    prevLiveSigRef.current = liveSig;
+  }, [liveSteps, liveDistance, totalWater, providerName, isPageActive, loadData]);
 
   // Metric cycling for horizontal swipe gesture
-  const cycleMetric = (direction: 'next' | 'prev') => {
+  const cycleMetric = useCallback((direction: 'next' | 'prev') => {
     const currentIndex = METRIC_ORDER.indexOf(selectedMetric);
     let nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
     if (nextIndex >= METRIC_ORDER.length) nextIndex = 0;
     if (nextIndex < 0) nextIndex = METRIC_ORDER.length - 1;
     handleSelectMetric(METRIC_ORDER[nextIndex]);
-  };
+  }, [selectedMetric, handleSelectMetric]);
 
   // PanResponder to intercept horizontal swipes across chart content (active only in standalone mode)
   const panResponder = useMemo(
@@ -236,151 +399,217 @@ export function StatsScreen({
           }
         },
       }),
-    [selectedMetric, hideDock]
+    [cycleMetric, hideDock]
   );
 
   // Navigation handlers
   const canGoNext = useMemo(() => {
     const todayMidnight = today().getTime();
+    if (selectedPeriod === 'month') {
+      const now = today();
+      return (
+        anchorDate.getFullYear() < now.getFullYear() ||
+        (anchorDate.getFullYear() === now.getFullYear() && anchorDate.getMonth() < now.getMonth())
+      );
+    }
     return anchorDate.getTime() < todayMidnight;
-  }, [anchorDate]);
+  }, [anchorDate, selectedPeriod]);
 
   const handlePrevious = () => {
     setNavDirection('prev');
-    const newDate = new Date(anchorDate);
     if (selectedPeriod === 'daily') {
-      newDate.setDate(newDate.getDate() - 1);
+      const next = new Date(anchorDate);
+      next.setDate(next.getDate() - 1);
+      setAnchorDate(next);
     } else if (selectedPeriod === 'week') {
-      newDate.setDate(newDate.getDate() - 7);
+      const next = new Date(anchorDate);
+      next.setDate(next.getDate() - 7);
+      setAnchorDate(next);
     } else {
-      newDate.setMonth(newDate.getMonth() - 1);
+      setAnchorDate(shiftMonthSafely(anchorDate, -1));
     }
-    setAnchorDate(newDate);
   };
 
   const handleNext = () => {
     if (!canGoNext) return;
     setNavDirection('next');
-    const newDate = new Date(anchorDate);
+    let next: Date;
     if (selectedPeriod === 'daily') {
-      newDate.setDate(newDate.getDate() + 1);
+      next = new Date(anchorDate);
+      next.setDate(next.getDate() + 1);
     } else if (selectedPeriod === 'week') {
-      newDate.setDate(newDate.getDate() + 7);
+      next = new Date(anchorDate);
+      next.setDate(next.getDate() + 7);
     } else {
-      newDate.setMonth(newDate.getMonth() + 1);
+      next = shiftMonthSafely(anchorDate, 1);
     }
-    // Prevent navigating past today
-    if (newDate.getTime() > today().getTime()) {
+    if (next.getTime() > today().getTime()) {
       setAnchorDate(today());
     } else {
-      setAnchorDate(newDate);
+      setAnchorDate(next);
     }
   };
 
-  // Period Navigator date text
-  const dateRangeText = useMemo(() => {
+  const formatPeriodRangeLabel = useCallback((periodType: StatPeriodType, targetDate: Date) => {
     const monthNames = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
-    if (selectedPeriod === 'daily') {
-      return `${monthNames[anchorDate.getMonth()]} ${anchorDate.getDate()}, ${anchorDate.getFullYear()}`;
+    if (periodType === 'daily') {
+      return `${monthNames[targetDate.getMonth()]} ${targetDate.getDate()}, ${targetDate.getFullYear()}`;
     }
-    if (selectedPeriod === 'week') {
-      const start = new Date(anchorDate);
+    if (periodType === 'week') {
+      const start = new Date(targetDate);
       start.setDate(start.getDate() - 6);
       const startStr = `${monthNames[start.getMonth()]} ${start.getDate()}`;
-      const endStr = `${monthNames[anchorDate.getMonth()]} ${anchorDate.getDate()}, ${anchorDate.getFullYear()}`;
+      const endStr = `${monthNames[targetDate.getMonth()]} ${targetDate.getDate()}, ${targetDate.getFullYear()}`;
       return `${startStr} – ${endStr}`;
     }
-    // Month
     const fullMonthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December',
     ];
-    return `${fullMonthNames[anchorDate.getMonth()]} ${anchorDate.getFullYear()}`;
-  }, [selectedPeriod, anchorDate]);
+    return `${fullMonthNames[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
+  }, []);
 
-  // Chart subtitle
+  // Navigator header follows immediate UI selection
+  const dateRangeText = useMemo(
+    () => formatPeriodRangeLabel(selectedPeriod, anchorDate),
+    [formatPeriodRangeLabel, selectedPeriod, anchorDate]
+  );
+
+  // Chart card and summary cards bind strictly to committedDataset so title/bars/totals stay coherent
+  const committedPeriod = committedDataset?.period ?? selectedPeriod;
+  const committedAnchor = committedDataset?.anchorDate ?? anchorDate;
+
   const chartSubtitle = useMemo(() => {
-    if (selectedPeriod === 'daily') {
-      return `Hourly • ${dateRangeText}`;
-    }
-    return `Daily • ${dateRangeText}`;
-  }, [selectedPeriod, dateRangeText]);
+    const label = formatPeriodRangeLabel(committedPeriod, committedAnchor);
+    return committedPeriod === 'daily' ? `Hourly • ${label}` : `Daily • ${label}`;
+  }, [committedPeriod, committedAnchor, formatPeriodRangeLabel]);
 
-  // Construct chart data points based on metric & period
-  const chartDataPoints: readonly ChartDataPoint[] = useMemo(() => {
-    if (selectedPeriod === 'daily') {
-      // 24 hourly data points
+  const { chartDataPoints, unavailableNotice, hourlyUnavailable } = useMemo(() => {
+    const todayMidnight = today().getTime();
+    const nowHour = new Date().getHours();
+
+    if (committedPeriod === 'daily') {
       const points: ChartDataPoint[] = [];
-      const currentHour = anchorDate.getTime() === today().getTime() ? new Date().getHours() : 23;
+      const dayMid = startOfDay(committedAnchor).getTime();
+      const isFutureDay = dayMid > todayMidnight;
+      const isTodayDay = dayMid === todayMidnight;
+
+      const isHourlyUnsupported =
+        !committedDataset ||
+        (selectedMetric === 'steps' && !committedDataset.hourlyStepsSupported) ||
+        (selectedMetric === 'distance' && !committedDataset.hourlyDistanceSupported);
+
+      const hasCommittedHourly =
+        committedDataset != null &&
+        ((selectedMetric === 'steps' && !committedDataset.hourlyStepsSupported) ||
+          (selectedMetric === 'distance' && !committedDataset.hourlyDistanceSupported));
 
       for (let h = 0; h < 24; h++) {
         const hourStr = String(h).padStart(2, '0');
-        let val = 0;
+        const isFutureSlot = isFutureDay || (isTodayDay && h > nowHour);
 
-        if (selectedMetric === 'water') {
-          const found = dailyWaterLogs.find(l => l.hour === h);
-          val = found ? found.amount : 0;
-        } else if (selectedMetric === 'steps') {
-          // If past current hour today, zero
-          if (h <= currentHour) {
-            // Find in step history or distribute
-            const dayKey = formatLocalDateKey(anchorDate);
-            const foundDay = stepsHistory.find(d => d.date === dayKey);
-            const total = foundDay?.steps || 0;
-            // Simulated active curve for hours when only aggregate exists
-            if (total > 0 && h >= 7 && h <= 21) {
-              const weights = [1, 2, 3, 5, 8, 12, 10, 8, 7, 9, 11, 8, 6, 4, 2];
-              const w = weights[h - 7] || 1;
-              val = Math.round((total * w) / 98);
-            }
-          }
-        } else {
-          // Distance
-          if (h <= currentHour) {
-            const dayKey = formatLocalDateKey(anchorDate);
-            const foundDay = distanceHistory.find(d => d.date === dayKey);
-            const total = foundDay?.distance || 0;
-            if (total > 0 && h >= 7 && h <= 21) {
-              const weights = [1, 2, 3, 5, 8, 12, 10, 8, 7, 9, 11, 8, 6, 4, 2];
-              const w = weights[h - 7] || 1;
-              val = Math.round((total * w) / 98);
-            }
-          }
+        if (isFutureSlot) {
+          points.push({
+            key: `hour-${h}`,
+            label: hourStr,
+            subLabel: `${hourStr}:00`,
+            value: 0,
+            status: 'future',
+          });
+          continue;
         }
 
-        points.push({
-          key: `hour-${h}`,
-          label: hourStr,
-          subLabel: `${hourStr}:00`,
-          value: val,
-        });
+        if (selectedMetric === 'water') {
+          const val = committedDataset?.dailyWaterHours[h] || 0;
+          points.push({
+            key: `hour-${h}`,
+            label: hourStr,
+            subLabel: `${hourStr}:00`,
+            value: val,
+            status: 'recorded',
+          });
+        } else if (hasCommittedHourly || !committedDataset) {
+          points.push({
+            key: `hour-${h}`,
+            label: hourStr,
+            subLabel: `${hourStr}:00`,
+            value: 0,
+            status: 'missing',
+          });
+        } else if (selectedMetric === 'steps') {
+          const bucket = committedDataset.hourlySteps.find(b => b.hour === h);
+          points.push({
+            key: `hour-${h}`,
+            label: hourStr,
+            subLabel: `${hourStr}:00`,
+            value: bucket?.steps || 0,
+            status: 'recorded',
+          });
+        } else {
+          const bucket = committedDataset.hourlyDistance.find(b => b.hour === h);
+          points.push({
+            key: `hour-${h}`,
+            label: hourStr,
+            subLabel: `${hourStr}:00`,
+            value: bucket?.distance || 0,
+            status: 'recorded',
+          });
+        }
       }
-      return points;
+
+      const notice =
+        hasCommittedHourly && !isFutureDay
+          ? 'Hourly breakdown requires Health Connect'
+          : null;
+
+      return {
+        chartDataPoints: points,
+        unavailableNotice: notice,
+        hourlyUnavailable: Boolean(hasCommittedHourly && !isFutureDay && isHourlyUnsupported),
+      };
     }
 
-    if (selectedPeriod === 'week') {
-      // 7 daily data points ending at anchorDate
+    if (committedPeriod === 'week') {
       const points: ChartDataPoint[] = [];
       const dayLetters = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
       for (let i = 6; i >= 0; i--) {
-        const d = new Date(anchorDate);
+        const d = new Date(committedAnchor);
         d.setDate(d.getDate() - i);
         const dayKey = formatLocalDateKey(d);
         const dayLabel = dayLetters[d.getDay()];
+        const isFutureDay = startOfDay(d).getTime() > todayMidnight;
+
+        if (isFutureDay) {
+          points.push({
+            key: dayKey,
+            label: dayLabel,
+            subLabel: `${dayLabel}, ${d.getDate()} ${d.toLocaleDateString('en-US', { month: 'short' })}`,
+            value: 0,
+            status: 'future',
+          });
+          continue;
+        }
 
         let val = 0;
-        if (selectedMetric === 'water') {
-          val = periodWaterDaily.get(dayKey) || 0;
-        } else if (selectedMetric === 'steps') {
-          const found = stepsHistory.find(item => item.date === dayKey);
-          val = found ? found.steps : 0;
-        } else {
-          const found = distanceHistory.find(item => item.date === dayKey);
-          val = found ? found.distance : 0;
+        let hasRecord = false;
+        if (committedDataset) {
+          if (selectedMetric === 'water') {
+            const waterEntry = committedDataset.periodWaterDays.get(dayKey);
+            val = waterEntry?.amount || 0;
+            hasRecord = Boolean(waterEntry && (waterEntry.hasLog || waterEntry.amount > 0));
+          } else if (selectedMetric === 'steps') {
+            const found = committedDataset.stepsRange.find(item => item.date === dayKey);
+            val = found ? found.steps : 0;
+            hasRecord = Boolean(found && (found.hasRecord !== false || found.steps > 0));
+          } else {
+            const found = committedDataset.distanceRange.find(item => item.date === dayKey);
+            val = found ? found.distance : 0;
+            hasRecord = Boolean(found && (found.hasRecord !== false || found.distance > 0));
+          }
         }
 
         points.push({
@@ -388,30 +617,51 @@ export function StatsScreen({
           label: dayLabel,
           subLabel: `${dayLabel}, ${d.getDate()} ${d.toLocaleDateString('en-US', { month: 'short' })}`,
           value: val,
+          status: hasRecord ? 'recorded' : 'missing',
         });
       }
-      return points;
+
+      return { chartDataPoints: points, unavailableNotice: null, hourlyUnavailable: false };
     }
 
-    // Monthly: 28, 29, 30 or 31 days
-    const year = anchorDate.getFullYear();
-    const month = anchorDate.getMonth();
+    // Monthly: 28-31 calendar days
+    const year = committedAnchor.getFullYear();
+    const month = committedAnchor.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const points: ChartDataPoint[] = [];
 
     for (let day = 1; day <= daysInMonth; day++) {
       const d = new Date(year, month, day);
       const dayKey = formatLocalDateKey(d);
-      let val = 0;
+      const isFutureDay = startOfDay(d).getTime() > todayMidnight;
 
-      if (selectedMetric === 'water') {
-        val = periodWaterDaily.get(dayKey) || 0;
-      } else if (selectedMetric === 'steps') {
-        const found = stepsHistory.find(item => item.date === dayKey);
-        val = found ? found.steps : 0;
-      } else {
-        const found = distanceHistory.find(item => item.date === dayKey);
-        val = found ? found.distance : 0;
+      if (isFutureDay) {
+        points.push({
+          key: `month-day-${day}`,
+          label: `${day}`,
+          subLabel: `${day} ${d.toLocaleDateString('en-US', { month: 'short' })}`,
+          value: 0,
+          status: 'future',
+        });
+        continue;
+      }
+
+      let val = 0;
+      let hasRecord = false;
+      if (committedDataset) {
+        if (selectedMetric === 'water') {
+          const waterEntry = committedDataset.periodWaterDays.get(dayKey);
+          val = waterEntry?.amount || 0;
+          hasRecord = Boolean(waterEntry && (waterEntry.hasLog || waterEntry.amount > 0));
+        } else if (selectedMetric === 'steps') {
+          const found = committedDataset.stepsRange.find(item => item.date === dayKey);
+          val = found ? found.steps : 0;
+          hasRecord = Boolean(found && (found.hasRecord !== false || found.steps > 0));
+        } else {
+          const found = committedDataset.distanceRange.find(item => item.date === dayKey);
+          val = found ? found.distance : 0;
+          hasRecord = Boolean(found && (found.hasRecord !== false || found.distance > 0));
+        }
       }
 
       points.push({
@@ -419,59 +669,87 @@ export function StatsScreen({
         label: `${day}`,
         subLabel: `${day} ${d.toLocaleDateString('en-US', { month: 'short' })}`,
         value: val,
+        status: hasRecord ? 'recorded' : 'missing',
       });
     }
-    return points;
-  }, [selectedMetric, selectedPeriod, anchorDate, dailyWaterLogs, periodWaterDaily, stepsHistory, distanceHistory]);
 
-  // Compute total, average, and highest statistics
+    return { chartDataPoints: points, unavailableNotice: null, hourlyUnavailable: false };
+  }, [committedDataset, committedPeriod, committedAnchor, selectedMetric]);
+
+  // Compute total, average (over elapsed recorded slots only), and highest without duplicating units
   const { totalText, unitText, averageText, averageUnitText, highestText, highestUnitText } =
     useMemo(() => {
-      const sum = chartDataPoints.reduce((acc, curr) => acc + curr.value, 0);
-      const max = Math.max(...chartDataPoints.map(d => d.value), 0);
-      const activeCount = chartDataPoints.filter(d => d.value > 0).length || 1;
-      const divisor = selectedPeriod === 'daily' ? activeCount : chartDataPoints.length;
-      const avg = Math.round(sum / Math.max(divisor, 1));
+      if (hourlyUnavailable) {
+        return {
+          totalText: '--',
+          unitText: selectedMetric === 'steps' ? 'steps/hr' : 'hourly',
+          averageText: '--',
+          averageUnitText: 'unavailable',
+          highestText: '--',
+          highestUnitText: 'unavailable',
+        };
+      }
+
+      const recordedPoints = chartDataPoints.filter(p => (p.status ?? 'recorded') === 'recorded');
+      const sum = recordedPoints.reduce((acc, curr) => acc + curr.value, 0);
+      const max = recordedPoints.length > 0 ? Math.max(...recordedPoints.map(d => d.value)) : 0;
+      const periodUnitSuffix = committedPeriod === 'daily' ? 'hr' : 'day';
+
+      let avg = 0;
+      if (committedPeriod === 'daily') {
+        const activeHours = recordedPoints.filter(p => p.value > 0).length;
+        avg = activeHours > 0 ? sum / activeHours : 0;
+      } else {
+        avg = recordedPoints.length > 0 ? sum / recordedPoints.length : 0;
+      }
 
       if (selectedMetric === 'steps') {
         return {
-          totalText: sum.toLocaleString(),
+          totalText: Math.round(sum).toLocaleString(),
           unitText: 'steps',
-          averageText: avg.toLocaleString(),
-          averageUnitText: selectedPeriod === 'daily' ? 'steps/hr' : 'steps/day',
-          highestText: max.toLocaleString(),
-          highestUnitText: selectedPeriod === 'daily' ? 'steps (hr)' : 'steps',
+          averageText: Math.round(avg).toLocaleString(),
+          averageUnitText: `steps/${periodUnitSuffix}`,
+          highestText: Math.round(max).toLocaleString(),
+          highestUnitText: 'steps',
         };
       }
+
       if (selectedMetric === 'distance') {
+        const totalParts = formatDistanceSummary(sum);
+        const avgParts = formatDistanceSummary(avg, periodUnitSuffix);
+        const highParts = formatDistanceSummary(max);
         return {
-          totalText: formatDistance(sum),
-          unitText: sum >= 1000 ? 'km' : 'm',
-          averageText: formatDistance(avg),
-          averageUnitText: selectedPeriod === 'daily' ? 'km/hr' : 'km/day',
-          highestText: formatDistance(max),
-          highestUnitText: selectedPeriod === 'daily' ? 'peak hr' : 'peak day',
+          totalText: totalParts.value,
+          unitText: totalParts.unit,
+          averageText: avgParts.value,
+          averageUnitText: avgParts.unit,
+          highestText: highParts.value,
+          highestUnitText: highParts.unit,
         };
       }
-      // Water
+
+      const totalWaterParts = formatWaterSummary(sum);
+      const avgWaterParts = formatWaterSummary(avg, periodUnitSuffix);
+      const highWaterParts = formatWaterSummary(max);
       return {
-        totalText: sum >= 1000 ? `${(sum / 1000).toFixed(1)} L` : `${sum} ml`,
-        unitText: sum >= 1000 ? 'liters' : 'ml',
-        averageText: avg >= 1000 ? `${(avg / 1000).toFixed(1)} L` : `${avg} ml`,
-        averageUnitText: selectedPeriod === 'daily' ? 'ml/hr' : 'ml/day',
-        highestText: max >= 1000 ? `${(max / 1000).toFixed(1)} L` : `${max} ml`,
-        highestUnitText: selectedPeriod === 'daily' ? 'ml (hr)' : 'ml',
+        totalText: totalWaterParts.value,
+        unitText: totalWaterParts.unit,
+        averageText: avgWaterParts.value,
+        averageUnitText: avgWaterParts.unit,
+        highestText: highWaterParts.value,
+        highestUnitText: highWaterParts.unit,
       };
-    }, [chartDataPoints, selectedMetric, selectedPeriod]);
+    }, [chartDataPoints, committedPeriod, selectedMetric, hourlyUnavailable]);
 
   const contentTranslateX = contentSlideAnim.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: [32, 0, -32],
+    outputRange: [14, 0, -14],
   });
 
+  // Gentle micro-dip keeps card readable at near-full contrast instead of washing out to 0.35
   const contentOpacity = contentSlideAnim.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: [0.35, 1, 0.35],
+    outputRange: [0.92, 1, 0.92],
   });
 
   return (
@@ -568,12 +846,13 @@ export function StatsScreen({
             {/* 5. Main Responsive Chart Card */}
             <StatsChart
               metric={selectedMetric}
-              period={selectedPeriod}
+              period={committedPeriod}
               subtitle={chartSubtitle}
               totalValueText={totalText}
               unitText={unitText}
               data={chartDataPoints}
               loading={loading}
+              unavailableNotice={unavailableNotice}
             />
 
             {/* 6. Contextual Summary Cards (Average & Highest) */}
@@ -582,6 +861,7 @@ export function StatsScreen({
               averageUnit={averageUnitText}
               highestValue={highestText}
               highestUnit={highestUnitText}
+              highestLabel={committedPeriod === 'daily' ? 'Highest (Hr)' : 'Highest (Day)'}
             />
           </Animated.View>
         </View>
