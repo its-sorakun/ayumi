@@ -13,13 +13,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
-  TouchableOpacity,
   Animated,
   LayoutChangeEvent,
+  PanResponder,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
-import { MotionTokens } from '../theme/motion';
 
 export type StatMetricType = 'steps' | 'distance' | 'water';
 
@@ -54,6 +53,13 @@ const METRICS: readonly MetricItemConfig[] = [
 
 const GAP = 10;
 const CONTAINER_HEIGHT = 74;
+const TAP_SLOP_PX = 10;
+
+function applyBoundaryResistance(value: number, min: number, max: number): number {
+  if (value < min) return min + (value - min) * 0.14;
+  if (value > max) return max + (value - max) * 0.14;
+  return value;
+}
 
 export function StatsMetricSelector({
   selectedMetric,
@@ -64,53 +70,236 @@ export function StatsMetricSelector({
 
   const [containerWidth, setContainerWidth] = useState(0);
 
-  const activeIndex = METRICS.findIndex(m => m.type === selectedMetric);
-  const slideAnim = useRef(new Animated.Value(activeIndex >= 0 ? activeIndex : 0)).current;
+  const activeIndex = Math.max(METRICS.findIndex(m => m.type === selectedMetric), 0);
+  const slideAnim = useRef(new Animated.Value(activeIndex)).current;
   const stretchXAnim = useRef(new Animated.Value(1)).current;
   const compressYAnim = useRef(new Animated.Value(1)).current;
+  const pressScaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Live refs keep PanResponder closures synchronized without stale layout or selection state
+  const containerWidthRef = useRef(0);
+  const activeIndexRef = useRef(activeIndex);
+  const onSelectRef = useRef(onSelectMetric);
+  activeIndexRef.current = activeIndex;
+  onSelectRef.current = onSelectMetric;
+
+  const pressLocalXRef = useRef(0);
+  const dragStartSlotRef = useRef(activeIndex);
+  const isHorizontalDragRef = useRef(false);
+  const skipNextEffectAnimRef = useRef(false);
 
   const currentSlotWidth = containerWidth > 0 ? (containerWidth - GAP * 2) / 3 : 0;
 
-  // Animate sliding and fluid squish/stretch when selection changes
-  useEffect(() => {
+  const settleDeformation = () => {
     Animated.parallel([
-      Animated.timing(stretchXAnim, {
-        toValue: 1.18,
-        duration: 180,
+      Animated.spring(stretchXAnim, {
+        toValue: 1,
+        stiffness: 240,
+        damping: 20,
         useNativeDriver: true,
       }),
-      Animated.timing(compressYAnim, {
-        toValue: 0.88,
-        duration: 180,
+      Animated.spring(compressYAnim, {
+        toValue: 1,
+        stiffness: 240,
+        damping: 20,
         useNativeDriver: true,
       }),
+      Animated.spring(pressScaleAnim, {
+        toValue: 1,
+        stiffness: 280,
+        damping: 22,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  // Distinct tap transition: crisp M3 Expressive spatial slide with restrained micro-bloom
+  // keeping indicator geometry strictly inside the 10dp inter-card gutter.
+  useEffect(() => {
+    if (skipNextEffectAnimRef.current) {
+      skipNextEffectAnimRef.current = false;
+      return;
+    }
+
+    Animated.parallel([
       Animated.spring(slideAnim, {
-        toValue: activeIndex >= 0 ? activeIndex : 0,
-        stiffness: 140,
-        damping: 18,
-        mass: 0.9,
+        toValue: activeIndex,
+        stiffness: 220,
+        damping: 22,
+        mass: 0.88,
         useNativeDriver: true,
       }),
-    ]).start(() => {
-      Animated.parallel([
-        Animated.spring(stretchXAnim, {
-          toValue: 1.0,
-          damping: 14,
-          stiffness: 180,
-          useNativeDriver: true,
-        }),
-        Animated.spring(compressYAnim, {
-          toValue: 1.0,
-          damping: 14,
-          stiffness: 180,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    });
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(stretchXAnim, {
+            toValue: 1.03,
+            duration: 90,
+            useNativeDriver: true,
+          }),
+          Animated.timing(compressYAnim, {
+            toValue: 0.97,
+            duration: 90,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.spring(stretchXAnim, {
+            toValue: 1,
+            stiffness: 220,
+            damping: 20,
+            useNativeDriver: true,
+          }),
+          Animated.spring(compressYAnim, {
+            toValue: 1,
+            stiffness: 220,
+            damping: 20,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    ]).start();
   }, [activeIndex, slideAnim, stretchXAnim, compressYAnim]);
 
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onShouldBlockNativeResponder: () => false,
+      onPanResponderTerminationRequest: () => !isHorizontalDragRef.current,
+
+      onPanResponderGrant: evt => {
+        pressLocalXRef.current = evt.nativeEvent.locationX;
+        isHorizontalDragRef.current = false;
+        dragStartSlotRef.current = activeIndexRef.current;
+        slideAnim.stopAnimation(currentVal => {
+          dragStartSlotRef.current = currentVal;
+        });
+
+        Animated.timing(pressScaleAnim, {
+          toValue: 0.975,
+          duration: 80,
+          useNativeDriver: true,
+        }).start();
+      },
+
+      onPanResponderMove: (_, gestureState) => {
+        const width = containerWidthRef.current;
+        if (width <= 0) return;
+
+        const { dx, dy, vx } = gestureState;
+        if (!isHorizontalDragRef.current) {
+          if (Math.abs(dx) > TAP_SLOP_PX && Math.abs(dx) > Math.abs(dy) * 1.15) {
+            isHorizontalDragRef.current = true;
+            Animated.timing(pressScaleAnim, {
+              toValue: 1,
+              duration: 90,
+              useNativeDriver: true,
+            }).start();
+          } else {
+            return;
+          }
+        }
+
+        const slotW = (width - GAP * 2) / 3;
+        const stepDist = Math.max(slotW + GAP, 1);
+        const rawSlot = dragStartSlotRef.current + dx / stepDist;
+        const clampedSlot = applyBoundaryResistance(rawSlot, 0, 2);
+        slideAnim.setValue(clampedSlot);
+
+        // Cap horizontal stretch at 1.06 (~3dp max per edge inside 10dp gutter) to prevent neighbor bleed.
+        const travelFactor = Math.min(
+          Math.abs(vx) * 0.04 + Math.min(Math.abs(dx) / stepDist, 1) * 0.035,
+          0.06
+        );
+        stretchXAnim.setValue(1 + travelFactor);
+        compressYAnim.setValue(1 - travelFactor * 0.7);
+      },
+
+      onPanResponderRelease: (_, gestureState) => {
+        const width = containerWidthRef.current;
+        Animated.spring(pressScaleAnim, {
+          toValue: 1,
+          stiffness: 280,
+          damping: 22,
+          useNativeDriver: true,
+        }).start();
+
+        if (!isHorizontalDragRef.current) {
+          if (width > 0 && Math.abs(gestureState.dx) <= TAP_SLOP_PX * 1.4) {
+            const tappedSlot = Math.min(
+              Math.max(Math.floor((pressLocalXRef.current / width) * 3), 0),
+              2
+            );
+            onSelectRef.current(METRICS[tappedSlot].type);
+          } else {
+            Animated.spring(slideAnim, {
+              toValue: activeIndexRef.current,
+              stiffness: 220,
+              damping: 22,
+              useNativeDriver: true,
+            }).start();
+            settleDeformation();
+          }
+          return;
+        }
+
+        const slotW = Math.max((width - GAP * 2) / 3, 1);
+        const stepDist = slotW + GAP;
+        const rawSlot = dragStartSlotRef.current + gestureState.dx / stepDist;
+        let targetSlot = Math.round(rawSlot);
+        if (gestureState.vx > 0.35) {
+          targetSlot = Math.ceil(rawSlot);
+        } else if (gestureState.vx < -0.35) {
+          targetSlot = Math.floor(rawSlot);
+        }
+        targetSlot = Math.min(Math.max(targetSlot, 0), 2);
+
+        const swipeVelocitySlots = Math.max(Math.min((gestureState.vx / stepDist) * 1000, 10), -10);
+        if (targetSlot !== activeIndexRef.current) {
+          skipNextEffectAnimRef.current = true;
+          onSelectRef.current(METRICS[targetSlot].type);
+        }
+
+        Animated.parallel([
+          Animated.spring(slideAnim, {
+            toValue: targetSlot,
+            velocity: swipeVelocitySlots,
+            stiffness: 220,
+            damping: 22,
+            mass: 0.88,
+            useNativeDriver: true,
+          }),
+          Animated.spring(stretchXAnim, {
+            toValue: 1,
+            stiffness: 240,
+            damping: 20,
+            useNativeDriver: true,
+          }),
+          Animated.spring(compressYAnim, {
+            toValue: 1,
+            stiffness: 240,
+            damping: 20,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      },
+
+      onPanResponderTerminate: () => {
+        isHorizontalDragRef.current = false;
+        Animated.spring(slideAnim, {
+          toValue: activeIndexRef.current,
+          stiffness: 220,
+          damping: 22,
+          useNativeDriver: true,
+        }).start();
+        settleDeformation();
+      },
+    })
+  ).current;
+
   const onLayout = (e: LayoutChangeEvent) => {
-    setContainerWidth(e.nativeEvent.layout.width);
+    const w = e.nativeEvent.layout.width;
+    containerWidthRef.current = w;
+    setContainerWidth(w);
   };
 
   const stepDistance = currentSlotWidth + GAP;
@@ -122,13 +311,15 @@ export function StatsMetricSelector({
   return (
     <View
       style={styles.container}
-      onLayout={onLayout}>
+      onLayout={onLayout}
+      accessibilityRole="tablist"
+      {...panResponder.panHandlers}>
       {/* Background Track Slots for Unselected State */}
-      {METRICS.map((metric, i) => {
-        const isSelected = selectedMetric === metric.type;
+      {METRICS.map(metric => {
         return (
           <View
             key={`slot-${metric.type}`}
+            pointerEvents="none"
             style={[
               styles.unselectedSlot,
               {
@@ -155,15 +346,15 @@ export function StatsMetricSelector({
               transform: [
                 { translateX },
                 { scaleX: stretchXAnim },
-                { scaleY: compressYAnim },
+                { scaleY: Animated.multiply(compressYAnim, pressScaleAnim) },
               ],
             },
           ]}
         />
       )}
 
-      {/* Foreground Content Buttons (Icons + Labels) */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {/* Foreground Content Labels & Icons (non-interactive overlay so container owns exact coords) */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <View style={styles.contentRow}>
           {METRICS.map(metric => {
             const isSelected = selectedMetric === metric.type;
@@ -171,14 +362,7 @@ export function StatsMetricSelector({
             const textColor = isSelected ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant;
 
             return (
-              <TouchableOpacity
-                key={metric.type}
-                activeOpacity={0.8}
-                onPress={() => onSelectMetric(metric.type)}
-                style={styles.cardButton}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: isSelected }}
-                accessibilityLabel={`${metric.label} metric`}>
+              <View key={metric.type} style={styles.cardButton}>
                 <View style={styles.iconWrapper}>
                   {metric.renderIcon(iconColor)}
                 </View>
@@ -192,7 +376,7 @@ export function StatsMetricSelector({
                   ]}>
                   {metric.label}
                 </Text>
-              </TouchableOpacity>
+              </View>
             );
           })}
         </View>
@@ -224,7 +408,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     height: CONTAINER_HEIGHT,
-    borderRadius: 20,
+    borderRadius: 18,
     zIndex: 1,
     elevation: 2,
     shadowOffset: { width: 0, height: 2 },
