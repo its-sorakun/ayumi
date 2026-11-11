@@ -26,6 +26,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import {
   AYUMI_THEME_OPTIONS,
   AyumiThemeId,
+  OxygenAmbientBackdrop,
   OxygenSettingsIconId,
   OxygenSettingsRowIcon,
   SettingsSectionGroup,
@@ -63,7 +64,14 @@ function makeSettingLeading(
 export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { themeId: activeSessionThemeId, surfaces, typography, metricAccents } = useAyumiTheme();
+  const {
+    themeId: activeSessionThemeId,
+    colors,
+    isDark,
+    surfaces,
+    typography,
+    metricAccents,
+  } = useAyumiTheme();
   const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
 
   const renderSettingIcon = (
@@ -156,8 +164,23 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
 
   return (
     <View style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}>
+      <OxygenAmbientBackdrop
+        enabled={surfaces.ambientGradientStyle === 'dynamic_glow'}
+        primaryHex={colors.primary}
+        secondaryHex={colors.secondary}
+        isDark={isDark}
+        testID="settings-ambient-backdrop"
+      />
       <ScrollView
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        style={[
+          styles.container,
+          {
+            backgroundColor:
+              surfaces.ambientGradientStyle === 'dynamic_glow'
+                ? 'transparent'
+                : theme.colors.background,
+          },
+        ]}
         contentContainerStyle={{
           paddingTop: insets.top + 6,
           paddingBottom: insets.bottom + (hideDock ? 96 : 140),

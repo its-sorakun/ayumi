@@ -92,10 +92,14 @@ export interface AyumiSurfaceTokens {
   readonly tintHomeWaterCard: boolean;
   readonly heroLayout: 'floating_gauge' | 'modular_card';
   readonly bentoLayout: 'left_bubble' | 'header_inline';
-  readonly activeControlStyle: 'tonal_container' | 'soft_outlined';
+  readonly activeControlStyle: 'tonal_container' | 'soft_outlined' | 'filled_pill';
   readonly subtleTimelineMenuButton: boolean;
   readonly badgeStyle: 'tonal' | 'solid';
   readonly iconFamily: 'ayumi_default' | 'oxygen_lucide';
+  readonly ambientGradientStyle: 'none' | 'dynamic_glow';
+  readonly metricSelectorVariant: 'cards_stacked' | 'horizontal_pills';
+  readonly separateWaterPresetCards: boolean;
+  readonly statsMainSummaryInline: boolean;
 }
 
 export interface AyumiShapeTokens {
@@ -219,6 +223,7 @@ export interface AyumiThemeDefinition {
 
 export interface DockPresentationProps {
   readonly activeTab: 'home' | 'stats' | 'water' | 'settings';
+  readonly activeStatsMetric?: 'steps' | 'distance' | 'water';
   readonly containerWidth: number;
   readonly bottomOffset: number;
   readonly indicatorTranslateX: number | Animated.AnimatedInterpolation<number>;

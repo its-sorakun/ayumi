@@ -267,6 +267,7 @@ export function MainPagerScreen(): React.JSX.Element {
             ? 'water'
             : 'settings'
         }
+        activeStatsMetric={activeStatsMetric}
         pagerProgress={pagerProgress}
         onHomePress={() => goToPage(0)}
         onAnalyticsPress={() => goToPage(1)}

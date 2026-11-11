@@ -121,6 +121,10 @@ export const defaultThemeDefinition: AyumiThemeDefinition = {
     subtleTimelineMenuButton: false,
     badgeStyle: 'tonal',
     iconFamily: 'ayumi_default',
+    ambientGradientStyle: 'none',
+    metricSelectorVariant: 'cards_stacked',
+    separateWaterPresetCards: false,
+    statsMainSummaryInline: false,
   },
   shapes: {
     selectorSlotRadius: 18,

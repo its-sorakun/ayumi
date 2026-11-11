@@ -42,7 +42,7 @@ interface MetricItemConfig {
   readonly type: StatMetricType;
   readonly label: string;
   readonly renderIcon: (color: string) => React.ReactNode;
-  readonly renderOxygenIcon: (color: string, active: boolean) => React.ReactNode;
+  readonly renderOxygenIcon: (color: string, active: boolean, size?: number) => React.ReactNode;
 }
 
 const METRICS: readonly MetricItemConfig[] = [
@@ -50,29 +50,31 @@ const METRICS: readonly MetricItemConfig[] = [
     type: 'steps',
     label: 'Steps',
     renderIcon: (color: string) => <SneakerIcon size={22} color={color} />,
-    renderOxygenIcon: (color: string, active: boolean) => (
-      <OxygenFootstepsIcon size={20} color={color} filled={active} />
+    renderOxygenIcon: (color: string, active: boolean, size = 20) => (
+      <OxygenFootstepsIcon size={size} color={color} filled={active} />
     ),
   },
   {
     type: 'distance',
     label: 'Distance',
     renderIcon: (color: string) => <RouteMapIcon size={22} color={color} />,
-    renderOxygenIcon: (color: string, active: boolean) => (
-      <OxygenDistanceIcon size={20} color={color} filled={active} />
+    renderOxygenIcon: (color: string, active: boolean, size = 20) => (
+      <OxygenDistanceIcon size={size} color={color} filled={active} />
     ),
   },
   {
     type: 'water',
     label: 'Water',
     renderIcon: (color: string) => <DropletIcon size={22} color={color} />,
-    renderOxygenIcon: (color: string, active: boolean) => (
-      <OxygenWaterIcon size={20} color={color} filled={active} />
+    renderOxygenIcon: (color: string, active: boolean, size = 20) => (
+      <OxygenWaterIcon size={size} color={color} filled={active} />
     ),
   },
 ];
 
 const GAP = 10;
+const PILL_PADDING = 4;
+const PILL_BAR_HEIGHT = 46;
 const CONTAINER_HEIGHT = 74;
 const TAP_SLOP_PX = 10;
 
@@ -93,6 +95,9 @@ export function StatsMetricSelector({
   const reducedMotion = useReducedMotion();
   const { motion, surfaces, shapes, metricAccents, resolveCardBorder } = useAyumiTheme();
   const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
+  const isHorizontalPills = surfaces.metricSelectorVariant === 'horizontal_pills';
+  const isFilledPill = surfaces.activeControlStyle === 'filled_pill';
+  const effectiveHeight = isHorizontalPills ? PILL_BAR_HEIGHT : containerHeight;
   const activeMetricAccent =
     selectedMetric === 'distance'
       ? metricAccents.distance
@@ -117,17 +122,24 @@ export function StatsMetricSelector({
   const onSelectRef = useRef(onSelectMetric);
   const reducedMotionRef = useRef(reducedMotion);
   const motionRef = useRef(motion);
+  const isHorizontalPillsRef = useRef(isHorizontalPills);
   activeIndexRef.current = activeIndex;
   onSelectRef.current = onSelectMetric;
   reducedMotionRef.current = reducedMotion;
   motionRef.current = motion;
+  isHorizontalPillsRef.current = isHorizontalPills;
 
   const pressLocalXRef = useRef(0);
   const dragStartSlotRef = useRef(activeIndex);
   const isHorizontalDragRef = useRef(false);
   const skipNextEffectAnimRef = useRef(false);
 
-  const currentSlotWidth = containerWidth > 0 ? (containerWidth - GAP * 2) / 3 : 0;
+  const currentSlotWidth =
+    containerWidth > 0
+      ? isHorizontalPills
+        ? (containerWidth - PILL_PADDING * 2) / 3
+        : (containerWidth - GAP * 2) / 3
+      : 0;
 
   const settleDeformation = useCallback(() => {
     const reduced = reducedMotionRef.current;
@@ -336,8 +348,11 @@ export function StatsMetricSelector({
           }
         }
 
-        const slotW = (width - GAP * 2) / 3;
-        const stepDist = Math.max(slotW + GAP, 1);
+        const horizontalPills = isHorizontalPillsRef.current;
+        const padPx = horizontalPills ? PILL_PADDING * 2 : GAP * 2;
+        const gapPx = horizontalPills ? 0 : GAP;
+        const slotW = (width - padPx) / 3;
+        const stepDist = Math.max(slotW + gapPx, 1);
         const rawSlot = dragStartSlotRef.current + dx / stepDist;
         const clampedSlot = applyBoundaryResistance(rawSlot, 0, 2);
         slideAnim.setValue(clampedSlot);
@@ -370,8 +385,15 @@ export function StatsMetricSelector({
 
         if (!isHorizontalDragRef.current) {
           if (width > 0 && Math.abs(gestureState.dx) <= TAP_SLOP_PX * 1.4) {
+            const horizontalPills = isHorizontalPillsRef.current;
+            const innerX = horizontalPills
+              ? Math.min(Math.max(pressLocalXRef.current - PILL_PADDING, 0), Math.max(width - PILL_PADDING * 2, 1))
+              : pressLocalXRef.current;
+            const spanWidth = horizontalPills
+              ? Math.max(width - PILL_PADDING * 2, 1)
+              : width;
             const tappedSlot = Math.min(
-              Math.max(Math.floor((pressLocalXRef.current / width) * 3), 0),
+              Math.max(Math.floor((innerX / spanWidth) * 3), 0),
               2
             );
             if (tappedSlot !== activeIndexRef.current) {
@@ -400,8 +422,11 @@ export function StatsMetricSelector({
           return;
         }
 
-        const slotW = Math.max((width - GAP * 2) / 3, 1);
-        const stepDist = slotW + GAP;
+        const horizontalPills = isHorizontalPillsRef.current;
+        const padPx = horizontalPills ? PILL_PADDING * 2 : GAP * 2;
+        const gapPx = horizontalPills ? 0 : GAP;
+        const slotW = Math.max((width - padPx) / 3, 1);
+        const stepDist = slotW + gapPx;
         const rawSlot = dragStartSlotRef.current + gestureState.dx / stepDist;
         let targetSlot = Math.round(rawSlot);
         if (gestureState.vx > 0.35) {
@@ -467,12 +492,100 @@ export function StatsMetricSelector({
     setContainerWidth(w);
   };
 
-  const stepDistance = currentSlotWidth + GAP;
+  const stepDistance = currentSlotWidth + (isHorizontalPills ? 0 : GAP);
   const baseTranslateX = slideAnim.interpolate({
     inputRange: [0, 1, 2],
     outputRange: [0, stepDistance, stepDistance * 2],
   });
   const translateX = Animated.add(baseTranslateX, leanXAnim);
+
+  if (isHorizontalPills) {
+    const outerRadius = PILL_BAR_HEIGHT / 2;
+    const innerRadius = (PILL_BAR_HEIGHT - PILL_PADDING * 2) / 2;
+    const pillBg = isFilledPill
+      ? activeMetricAccent.color
+      : colorWithOpacity(activeMetricAccent.color, isDark ? 0.22 : 0.14);
+    const activeFg = isFilledPill
+      ? activeMetricAccent.onColor
+      : activeMetricAccent.color;
+    const idleFg = isDark
+      ? theme.colors.onSurfaceVariant
+      : colorWithOpacity(theme.colors.onSurface, 0.78);
+
+    return (
+      <View
+        testID="stats-metric-selector-horizontal"
+        style={[
+          styles.pillBarContainer,
+          {
+            height: PILL_BAR_HEIGHT,
+            borderRadius: outerRadius,
+            marginTop,
+            elevation: surfaces.cardElevation,
+            shadowOpacity: surfaces.cardShadowOpacity,
+            backgroundColor: isDark
+              ? theme.colors.elevation.level1
+              : theme.colors.surface,
+            borderWidth: cardBorder.borderWidth,
+            borderColor: cardBorder.borderColor,
+          },
+        ]}
+        onLayout={onLayout}
+        accessibilityRole="tablist"
+        {...panResponder.panHandlers}>
+        {currentSlotWidth > 0 && (
+          <View
+            style={[styles.pillTrackClip, { borderRadius: innerRadius }]}
+            pointerEvents="none">
+            <Animated.View
+              testID="stats-metric-active-pill"
+              style={[
+                styles.pillActiveIndicator,
+                {
+                  width: currentSlotWidth,
+                  borderRadius: innerRadius,
+                  backgroundColor: pillBg,
+                  transform: [
+                    { translateX },
+                    { scaleX: stretchXAnim },
+                    { scaleY: Animated.multiply(compressYAnim, pressScaleAnim) },
+                  ],
+                },
+              ]}
+            />
+          </View>
+        )}
+
+        <View
+          style={styles.pillLabelsRow}
+          pointerEvents="none"
+          collapsable={false}>
+          {METRICS.map(metric => {
+            const isSelected = selectedMetric === metric.type;
+            const fgColor = isSelected ? activeFg : idleFg;
+            return (
+              <View key={metric.type} style={styles.pillSlotButton}>
+                {isOxygenIcons
+                  ? metric.renderOxygenIcon(fgColor, isSelected, 16)
+                  : metric.renderIcon(fgColor)}
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.pillSlotLabel,
+                    {
+                      color: fgColor,
+                      fontWeight: isSelected ? '700' : '600',
+                    },
+                  ]}>
+                  {metric.label}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }
 
   const isSoftOutlined = surfaces.activeControlStyle === 'soft_outlined';
   const indicatorBg = isSoftOutlined
@@ -483,7 +596,7 @@ export function StatsMetricSelector({
 
   return (
     <View
-      style={[styles.container, { height: containerHeight, marginTop }]}
+      style={[styles.container, { height: effectiveHeight, marginTop }]}
       onLayout={onLayout}
       accessibilityRole="tablist"
       {...panResponder.panHandlers}>
@@ -630,6 +743,50 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
+    letterSpacing: -0.2,
+  },
+  pillBarContainer: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    padding: PILL_PADDING,
+    position: 'relative',
+    alignItems: 'center',
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 5,
+  },
+  pillTrackClip: {
+    position: 'absolute',
+    left: PILL_PADDING,
+    right: PILL_PADDING,
+    top: PILL_PADDING,
+    bottom: PILL_PADDING,
+    overflow: 'hidden',
+    zIndex: 1,
+  },
+  pillActiveIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+  },
+  pillLabelsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    height: '100%',
+    zIndex: 10,
+    elevation: 2,
+  },
+  pillSlotButton: {
+    flex: 1,
+    height: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  pillSlotLabel: {
+    fontSize: 13.5,
     letterSpacing: -0.2,
   },
 });

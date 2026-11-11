@@ -21,7 +21,7 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
-import Svg, { Line } from 'react-native-svg';
+import Svg, { Circle, Defs, Line, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { StatMetricType } from './StatsMetricSelector';
 import type { StatPeriodType } from './StatsPeriodSelector';
@@ -29,8 +29,11 @@ import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
 import { useReducedMotion } from '../theme/motion';
 import {
   colorWithOpacity,
+  deriveGradientHighlightHex,
   OxygenDistanceIcon,
   OxygenFootstepsIcon,
+  OxygenTargetIcon,
+  OxygenTrophyIcon,
   OxygenWaterIcon,
   resolveMetricBadgeColors,
   useAyumiTheme,
@@ -47,6 +50,18 @@ export interface ChartDataPoint {
   readonly status?: ChartPointStatus;
 }
 
+export interface StatsChartGoalSummary {
+  readonly goalText: string;
+  readonly percent: number;
+}
+
+export interface StatsChartPeriodStats {
+  readonly averageText: string;
+  readonly averageUnit: string;
+  readonly highestText: string;
+  readonly highestUnit: string;
+}
+
 interface StatsChartProps {
   readonly metric: StatMetricType;
   readonly period: StatPeriodType;
@@ -58,6 +73,9 @@ interface StatsChartProps {
   readonly data: readonly ChartDataPoint[];
   readonly loading?: boolean;
   readonly unavailableNotice?: string | null;
+  readonly goalSummary?: StatsChartGoalSummary | null;
+  readonly periodStats?: StatsChartPeriodStats | null;
+  readonly fillCard?: boolean;
   readonly chartHeight?: number;
   readonly marginTop?: number;
   readonly cardPaddingVertical?: number;
@@ -145,6 +163,9 @@ export function StatsChart({
   data,
   loading = false,
   unavailableNotice = null,
+  goalSummary = null,
+  periodStats = null,
+  fillCard = false,
   chartHeight = CHART_HEIGHT,
   marginTop = 8,
   cardPaddingVertical = 16,
@@ -170,7 +191,14 @@ export function StatsChart({
         ? metricAccents.water
         : metricAccents.steps;
   const cardBorder = resolveCardBorder();
-  const effectiveChartHeight = Math.max(chartHeight, 120);
+  const isOemStatsCard = surfaces.statsMainSummaryInline;
+  const [measuredPlotHeight, setMeasuredPlotHeight] = useState(0);
+  const useFlexOemCard = fillCard && isOemStatsCard;
+  const effectiveChartHeight = useFlexOemCard
+    ? measuredPlotHeight > 90
+      ? Math.max(150, Math.floor(measuredPlotHeight - 24 - xAxisMarginTop))
+      : Math.max(chartHeight, 210)
+    : Math.max(chartHeight, 120);
   const plotSpan = effectiveChartHeight - PLOT_TOP_PADDING - PLOT_BOTTOM_PADDING;
 
   const [containerWidth, setContainerWidth] = useState(0);
@@ -314,18 +342,38 @@ export function StatsChart({
     : metricAccent.container;
   const headerBadgeRadius = isSolidBadges ? 19 : isOemVisual ? 11 : 19;
   const tooltipBg =
-    surfaces.activeControlStyle === 'soft_outlined'
+    surfaces.activeControlStyle === 'soft_outlined' ||
+    surfaces.activeControlStyle === 'filled_pill'
       ? metricAccent.color
       : metricAccent.container;
   const tooltipTextColor =
-    surfaces.activeControlStyle === 'soft_outlined'
+    surfaces.activeControlStyle === 'soft_outlined' ||
+    surfaces.activeControlStyle === 'filled_pill'
       ? metricAccent.onColor
       : metricAccent.onContainer;
+
+  const oemInlineTitleIcon = (() => {
+    switch (metric) {
+      case 'steps':
+        return <OxygenFootstepsIcon size={18} color={metricAccent.color} filled />;
+      case 'distance':
+        return <OxygenDistanceIcon size={18} color={metricAccent.color} filled />;
+      case 'water':
+        return <OxygenWaterIcon size={18} color={metricAccent.color} filled />;
+    }
+  })();
+
+  const oemWellBg = isDark ? theme.colors.elevation.level2 : theme.colors.background;
+  const oemMiniRingRadius = 11;
+  const oemMiniRingCirc = 2 * Math.PI * oemMiniRingRadius;
+  const oemGoalPct = goalSummary ? Math.min(Math.max(goalSummary.percent, 0), 100) : 0;
+  const oemMiniRingOffset = oemMiniRingCirc - (oemMiniRingCirc * oemGoalPct) / 100;
 
   return (
     <View
       style={[
         styles.card,
+        useFlexOemCard && styles.oemFlexCard,
         {
           marginTop,
           paddingVertical: cardPaddingVertical,
@@ -341,61 +389,111 @@ export function StatsChart({
       ]}
       onLayout={onLayout}>
       
-      {/* Card Header: Left = Metric + Period Subtitle, Right = Sum Value */}
-      <View style={[styles.cardHeader, { marginBottom: headerMarginBottom }]}>
-        <View style={styles.headerLeft}>
-          <View
-            style={[
-              styles.iconBubble,
-              { backgroundColor: headerBadgeBg, borderRadius: headerBadgeRadius },
-            ]}>
-            {metricIcon}
-          </View>
-          <View style={styles.titleColumn}>
-            <Text style={[styles.metricTitleText, { color: theme.colors.onSurface }]}>
+      {/* Card Header: OxygenOS inline title + hero total vs Default split header */}
+      {isOemStatsCard ? (
+        <View style={[styles.oemHeaderBlock, { marginBottom: headerMarginBottom }]}>
+          <View style={styles.oemTitleRow}>
+            {oemInlineTitleIcon}
+            <Text style={[styles.oemMetricTitleText, { color: theme.colors.onSurface }]}>
               {metricTitle}
             </Text>
-            <Text style={[styles.subtitleText, { color: theme.colors.onSurfaceVariant }]}>
-              {subtitle}
+          </View>
+          <View style={styles.oemValueUnitRow}>
+            {totalRawValue !== undefined ? (
+              <AnimatedStatNumber
+                value={totalRawValue}
+                fallbackText={totalValueText}
+                unitKey={`${metric}:${unitText}`}
+                scaleUnit={totalScaleUnit}
+                syncKey={datasetSignature}
+                duration={revealConfig.duration}
+                style={[
+                  styles.oemTotalValueText,
+                  { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              />
+            ) : (
+              <Text
+                style={[
+                  styles.oemTotalValueText,
+                  { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit>
+                {totalValueText}
+              </Text>
+            )}
+            {metric !== 'steps' && (
+              <Text style={[styles.oemUnitText, { color: theme.colors.onSurfaceVariant }]}>
+                {unitText}
+              </Text>
+            )}
+          </View>
+        </View>
+      ) : (
+        <View style={[styles.cardHeader, { marginBottom: headerMarginBottom }]}>
+          <View style={styles.headerLeft}>
+            <View
+              style={[
+                styles.iconBubble,
+                { backgroundColor: headerBadgeBg, borderRadius: headerBadgeRadius },
+              ]}>
+              {metricIcon}
+            </View>
+            <View style={styles.titleColumn}>
+              <Text style={[styles.metricTitleText, { color: theme.colors.onSurface }]}>
+                {metricTitle}
+              </Text>
+              <Text style={[styles.subtitleText, { color: theme.colors.onSurfaceVariant }]}>
+                {subtitle}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.headerRight}>
+            {totalRawValue !== undefined ? (
+              <AnimatedStatNumber
+                value={totalRawValue}
+                fallbackText={totalValueText}
+                unitKey={`${metric}:${unitText}`}
+                scaleUnit={totalScaleUnit}
+                syncKey={datasetSignature}
+                duration={revealConfig.duration}
+                style={[
+                  styles.totalValueText,
+                  { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              />
+            ) : (
+              <Text
+                style={[
+                  styles.totalValueText,
+                  { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit>
+                {totalValueText}
+              </Text>
+            )}
+            <Text style={[styles.unitText, { color: theme.colors.onSurfaceVariant }]}>
+              {unitText}
             </Text>
           </View>
         </View>
-
-        <View style={styles.headerRight}>
-          {totalRawValue !== undefined ? (
-            <AnimatedStatNumber
-              value={totalRawValue}
-              fallbackText={totalValueText}
-              unitKey={`${metric}:${unitText}`}
-              scaleUnit={totalScaleUnit}
-              syncKey={datasetSignature}
-              duration={revealConfig.duration}
-              style={[
-                styles.totalValueText,
-                { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
-              ]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-            />
-          ) : (
-            <Text
-              style={[
-                styles.totalValueText,
-                { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
-              ]}
-              numberOfLines={1}
-              adjustsFontSizeToFit>
-              {totalValueText}
-            </Text>
-          )}
-          <Text style={[styles.unitText, { color: theme.colors.onSurfaceVariant }]}>
-            {unitText}
-          </Text>
-        </View>
-      </View>
+      )}
 
       {/* Relative wrapper keeps tapped tooltip overlaid above plot with zero vertical layout shift */}
-      <View style={styles.plotSection}>
+      <View
+        style={[styles.plotSection, useFlexOemCard && styles.oemPlotSectionFlex]}
+        onLayout={
+          useFlexOemCard
+            ? e => setMeasuredPlotHeight(e.nativeEvent.layout.height)
+            : undefined
+        }>
         {selectedPoint != null && (
           <View style={styles.tooltipOverlay} pointerEvents="none">
             <Animated.View
@@ -559,7 +657,8 @@ export function StatsChart({
                             borderTopRightRadius: barTopRadius,
                             borderBottomLeftRadius: barBottomRadius,
                             borderBottomRightRadius: barBottomRadius,
-                            backgroundColor: barColor,
+                            backgroundColor: isOemStatsCard ? 'transparent' : barColor,
+                            overflow: isOemStatsCard ? 'hidden' : 'visible',
                             opacity: barOpacity,
                             transform: [
                               {
@@ -572,7 +671,38 @@ export function StatsChart({
                             ],
                           },
                         ]}
-                      />
+                      >
+                        {isOemStatsCard && (
+                          <Svg
+                            width="100%"
+                            height="100%"
+                            viewBox="0 0 10 100"
+                            preserveAspectRatio="none">
+                            <Defs>
+                              <LinearGradient
+                                id={`statsBarGrad-${index}`}
+                                x1="0%"
+                                y1="0%"
+                                x2="0%"
+                                y2="100%">
+                                <Stop offset="0%" stopColor={barColor} stopOpacity={1} />
+                                <Stop
+                                  offset="100%"
+                                  stopColor={deriveGradientHighlightHex(barColor, isDark)}
+                                  stopOpacity={0.62}
+                                />
+                              </LinearGradient>
+                            </Defs>
+                            <Rect
+                              x="0"
+                              y="0"
+                              width="10"
+                              height="100"
+                              fill={`url(#statsBarGrad-${index})`}
+                            />
+                          </Svg>
+                        )}
+                      </Animated.View>
                     ) : (
                       <View
                         style={[
@@ -650,6 +780,134 @@ export function StatsChart({
         })}
       </View>
       </View>
+
+      {isOemStatsCard && (goalSummary != null || periodStats != null) && (
+        <View style={styles.oemInlineSummaryRow}>
+          {period === 'daily' && goalSummary != null ? (
+            <>
+              <View
+                testID="stats-inline-goal-tile"
+                style={[styles.oemSubTile, { backgroundColor: oemWellBg }]}>
+                <View
+                  style={[
+                    styles.oemSubIconBadge,
+                    { backgroundColor: colorWithOpacity(metricAccent.color, isDark ? 0.22 : 0.13) },
+                  ]}>
+                  <OxygenTargetIcon size={17} color={metricAccent.color} />
+                </View>
+                <View style={styles.oemSubTextCol}>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.oemSubLabel, { color: theme.colors.onSurfaceVariant }]}>
+                    Daily Goal
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    style={[styles.oemSubValue, { color: theme.colors.onSurface }]}>
+                    {goalSummary.goalText}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                testID="stats-inline-progress-tile"
+                style={[styles.oemSubTile, { backgroundColor: oemWellBg }]}>
+                <Svg width={30} height={30}>
+                  <Circle
+                    cx={15}
+                    cy={15}
+                    r={oemMiniRingRadius}
+                    stroke={colorWithOpacity(theme.colors.onSurface, isDark ? 0.14 : 0.08)}
+                    strokeWidth={3.8}
+                    fill="none"
+                  />
+                  {oemGoalPct > 0 && (
+                    <Circle
+                      cx={15}
+                      cy={15}
+                      r={oemMiniRingRadius}
+                      stroke={metricAccent.color}
+                      strokeWidth={3.8}
+                      fill="none"
+                      strokeDasharray={`${oemMiniRingCirc} ${oemMiniRingCirc}`}
+                      strokeDashoffset={oemMiniRingOffset}
+                      strokeLinecap="round"
+                      transform="rotate(-90, 15, 15)"
+                    />
+                  )}
+                </Svg>
+                <View style={styles.oemSubTextCol}>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.oemSubLabel, { color: theme.colors.onSurfaceVariant }]}>
+                    Progress
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.oemSubValue, { color: theme.colors.onSurface }]}>
+                    {oemGoalPct}%
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : periodStats != null ? (
+            <>
+              <View style={[styles.oemSubTile, { backgroundColor: oemWellBg }]}>
+                <View
+                  style={[
+                    styles.oemSubIconBadge,
+                    { backgroundColor: colorWithOpacity(metricAccent.color, isDark ? 0.22 : 0.13) },
+                  ]}>
+                  <OxygenTargetIcon size={17} color={metricAccent.color} />
+                </View>
+                <View style={styles.oemSubTextCol}>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.oemSubLabel, { color: theme.colors.onSurfaceVariant }]}>
+                    Average
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    style={[styles.oemSubValue, { color: theme.colors.onSurface }]}>
+                    {periodStats.averageText}{' '}
+                    <Text style={[styles.oemSubUnit, { color: theme.colors.onSurfaceVariant }]}>
+                      {periodStats.averageUnit}
+                    </Text>
+                  </Text>
+                </View>
+              </View>
+
+              <View style={[styles.oemSubTile, { backgroundColor: oemWellBg }]}>
+                <View
+                  style={[
+                    styles.oemSubIconBadge,
+                    { backgroundColor: colorWithOpacity(metricAccent.color, isDark ? 0.22 : 0.13) },
+                  ]}>
+                  <OxygenTrophyIcon size={17} color={metricAccent.color} />
+                </View>
+                <View style={styles.oemSubTextCol}>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.oemSubLabel, { color: theme.colors.onSurfaceVariant }]}>
+                    Highest
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    style={[styles.oemSubValue, { color: theme.colors.onSurface }]}>
+                    {periodStats.highestText}{' '}
+                    <Text style={[styles.oemSubUnit, { color: theme.colors.onSurfaceVariant }]}>
+                      {periodStats.highestUnit}
+                    </Text>
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : null}
+        </View>
+      )}
     </View>
   );
 }
@@ -815,6 +1073,85 @@ const styles = StyleSheet.create({
   },
   axisLabelText: {
     fontSize: 10.5,
+    fontWeight: '500',
+  },
+  oemHeaderBlock: {
+    gap: 6,
+  },
+  oemFlexCard: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+  },
+  oemPlotSectionFlex: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  oemTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  oemMetricTitleText: {
+    fontSize: 16.5,
+    fontWeight: '700',
+    letterSpacing: -0.25,
+  },
+  oemValueUnitRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 5,
+    flexShrink: 1,
+  },
+  oemTotalValueText: {
+    fontSize: 34,
+    lineHeight: 38,
+    fontWeight: '800',
+    letterSpacing: -0.9,
+    fontVariant: ['tabular-nums'],
+  },
+  oemUnitText: {
+    fontSize: 14.5,
+    fontWeight: '600',
+  },
+  oemInlineSummaryRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  oemSubTile: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+  },
+  oemSubIconBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  oemSubTextCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  oemSubLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  oemSubValue: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    marginTop: 1,
+    fontVariant: ['tabular-nums'],
+  },
+  oemSubUnit: {
+    fontSize: 11.5,
     fontWeight: '500',
   },
 });

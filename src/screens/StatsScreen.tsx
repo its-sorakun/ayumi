@@ -36,10 +36,13 @@ import type {
   HourlyDistanceData,
 } from '../types/health';
 import {
+  calculateWaterGoal,
+  formatDistance,
   formatLocalDateKey,
   startOfDay,
   today,
 } from '../utils/index';
+import { useSettings } from '../contexts/SettingsContext';
 
 import {
   StatsMetricSelector,
@@ -50,12 +53,21 @@ import {
   type StatPeriodType,
 } from '../components/StatsPeriodSelector';
 import { StatsPeriodNavigator } from '../components/StatsPeriodNavigator';
-import { StatsChart, type ChartDataPoint } from '../components/StatsChart';
+import {
+  StatsChart,
+  type ChartDataPoint,
+  type StatsChartGoalSummary,
+  type StatsChartPeriodStats,
+} from '../components/StatsChart';
 import { StatsSummaryCards } from '../components/StatsSummaryCards';
 import type { StatNumberScaleUnit } from '../components/AnimatedStatNumber';
 import { FloatingDock } from '../components/FloatingDock';
 import { useReducedMotion } from '../theme/motion';
-import { useAyumiTheme } from '../themes';
+import {
+  deriveGradientHighlightHex,
+  OxygenAmbientBackdrop,
+  useAyumiTheme,
+} from '../themes';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -250,12 +262,21 @@ export function StatsScreen({
   isPageActive = true,
 }: StatsScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
-  const { motion, shapes, typography, metricAccents } = useAyumiTheme();
+  const {
+    isDark,
+    motion,
+    surfaces,
+    shapes,
+    typography,
+    metricAccents,
+  } = useAyumiTheme();
+  const isOemStatsLayout = surfaces.statsMainSummaryInline;
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
   const reducedMotion = useReducedMotion();
 
+  const { stepGoal, distanceGoal, gender, weight, height, age, customWaterGoal } = useSettings();
   const { todaySummary, providerName } = useHealthData();
   const { totalWater, getLogsForDate } = useWaterTracker();
 
@@ -357,6 +378,7 @@ export function StatsScreen({
 
     const reqId = ++requestIdRef.current;
     setLoading(true);
+
     try {
       const todayMid = today().getTime();
 
@@ -571,27 +593,34 @@ export function StatsScreen({
     }
   };
 
-  const formatPeriodRangeLabel = useCallback((periodType: StatPeriodType, targetDate: Date) => {
-    const monthNames = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    if (periodType === 'daily') {
-      return `${monthNames[targetDate.getMonth()]} ${targetDate.getDate()}, ${targetDate.getFullYear()}`;
-    }
-    if (periodType === 'week') {
-      const start = new Date(targetDate);
-      start.setDate(start.getDate() - 6);
-      const startStr = `${monthNames[start.getMonth()]} ${start.getDate()}`;
-      const endStr = `${monthNames[targetDate.getMonth()]} ${targetDate.getDate()}, ${targetDate.getFullYear()}`;
-      return `${startStr} – ${endStr}`;
-    }
-    const fullMonthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
-    ];
-    return `${fullMonthNames[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
-  }, []);
+  const formatPeriodRangeLabel = useCallback(
+    (periodType: StatPeriodType, targetDate: Date) => {
+      const monthNames = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
+      if (periodType === 'daily') {
+        if (isOemStatsLayout) {
+          const dayShortNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          return `${dayShortNames[targetDate.getDay()]}, ${targetDate.getDate()} ${monthNames[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
+        }
+        return `${monthNames[targetDate.getMonth()]} ${targetDate.getDate()}, ${targetDate.getFullYear()}`;
+      }
+      if (periodType === 'week') {
+        const start = new Date(targetDate);
+        start.setDate(start.getDate() - 6);
+        const startStr = `${monthNames[start.getMonth()]} ${start.getDate()}`;
+        const endStr = `${monthNames[targetDate.getMonth()]} ${targetDate.getDate()}, ${targetDate.getFullYear()}`;
+        return `${startStr} – ${endStr}`;
+      }
+      const fullMonthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December',
+      ];
+      return `${fullMonthNames[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
+    },
+    [isOemStatsLayout],
+  );
 
   // Navigator header follows immediate UI selection
   const dateRangeText = useMemo(
@@ -909,6 +938,60 @@ export function StatsScreen({
   const numericSyncKey = `${committedPeriod}:${committedDataset?.anchorKey ?? 'none'}:${selectedMetric}:${hourlyUnavailable ? 'na' : 'ok'}`;
   const revealDuration = motion.chartReveal[committedPeriod].duration;
 
+  // Derived real daily goal progress and period average/highest for OxygenOS inline card tiles
+  const oemGoalSummary = useMemo<StatsChartGoalSummary | null>(() => {
+    if (!isOemStatsLayout || committedPeriod !== 'daily') {
+      return null;
+    }
+    const current = hourlyUnavailable || totalRaw == null ? 0 : totalRaw;
+    if (selectedMetric === 'steps') {
+      const pct = stepGoal > 0 ? Math.min(Math.round((current / stepGoal) * 100), 100) : 0;
+      return {
+        goalText: `${stepGoal.toLocaleString()} steps`,
+        percent: pct,
+      };
+    }
+    if (selectedMetric === 'distance') {
+      const pct = distanceGoal > 0 ? Math.min(Math.round((current / distanceGoal) * 100), 100) : 0;
+      return {
+        goalText: formatDistance(distanceGoal),
+        percent: pct,
+      };
+    }
+    const waterGoalMl = customWaterGoal || calculateWaterGoal(gender, weight, height, age);
+    const waterGoalParts = formatWaterSummary(waterGoalMl);
+    const pct = waterGoalMl > 0 ? Math.min(Math.round((current / waterGoalMl) * 100), 100) : 0;
+    return {
+      goalText: `${waterGoalParts.value} ${waterGoalParts.unit}`,
+      percent: pct,
+    };
+  }, [
+    isOemStatsLayout,
+    committedPeriod,
+    hourlyUnavailable,
+    totalRaw,
+    selectedMetric,
+    stepGoal,
+    distanceGoal,
+    gender,
+    weight,
+    height,
+    age,
+    customWaterGoal,
+  ]);
+
+  const oemPeriodStats = useMemo<StatsChartPeriodStats | null>(() => {
+    if (!isOemStatsLayout || committedPeriod === 'daily') {
+      return null;
+    }
+    return {
+      averageText,
+      averageUnit: averageUnitText,
+      highestText,
+      highestUnit: highestUnitText,
+    };
+  }, [isOemStatsLayout, committedPeriod, averageText, averageUnitText, highestText, highestUnitText]);
+
   const currentFontScale = PixelRatio.getFontScale();
   const baseBodyHeight =
     baselineMeasure !== null && Math.abs(baselineMeasure.fontScale - currentFontScale) < 0.01
@@ -919,12 +1002,13 @@ export function StatsScreen({
   // Reserve exact dock clearance across both Default and labeled OEM dock heights
   const dockTopOffset = Math.max(insets.bottom + 8, 16) + shapes.dockHeight;
   const dockReserve = dockTopOffset + 2;
-  const scrollPaddingBottom = dockTopOffset + 6;
-  const requiresScroll =
-    currentFontScale > 1.15 ||
-    (viewportHeight > 0 &&
-      baselineContentHeight > 0 &&
-      baselineContentHeight + dockReserve > viewportHeight + 1);
+  const scrollPaddingBottom = dockTopOffset + 12;
+  const requiresScroll = isOemStatsLayout
+    ? false
+    : currentFontScale > 1.15 ||
+      (viewportHeight > 0 &&
+        baselineContentHeight > 0 &&
+        baselineContentHeight + dockReserve > viewportHeight + 1);
 
   const rawSlack =
     !requiresScroll && viewportHeight > 0 && baselineContentHeight > 0
@@ -948,179 +1032,313 @@ export function StatsScreen({
     <View
       style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}
       onLayout={e => setViewportHeight(e.nativeEvent.layout.height)}>
-      <ScrollView
-        style={styles.container}
-        scrollEnabled={requiresScroll}
-        bounces={requiresScroll}
-        overScrollMode={requiresScroll ? 'always' : 'never'}
-        contentContainerStyle={[
-          styles.contentContainer,
-          requiresScroll ? { paddingBottom: scrollPaddingBottom } : styles.nonScrollingContainer,
-        ]}
-        showsVerticalScrollIndicator={false}>
+      <OxygenAmbientBackdrop
+        enabled={surfaces.ambientGradientStyle === 'dynamic_glow'}
+        primaryHex={activeMetricAccent.color}
+        secondaryHex={deriveGradientHighlightHex(activeMetricAccent.color, isDark)}
+        isDark={isDark}
+        testID="stats-ambient-backdrop"
+      />
+      {isOemStatsLayout ? (
         <View
-          onLayout={e => {
-            if (adaptiveLayout.totalAdded === 0) {
-              const measuredBody = Math.max(0, e.nativeEvent.layout.height - insets.top);
-              if (measuredBody > 0) {
-                setBaselineMeasure({
-                  bodyHeight: measuredBody,
-                  fontScale: currentFontScale,
-                });
-              }
-            }
-          }}
-          style={{ paddingTop: insets.top + 6 + adaptiveLayout.headerTopExtra }}>
-
-        {/* 1. Top Header: Stats Title & Subtitle */}
-        <Animated.View
+          testID="stats-nonscroll-viewport"
           style={[
-            styles.headerRow,
+            styles.container,
+            styles.oemNonScrollViewport,
             {
-              marginBottom: adaptiveLayout.headerBottomMargin,
-              opacity: entranceHeader,
+              paddingTop: insets.top + 8,
+              paddingBottom: dockTopOffset + 14,
+            },
+          ]}>
+          <Animated.View
+            style={[
+              styles.headerRow,
+              styles.oemHeaderSpacing,
+              {
+                opacity: entranceHeader,
+                transform: [
+                  {
+                    translateY: entranceHeader.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-12, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}>
+            <Text
+              style={[
+                styles.screenTitleText,
+                {
+                  color: theme.colors.onSurface,
+                  fontSize: typography.screenTitleSize,
+                  fontWeight: typography.screenTitleWeight,
+                  letterSpacing: typography.screenTitleTracking,
+                },
+              ]}>
+              Statistics
+            </Text>
+          </Animated.View>
+
+          <Animated.View
+            style={{
+              opacity: entranceMetrics,
               transform: [
                 {
-                  translateY: entranceHeader.interpolate({
+                  translateY: entranceMetrics.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [-12, 0],
+                    outputRange: [14, 0],
                   }),
                 },
               ],
-            },
-          ]}>
-          <Text
-            style={[
-              styles.screenTitleText,
-              {
-                color: theme.colors.onSurface,
-                fontSize: typography.screenTitleSize,
-                fontWeight: typography.screenTitleWeight,
-                letterSpacing: typography.screenTitleTracking,
-              },
-            ]}>
-            Stats
-          </Text>
-          <Text
-            style={[
-              styles.screenSubtitleText,
-              {
-                color: theme.colors.onSurfaceVariant,
-                fontSize: typography.screenSubtitleSize,
-              },
-            ]}>
-            Track and analyze your activity
-          </Text>
-        </Animated.View>
-
-        {/* 2. Metric Selector (Steps, Distance, Water) */}
-        <Animated.View
-          style={{
-            opacity: entranceMetrics,
-            transform: [
-              {
-                translateY: entranceMetrics.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [14, 0],
-                }),
-              },
-            ],
-          }}>
-          <StatsMetricSelector
-            selectedMetric={selectedMetric}
-            onSelectMetric={handleSelectMetric}
-            containerHeight={adaptiveLayout.metricHeight}
-            marginTop={adaptiveLayout.metricMarginTop}
-          />
-        </Animated.View>
-
-        {/* 3. Period Selector (Week | Daily | Month) */}
-        <Animated.View
-          style={{
-            opacity: entrancePeriods,
-            transform: [
-              {
-                translateY: entrancePeriods.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [14, 0],
-                }),
-              },
-            ],
-          }}>
-          <StatsPeriodSelector
-            selectedPeriod={selectedPeriod}
-            onSelectPeriod={setSelectedPeriod}
-            accentColor={activeMetricAccent.color}
-            onAccentColor={activeMetricAccent.onColor}
-            containerHeight={adaptiveLayout.periodHeight}
-            marginTop={adaptiveLayout.periodMarginTop}
-          />
-
-          {/* 4. Period Navigator (< Date Range >) */}
-          <StatsPeriodNavigator
-            dateRangeText={dateRangeText}
-            canGoNext={canGoNext}
-            onPrevious={handlePrevious}
-            onNext={handleNext}
-            transitionDirection={navDirection}
-            height={adaptiveLayout.navigatorHeight}
-            marginTop={adaptiveLayout.navigatorMarginTop}
-          />
-        </Animated.View>
-
-        {/* Swipable Chart & Summaries Content Area */}
-        <View {...panResponder.panHandlers}>
-          <Animated.View
-            style={{
-              opacity: Animated.multiply(entranceChart, contentOpacity),
-              transform: [{ translateX: contentTranslateX }],
             }}>
-            {/* 5. Main Responsive Chart Card */}
-            <StatsChart
-              metric={selectedMetric}
-              period={committedPeriod}
-              subtitle={chartSubtitle}
-              totalValueText={totalText}
-              totalRawValue={totalRaw}
-              totalScaleUnit={totalScaleUnit}
-              unitText={unitText}
-              data={chartDataPoints}
-              loading={loading}
-              unavailableNotice={unavailableNotice}
-              chartHeight={adaptiveLayout.chartHeight}
-              marginTop={adaptiveLayout.chartMarginTop}
-              cardPaddingVertical={adaptiveLayout.chartPaddingVertical}
-              headerMarginBottom={adaptiveLayout.chartHeaderMarginBottom}
-              xAxisMarginTop={adaptiveLayout.xAxisMarginTop}
-            />
-
-            {/* 6. Contextual Summary Cards (Average & Highest) */}
-            <StatsSummaryCards
-              metric={selectedMetric}
-              averageValue={averageText}
-              averageRawValue={averageRaw}
-              averageScaleUnit={averageScaleUnit}
-              averageUnit={averageUnitText}
-              highestValue={highestText}
-              highestRawValue={highestRaw}
-              highestScaleUnit={highestScaleUnit}
-              highestUnit={highestUnitText}
-              highestLabel={committedPeriod === 'daily' ? 'Highest (Hr)' : 'Highest (Day)'}
-              syncKey={numericSyncKey}
-              duration={revealDuration}
-              marginTop={adaptiveLayout.summaryMarginTop}
-              cardPaddingVertical={adaptiveLayout.summaryCardPaddingVertical}
-              contentRowMarginBottom={adaptiveLayout.summaryInnerMarginBottom}
+            <StatsMetricSelector
+              selectedMetric={selectedMetric}
+              onSelectMetric={handleSelectMetric}
+              containerHeight={48}
+              marginTop={2}
             />
           </Animated.View>
+
+          <Animated.View
+            style={{
+              opacity: entrancePeriods,
+              transform: [
+                {
+                  translateY: entrancePeriods.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [14, 0],
+                  }),
+                },
+              ],
+            }}>
+            <StatsPeriodSelector
+              selectedPeriod={selectedPeriod}
+              onSelectPeriod={setSelectedPeriod}
+              accentColor={activeMetricAccent.color}
+              onAccentColor={activeMetricAccent.onColor}
+              containerHeight={44}
+              marginTop={12}
+            />
+
+            <StatsPeriodNavigator
+              dateRangeText={dateRangeText}
+              canGoNext={canGoNext}
+              onPrevious={handlePrevious}
+              onNext={handleNext}
+              transitionDirection={navDirection}
+              height={38}
+              marginTop={8}
+            />
+          </Animated.View>
+
+          <View {...panResponder.panHandlers} style={styles.oemFlexArea}>
+            <Animated.View
+              style={[
+                styles.oemFlexArea,
+                {
+                  opacity: Animated.multiply(entranceChart, contentOpacity),
+                  transform: [{ translateX: contentTranslateX }],
+                },
+              ]}>
+              <StatsChart
+                metric={selectedMetric}
+                period={committedPeriod}
+                subtitle={chartSubtitle}
+                totalValueText={totalText}
+                totalRawValue={totalRaw}
+                totalScaleUnit={totalScaleUnit}
+                unitText={unitText}
+                data={chartDataPoints}
+                loading={loading}
+                unavailableNotice={unavailableNotice}
+                goalSummary={oemGoalSummary}
+                periodStats={oemPeriodStats}
+                fillCard={true}
+                marginTop={10}
+                cardPaddingVertical={18}
+                headerMarginBottom={14}
+                xAxisMarginTop={8}
+              />
+            </Animated.View>
+          </View>
         </View>
-        </View>
-      </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.container}
+          scrollEnabled={requiresScroll}
+          bounces={requiresScroll}
+          overScrollMode={requiresScroll ? 'always' : 'never'}
+          contentContainerStyle={[
+            styles.contentContainer,
+            requiresScroll ? { paddingBottom: scrollPaddingBottom } : styles.nonScrollingContainer,
+          ]}
+          showsVerticalScrollIndicator={false}>
+          <View
+            onLayout={e => {
+              if (adaptiveLayout.totalAdded === 0) {
+                const measuredBody = Math.max(0, e.nativeEvent.layout.height - insets.top);
+                if (measuredBody > 0) {
+                  setBaselineMeasure({
+                    bodyHeight: measuredBody,
+                    fontScale: currentFontScale,
+                  });
+                }
+              }
+            }}
+            style={{ paddingTop: insets.top + 6 + adaptiveLayout.headerTopExtra }}>
+
+          {/* 1. Top Header: Stats Title + Subtitle */}
+          <Animated.View
+            style={[
+              styles.headerRow,
+              {
+                marginBottom: adaptiveLayout.headerBottomMargin,
+                opacity: entranceHeader,
+                transform: [
+                  {
+                    translateY: entranceHeader.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-12, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}>
+            <Text
+              style={[
+                styles.screenTitleText,
+                {
+                  color: theme.colors.onSurface,
+                  fontSize: typography.screenTitleSize,
+                  fontWeight: typography.screenTitleWeight,
+                  letterSpacing: typography.screenTitleTracking,
+                },
+              ]}>
+              Stats
+            </Text>
+            <Text
+              style={[
+                styles.screenSubtitleText,
+                {
+                  color: theme.colors.onSurfaceVariant,
+                  fontSize: typography.screenSubtitleSize,
+                },
+              ]}>
+              Track and analyze your activity
+            </Text>
+          </Animated.View>
+
+          {/* 2. Metric Selector (Steps, Distance, Water) */}
+          <Animated.View
+            style={{
+              opacity: entranceMetrics,
+              transform: [
+                {
+                  translateY: entranceMetrics.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [14, 0],
+                  }),
+                },
+              ],
+            }}>
+            <StatsMetricSelector
+              selectedMetric={selectedMetric}
+              onSelectMetric={handleSelectMetric}
+              containerHeight={adaptiveLayout.metricHeight}
+              marginTop={adaptiveLayout.metricMarginTop}
+            />
+          </Animated.View>
+
+          {/* 3. Period Selector (Week | Daily | Month) */}
+          <Animated.View
+            style={{
+              opacity: entrancePeriods,
+              transform: [
+                {
+                  translateY: entrancePeriods.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [14, 0],
+                  }),
+                },
+              ],
+            }}>
+            <StatsPeriodSelector
+              selectedPeriod={selectedPeriod}
+              onSelectPeriod={setSelectedPeriod}
+              accentColor={activeMetricAccent.color}
+              onAccentColor={activeMetricAccent.onColor}
+              containerHeight={adaptiveLayout.periodHeight}
+              marginTop={adaptiveLayout.periodMarginTop}
+            />
+
+            {/* 4. Period Navigator (< Date Range >) */}
+            <StatsPeriodNavigator
+              dateRangeText={dateRangeText}
+              canGoNext={canGoNext}
+              onPrevious={handlePrevious}
+              onNext={handleNext}
+              transitionDirection={navDirection}
+              height={adaptiveLayout.navigatorHeight}
+              marginTop={adaptiveLayout.navigatorMarginTop}
+            />
+          </Animated.View>
+
+          {/* Swipable Chart & Summaries Content Area */}
+          <View {...panResponder.panHandlers}>
+            <Animated.View
+              style={{
+                opacity: Animated.multiply(entranceChart, contentOpacity),
+                transform: [{ translateX: contentTranslateX }],
+              }}>
+              {/* 5. Main Responsive Chart Card */}
+              <StatsChart
+                metric={selectedMetric}
+                period={committedPeriod}
+                subtitle={chartSubtitle}
+                totalValueText={totalText}
+                totalRawValue={totalRaw}
+                totalScaleUnit={totalScaleUnit}
+                unitText={unitText}
+                data={chartDataPoints}
+                loading={loading}
+                unavailableNotice={unavailableNotice}
+                chartHeight={adaptiveLayout.chartHeight}
+                marginTop={adaptiveLayout.chartMarginTop}
+                cardPaddingVertical={adaptiveLayout.chartPaddingVertical}
+                headerMarginBottom={adaptiveLayout.chartHeaderMarginBottom}
+                xAxisMarginTop={adaptiveLayout.xAxisMarginTop}
+              />
+
+              {/* 6. Contextual Average & Highest Summary Cards */}
+              <StatsSummaryCards
+                metric={selectedMetric}
+                averageValue={averageText}
+                averageRawValue={averageRaw}
+                averageScaleUnit={averageScaleUnit}
+                averageUnit={averageUnitText}
+                highestValue={highestText}
+                highestRawValue={highestRaw}
+                highestScaleUnit={highestScaleUnit}
+                highestUnit={highestUnitText}
+                highestLabel={committedPeriod === 'daily' ? 'Highest (Hr)' : 'Highest (Day)'}
+                syncKey={numericSyncKey}
+                duration={revealDuration}
+                marginTop={adaptiveLayout.summaryMarginTop}
+                cardPaddingVertical={adaptiveLayout.summaryCardPaddingVertical}
+                contentRowMarginBottom={adaptiveLayout.summaryInnerMarginBottom}
+              />
+            </Animated.View>
+          </View>
+          </View>
+        </ScrollView>
+      )}
 
       {/* Floating Bottom Navigation Dock with Stats active (rendered only when not embedded) */}
       {!hideDock && (
         <FloatingDock
           activeTab="stats"
+          activeStatsMetric={selectedMetric}
           onHomePress={() => navigation.navigate('Dashboard')}
           onAnalyticsPress={() => {}}
           onWaterPress={() => navigation.navigate('Water')}
@@ -1158,6 +1376,15 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '500',
     marginTop: 2,
+  },
+  oemNonScrollViewport: {
+    flex: 1,
+  },
+  oemHeaderSpacing: {
+    marginBottom: 12,
+  },
+  oemFlexArea: {
+    flex: 1,
   },
 });
 

@@ -39,7 +39,9 @@ import { useHealthData, useWaterTracker } from '../hooks';
 import { useSettings } from '../contexts/SettingsContext';
 import {
   colorWithOpacity,
+  deriveHarmonicGlowSecondaryHex,
   OxygenActiveTimeIcon,
+  OxygenAmbientBackdrop,
   OxygenCaloriesIcon,
   OxygenDistanceIcon,
   OxygenTotalCaloriesIcon,
@@ -75,7 +77,7 @@ export function DashboardScreen({
   onNavigateToStats,
 }: DashboardScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
-  const { surfaces, typography, metricAccents } = useAyumiTheme();
+  const { colors, isDark, surfaces, typography, metricAccents } = useAyumiTheme();
   const useSoftOemBadges = surfaces.bentoLayout === 'header_inline';
   const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
   const isSolidBadges = surfaces.badgeStyle === 'solid';
@@ -226,6 +228,13 @@ export function DashboardScreen({
 
   return (
     <View style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}>
+      <OxygenAmbientBackdrop
+        enabled={surfaces.ambientGradientStyle === 'dynamic_glow'}
+        primaryHex={colors.primary}
+        secondaryHex={deriveHarmonicGlowSecondaryHex(colors.primary, colors.tertiary, isDark)}
+        isDark={isDark}
+        testID="dashboard-ambient-backdrop"
+      />
       <ScrollView
         ref={scrollViewRef}
         style={styles.container}
@@ -410,7 +419,17 @@ export function DashboardScreen({
                 subtitle={`Goal: ${formattedValues.waterGoalText}`}
                 icon={
                   isOxygenIcons ? (
-                    <OxygenWaterIcon size={17} color={waterBadge.fg} filled={isSolidBadges} />
+                    <OxygenWaterIcon
+                      size={17}
+                      color={
+                        useSoftOemBadges
+                          ? metricAccents.water.color
+                          : isSolidBadges
+                            ? waterBadge.fg
+                            : metricAccents.water.color
+                      }
+                      filled={isSolidBadges && !useSoftOemBadges}
+                    />
                   ) : (
                     <DropletIcon size={useSoftOemBadges ? 17 : 22} color={metricAccents.water.color} />
                   )
@@ -420,6 +439,8 @@ export function DashboardScreen({
                     ? theme.dark
                       ? colorWithOpacity(theme.colors.onSurface, 0.12)
                       : theme.colors.surface
+                    : useSoftOemBadges
+                    ? resolveBadgeBg(metricAccents.water.color, metricAccents.water.container)
                     : isSolidBadges
                     ? waterBadge.bg
                     : resolveBadgeBg(metricAccents.water.color, metricAccents.water.container)

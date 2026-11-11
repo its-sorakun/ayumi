@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { Button, Dialog, Portal, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 import {
   ChevronRightIcon,
@@ -47,7 +47,10 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useWaterTracker, type WaterLog } from '../hooks/useWaterTracker';
 import { useReducedMotion } from '../theme/motion';
 import {
+  blendHexColors,
   colorWithOpacity,
+  deriveGradientHighlightHex,
+  OxygenAmbientBackdrop,
   OxygenChevronRightIcon,
   OxygenMoreIcon,
   OxygenPencilIcon,
@@ -195,7 +198,8 @@ function WaterPresetTile({
   const { motion, surfaces, metricAccents } = useAyumiTheme();
   const waterAccent = metricAccents.water;
   const pressScale = useRef(new Animated.Value(1)).current;
-  const isSoftOutlined = surfaces.activeControlStyle === 'soft_outlined';
+  const isSeparateTile = surfaces.separateWaterPresetCards;
+  const isOemTint = isSeparateTile || surfaces.activeControlStyle === 'soft_outlined';
 
   const handlePressIn = () => {
     if (reducedMotion) return;
@@ -218,23 +222,30 @@ function WaterPresetTile({
     }).start();
   };
 
+  const surfaceBaseHex = theme.dark ? theme.colors.elevation.level1 : theme.colors.surface;
   const tileBg = isActive
-    ? isSoftOutlined
-      ? colorWithOpacity(waterAccent.color, theme.dark ? 0.2 : 0.1)
+    ? isOemTint
+      ? blendHexColors(surfaceBaseHex, waterAccent.color, theme.dark ? 0.24 : 0.14)
       : waterAccent.container
     : theme.dark
-    ? theme.colors.elevation.level2
-    : isSoftOutlined
+    ? isSeparateTile
+      ? theme.colors.elevation.level1
+      : theme.colors.elevation.level2
+    : isOemTint
     ? theme.colors.surface
     : theme.colors.background;
   const tileBorder = isActive
-    ? waterAccent.color
+    ? isSeparateTile
+      ? blendHexColors(surfaceBaseHex, waterAccent.color, theme.dark ? 0.56 : 0.42)
+      : waterAccent.color
+    : isSeparateTile
+    ? blendHexColors(surfaceBaseHex, theme.colors.onSurface, theme.dark ? 0.11 : 0.06)
     : theme.colors.outlineVariant;
   const iconColor = isActive
     ? waterAccent.color
     : theme.colors.onSurfaceVariant;
   const labelColor = isActive
-    ? isSoftOutlined
+    ? isOemTint
       ? waterAccent.color
       : waterAccent.onContainer
     : theme.colors.onSurfaceVariant;
@@ -249,6 +260,12 @@ function WaterPresetTile({
         onPress={() => onPress(preset.ml)}
         style={[
           styles.presetTile,
+          isSeparateTile && styles.presetTileStandalone,
+          isSeparateTile &&
+            !isActive && {
+              elevation: surfaces.cardElevation,
+              shadowOpacity: surfaces.cardShadowOpacity,
+            },
           isActive ? styles.presetTileActive : styles.presetTileInactive,
           {
             backgroundColor: tileBg,
@@ -302,6 +319,7 @@ function WaterTimelineRow({
   const { motion, surfaces, shapes, metricAccents } = useAyumiTheme();
   const waterAccent = metricAccents.water;
   const isOemRow = surfaces.bentoLayout === 'header_inline';
+  const isGroupedCleanRow = surfaces.separateWaterPresetCards;
   const enterAnim = useRef(new Animated.Value(isNewlyAdded ? 0 : 1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const exitAnim = useRef(new Animated.Value(0)).current;
@@ -411,14 +429,24 @@ function WaterTimelineRow({
         />
       </View>
 
-      {/* Comfortable tonal entry row */}
+      {/* Comfortable tonal entry row or borderless grouped OxygenOS row */}
       <View
         style={[
           styles.logEntryCard,
+          isGroupedCleanRow && styles.logEntryRowGrouped,
+          isGroupedCleanRow && !isLast && {
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: colorWithOpacity(
+              theme.colors.onSurface,
+              theme.dark ? 0.11 : 0.07,
+            ),
+          },
           {
-            borderRadius: shapes.logEntryRadius,
-            backgroundColor: rowBg,
-            borderColor: isRecentlyEdited
+            borderRadius: isGroupedCleanRow ? 0 : shapes.logEntryRadius,
+            backgroundColor: isGroupedCleanRow ? 'transparent' : rowBg,
+            borderColor: isGroupedCleanRow
+              ? 'transparent'
+              : isRecentlyEdited
               ? waterAccent.color
               : theme.colors.outlineVariant,
           },
@@ -755,6 +783,7 @@ export function WaterLoggerScreen({
   const cardBorder = resolveCardBorder();
   const customDraftLabel = formatConfirmWaterLabel(customDraftMl, customDraftUnit);
   const isOemWaterVisual = surfaces.bentoLayout === 'header_inline';
+  const isSeparateWaterCards = surfaces.separateWaterPresetCards;
   const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
   const isSolidBadges = surfaces.badgeStyle === 'solid';
   const waterBadge = resolveMetricBadgeColors(waterAccent, surfaces.badgeStyle);
@@ -762,7 +791,7 @@ export function WaterLoggerScreen({
     ? colorWithOpacity(waterAccent.color, isDark ? 0.2 : 0.11)
     : waterAccent.container;
   const pillTextColor =
-    surfaces.activeControlStyle === 'soft_outlined'
+    isOemWaterVisual || surfaces.activeControlStyle === 'soft_outlined'
       ? waterAccent.color
       : waterAccent.onContainer;
 
@@ -817,15 +846,25 @@ export function WaterLoggerScreen({
                 style={[
                   styles.intakeBadge,
                   {
-                    backgroundColor: isSolidBadges ? waterBadge.bg : softWaterTint,
-                    borderRadius: isSolidBadges ? 16 : isOemWaterVisual ? 10 : 16,
+                    backgroundColor: isOemWaterVisual
+                      ? softWaterTint
+                      : isSolidBadges
+                      ? waterBadge.bg
+                      : softWaterTint,
+                    borderRadius: isOemWaterVisual ? 12 : isSolidBadges ? 16 : 16,
                   },
                 ]}>
                 {isOxygenIcons ? (
                   <OxygenWaterIcon
                     size={17}
-                    color={isSolidBadges ? waterBadge.fg : waterAccent.color}
-                    filled={isSolidBadges}
+                    color={
+                      isOemWaterVisual
+                        ? waterAccent.color
+                        : isSolidBadges
+                        ? waterBadge.fg
+                        : waterAccent.color
+                    }
+                    filled={isSolidBadges && !isOemWaterVisual}
                   />
                 ) : (
                   <DropletIcon size={17} color={waterAccent.color} />
@@ -892,6 +931,17 @@ export function WaterLoggerScreen({
               { transform: [{ scale: ringPulseAnim }] },
             ]}>
             <Svg width={RING_SIZE} height={RING_SIZE}>
+              {isOemWaterVisual && (
+                <Defs>
+                  <LinearGradient id="waterHeroRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <Stop
+                      offset="0%"
+                      stopColor={deriveGradientHighlightHex(waterAccent.color, isDark)}
+                    />
+                    <Stop offset="100%" stopColor={waterAccent.color} />
+                  </LinearGradient>
+                </Defs>
+              )}
               {/* Inactive circular track */}
               <Circle
                 cx={RING_CENTER}
@@ -916,7 +966,7 @@ export function WaterLoggerScreen({
                   cx={RING_CENTER}
                   cy={RING_CENTER}
                   r={ringRadius}
-                  stroke={waterAccent.color}
+                  stroke={isOemWaterVisual ? 'url(#waterHeroRingGrad)' : waterAccent.color}
                   strokeWidth={ringStroke}
                   fill="none"
                   strokeDasharray={`${ringCircumference} ${ringCircumference}`}
@@ -955,11 +1005,271 @@ export function WaterLoggerScreen({
         </View>
       </View>
 
-      {/* 3. Add Water Card */}
+      {/* 3. Add Water Section (standalone tiles + row card on OxygenOS; unified card on Default) */}
+      {isSeparateWaterCards ? (
+        <View testID="water-add-separate-section">
+          <View style={styles.standaloneSectionHeader}>
+            <Text
+              style={[
+                styles.sectionTitleText,
+                {
+                  color: theme.colors.onSurface,
+                  fontSize: typography.sectionTitleSize,
+                  fontWeight: typography.sectionTitleWeight,
+                },
+              ]}>
+              Add Water
+            </Text>
+            {toastLabel ? (
+              <Animated.View
+                style={[
+                  styles.addedFeedbackPill,
+                  {
+                    backgroundColor: softWaterTint,
+                    opacity: toastAnim,
+                  },
+                ]}>
+                <Text style={[styles.addedFeedbackText, { color: pillTextColor }]}>
+                  {toastLabel}
+                </Text>
+              </Animated.View>
+            ) : null}
+          </View>
+
+          <View style={styles.standalonePresetsRow}>
+            {WATER_PRESETS.map(preset => (
+              <WaterPresetTile
+                key={preset.ml}
+                preset={preset}
+                isActive={selectedPresetMl === preset.ml}
+                reducedMotion={reducedMotion}
+                onPress={handleQuickAdd}
+              />
+            ))}
+          </View>
+
+          <TouchableOpacity
+            testID="water-custom-amount-card"
+            activeOpacity={0.84}
+            onPress={handleOpenCustomAdd}
+            style={[
+              styles.customAmountStandaloneCard,
+              {
+                backgroundColor: cardBg,
+                borderWidth: cardBorder.borderWidth,
+                borderColor: cardBorder.borderColor,
+                elevation: surfaces.cardElevation,
+                shadowOpacity: surfaces.cardShadowOpacity,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Custom amount, currently ${customDraftLabel}`}>
+            <View style={styles.customRowLeft}>
+              <OxygenPencilIcon size={17} color={theme.colors.onSurfaceVariant} />
+              <Text style={[styles.customRowLabel, { color: theme.colors.onSurface }]}>
+                Custom Amount
+              </Text>
+            </View>
+            <View style={styles.customRowRight}>
+              <Text style={[styles.customDraftInlineText, { color: theme.colors.onSurface }]}>
+                {customDraftLabel}
+              </Text>
+              <OxygenChevronRightIcon size={18} color={theme.colors.onSurfaceVariant} />
+            </View>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.sectionCard,
+            styles.secondaryCardSpacing,
+            {
+              borderRadius: surfaces.sectionCardRadius,
+              elevation: surfaces.cardElevation,
+              shadowOpacity: surfaces.cardShadowOpacity,
+              backgroundColor: cardBg,
+              borderWidth: cardBorder.borderWidth,
+              borderColor: cardBorder.borderColor,
+            },
+          ]}>
+          <View style={styles.addHeaderRow}>
+            <Text
+              style={[
+                styles.sectionTitleText,
+                {
+                  color: theme.colors.onSurface,
+                  fontSize: typography.sectionTitleSize,
+                  fontWeight: typography.sectionTitleWeight,
+                },
+              ]}>
+              Add Water
+            </Text>
+            {toastLabel ? (
+              <Animated.View
+                style={[
+                  styles.addedFeedbackPill,
+                  {
+                    backgroundColor: waterAccent.container,
+                    opacity: toastAnim,
+                  },
+                ]}>
+                <Text
+                  style={[
+                    styles.addedFeedbackText,
+                    { color: waterAccent.onContainer },
+                  ]}>
+                  {toastLabel}
+                </Text>
+              </Animated.View>
+            ) : null}
+          </View>
+
+          <View style={styles.presetsRow}>
+            {WATER_PRESETS.map(preset => (
+              <WaterPresetTile
+                key={preset.ml}
+                preset={preset}
+                isActive={selectedPresetMl === preset.ml}
+                reducedMotion={reducedMotion}
+                onPress={handleQuickAdd}
+              />
+            ))}
+          </View>
+
+          {/* Persistent Custom Amount row opening bottom sheet */}
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPress={handleOpenCustomAdd}
+            style={[
+              styles.customAmountRow,
+              {
+                backgroundColor: isDark
+                  ? theme.colors.elevation.level2
+                  : theme.colors.background,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Custom amount, currently ${customDraftLabel}`}>
+            <View style={styles.customRowLeft}>
+              {isOxygenIcons ? (
+                <OxygenPencilIcon size={17} color={theme.colors.onSurfaceVariant} />
+              ) : (
+                <PencilEditIcon size={17} color={theme.colors.onSurfaceVariant} />
+              )}
+              <Text
+                style={[
+                  styles.customRowLabel,
+                  { color: theme.colors.onSurface },
+                ]}>
+                Custom Amount
+              </Text>
+            </View>
+
+            <View style={styles.customRowRight}>
+              <View
+                style={[
+                  styles.customDraftChip,
+                  {
+                    borderRadius: shapes.chipRadius,
+                    backgroundColor: cardBg,
+                    borderColor: theme.colors.outlineVariant,
+                  },
+                ]}>
+                <Text
+                  style={[
+                    styles.customDraftText,
+                    { color: theme.colors.onSurface },
+                  ]}>
+                  {customDraftLabel}
+                </Text>
+              </View>
+              {isOxygenIcons ? (
+                <OxygenChevronRightIcon size={18} color={theme.colors.onSurfaceVariant} />
+              ) : (
+                <ChevronRightIcon size={18} color={theme.colors.onSurfaceVariant} />
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
+  const todaysLogBody =
+    logs.length === 0 ? (
+      <View style={styles.emptyLogBox}>
+        <Text
+          style={[
+            styles.emptyLogTitle,
+            { color: theme.colors.onSurfaceVariant },
+          ]}>
+          No water logged yet today
+        </Text>
+        <Text
+          style={[
+            styles.emptyLogSubtitle,
+            { color: theme.colors.outline },
+          ]}>
+          Tap a quick preset or Custom Amount above
+        </Text>
+      </View>
+    ) : (
+      <ScrollView
+        testID="water-log-scroll"
+        style={requiresOuterScroll ? undefined : styles.logInternalScroll}
+        contentContainerStyle={styles.logListContent}
+        nestedScrollEnabled
+        scrollEnabled={!requiresOuterScroll}
+        showsVerticalScrollIndicator={false}>
+        {logs.map((entry, idx) => (
+          <WaterTimelineRow
+            key={entry.id}
+            log={entry}
+            isFirst={idx === 0}
+            isLast={idx === logs.length - 1}
+            isNewlyAdded={entry.id === newlyAddedId}
+            isRecentlyEdited={entry.id === recentlyEditedId}
+            isDeleting={entry.id === deletingId}
+            reducedMotion={reducedMotion}
+            onOpenMenu={setActionMenuLog}
+          />
+        ))}
+      </ScrollView>
+    );
+
+  const todaysLogCard = isSeparateWaterCards ? (
+    <View
+      testID="water-todays-log-grouped-section"
+      style={requiresOuterScroll ? undefined : styles.logCardFlex}>
+      <View style={[styles.standaloneSectionHeader, styles.standaloneLogHeaderSpacing]}>
+        <Text
+          style={[
+            styles.sectionTitleText,
+            {
+              color: theme.colors.onSurface,
+              fontSize: typography.sectionTitleSize,
+              fontWeight: typography.sectionTitleWeight,
+            },
+          ]}>
+          Today's Log
+        </Text>
+        <View
+          style={[
+            styles.totalBadgePill,
+            { backgroundColor: softWaterTint },
+          ]}>
+          <Text style={[styles.totalBadgeText, { color: pillTextColor }]}>
+            Total {actualProgress.consumedLiters}
+          </Text>
+        </View>
+      </View>
+
       <View
         style={[
           styles.sectionCard,
-          styles.secondaryCardSpacing,
+          styles.groupedLogCardPadding,
+          requiresOuterScroll ? styles.logCardExpandedMin : styles.logCardFlex,
           {
             borderRadius: surfaces.sectionCardRadius,
             elevation: surfaces.cardElevation,
@@ -969,110 +1279,10 @@ export function WaterLoggerScreen({
             borderColor: cardBorder.borderColor,
           },
         ]}>
-        <View style={styles.addHeaderRow}>
-          <Text
-            style={[
-              styles.sectionTitleText,
-              {
-                color: theme.colors.onSurface,
-                fontSize: typography.sectionTitleSize,
-                fontWeight: typography.sectionTitleWeight,
-              },
-            ]}>
-            Add Water
-          </Text>
-          {toastLabel ? (
-            <Animated.View
-              style={[
-                styles.addedFeedbackPill,
-                {
-                  backgroundColor: waterAccent.container,
-                  opacity: toastAnim,
-                },
-              ]}>
-              <Text
-                style={[
-                  styles.addedFeedbackText,
-                  { color: waterAccent.onContainer },
-                ]}>
-                {toastLabel}
-              </Text>
-            </Animated.View>
-          ) : null}
-        </View>
-
-        <View style={styles.presetsRow}>
-          {WATER_PRESETS.map(preset => (
-            <WaterPresetTile
-              key={preset.ml}
-              preset={preset}
-              isActive={selectedPresetMl === preset.ml}
-              reducedMotion={reducedMotion}
-              onPress={handleQuickAdd}
-            />
-          ))}
-        </View>
-
-        {/* Persistent Custom Amount row opening bottom sheet */}
-        <TouchableOpacity
-          activeOpacity={0.82}
-          onPress={handleOpenCustomAdd}
-          style={[
-            styles.customAmountRow,
-            {
-              backgroundColor: isDark
-                ? theme.colors.elevation.level2
-                : theme.colors.background,
-              borderColor: theme.colors.outlineVariant,
-            },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={`Custom amount, currently ${customDraftLabel}`}>
-          <View style={styles.customRowLeft}>
-            {isOxygenIcons ? (
-              <OxygenPencilIcon size={17} color={theme.colors.onSurfaceVariant} />
-            ) : (
-              <PencilEditIcon size={17} color={theme.colors.onSurfaceVariant} />
-            )}
-            <Text
-              style={[
-                styles.customRowLabel,
-                { color: theme.colors.onSurface },
-              ]}>
-              Custom Amount
-            </Text>
-          </View>
-
-          <View style={styles.customRowRight}>
-            <View
-              style={[
-                styles.customDraftChip,
-                {
-                  borderRadius: shapes.chipRadius,
-                  backgroundColor: cardBg,
-                  borderColor: theme.colors.outlineVariant,
-                },
-              ]}>
-              <Text
-                style={[
-                  styles.customDraftText,
-                  { color: theme.colors.onSurface },
-                ]}>
-                {customDraftLabel}
-              </Text>
-            </View>
-            {isOxygenIcons ? (
-              <OxygenChevronRightIcon size={18} color={theme.colors.onSurfaceVariant} />
-            ) : (
-              <ChevronRightIcon size={18} color={theme.colors.onSurfaceVariant} />
-            )}
-          </View>
-        </TouchableOpacity>
+        {todaysLogBody}
       </View>
     </View>
-  );
-
-  const todaysLogCard = (
+  ) : (
     <View
       style={[
         styles.sectionCard,
@@ -1114,46 +1324,7 @@ export function WaterLoggerScreen({
         </View>
       </View>
 
-      {logs.length === 0 ? (
-        <View style={styles.emptyLogBox}>
-          <Text
-            style={[
-              styles.emptyLogTitle,
-              { color: theme.colors.onSurfaceVariant },
-            ]}>
-            No water logged yet today
-          </Text>
-          <Text
-            style={[
-              styles.emptyLogSubtitle,
-              { color: theme.colors.outline },
-            ]}>
-            Tap a quick preset or Custom Amount above
-          </Text>
-        </View>
-      ) : (
-        <ScrollView
-          testID="water-log-scroll"
-          style={requiresOuterScroll ? undefined : styles.logInternalScroll}
-          contentContainerStyle={styles.logListContent}
-          nestedScrollEnabled
-          scrollEnabled={!requiresOuterScroll}
-          showsVerticalScrollIndicator={false}>
-          {logs.map((entry, idx) => (
-            <WaterTimelineRow
-              key={entry.id}
-              log={entry}
-              isFirst={idx === 0}
-              isLast={idx === logs.length - 1}
-              isNewlyAdded={entry.id === newlyAddedId}
-              isRecentlyEdited={entry.id === recentlyEditedId}
-              isDeleting={entry.id === deletingId}
-              reducedMotion={reducedMotion}
-              onOpenMenu={setActionMenuLog}
-            />
-          ))}
-        </ScrollView>
-      )}
+      {todaysLogBody}
     </View>
   );
 
@@ -1162,6 +1333,13 @@ export function WaterLoggerScreen({
       testID="water-logger-viewport"
       style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}
       onLayout={e => setViewportHeight(e.nativeEvent.layout.height)}>
+      <OxygenAmbientBackdrop
+        enabled={surfaces.ambientGradientStyle === 'dynamic_glow'}
+        primaryHex={waterAccent.color}
+        secondaryHex={deriveGradientHighlightHex(waterAccent.color, isDark)}
+        isDark={isDark}
+        testID="water-ambient-backdrop"
+      />
       {requiresOuterScroll ? (
         <ScrollView
           testID="water-outer-scroll"
@@ -1692,5 +1870,56 @@ const styles = StyleSheet.create({
   },
   timelineSegmentVisible: {
     opacity: 0.42,
+  },
+  presetTileStandalone: {
+    height: 70,
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+  },
+  logEntryRowGrouped: {
+    borderWidth: 0,
+    marginVertical: 0,
+    paddingHorizontal: 4,
+    paddingVertical: 11,
+    minHeight: 54,
+  },
+  standaloneSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 20,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  standaloneLogHeaderSpacing: {
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  standalonePresetsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginHorizontal: 20,
+  },
+  customAmountStandaloneCard: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+  },
+  customDraftInlineText: {
+    fontSize: 14,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  groupedLogCardPadding: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
   },
 });

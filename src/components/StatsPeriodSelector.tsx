@@ -32,9 +32,15 @@ interface StatsPeriodSelectorProps {
   readonly marginTop?: number;
 }
 
-const PERIODS: readonly { type: StatPeriodType; label: string }[] = [
+const DEFAULT_PERIODS: readonly { type: StatPeriodType; label: string }[] = [
   { type: 'week', label: 'Week' },
   { type: 'daily', label: 'Daily' },
+  { type: 'month', label: 'Month' },
+];
+
+const OEM_PERIODS: readonly { type: StatPeriodType; label: string }[] = [
+  { type: 'daily', label: 'Day' },
+  { type: 'week', label: 'Week' },
   { type: 'month', label: 'Month' },
 ];
 
@@ -56,12 +62,16 @@ export function StatsPeriodSelector({
   const isDark = theme.dark;
   const reducedMotion = useReducedMotion();
   const { motion, surfaces, resolveCardBorder } = useAyumiTheme();
+  const activePeriods =
+    surfaces.metricSelectorVariant === 'horizontal_pills'
+      ? OEM_PERIODS
+      : DEFAULT_PERIODS;
   const cardBorder = resolveCardBorder();
   const activeColor = accentColor ?? theme.colors.primary;
   const onActiveColor = onAccentColor ?? theme.colors.onPrimary;
 
   const [containerWidth, setContainerWidth] = useState(0);
-  const activeIndex = Math.max(PERIODS.findIndex(p => p.type === selectedPeriod), 0);
+  const activeIndex = Math.max(activePeriods.findIndex(p => p.type === selectedPeriod), 0);
 
   const slideAnim = useRef(new Animated.Value(activeIndex)).current;
   const stretchXAnim = useRef(new Animated.Value(1)).current;
@@ -75,10 +85,12 @@ export function StatsPeriodSelector({
   const onSelectRef = useRef(onSelectPeriod);
   const reducedMotionRef = useRef(reducedMotion);
   const motionRef = useRef(motion);
+  const periodsRef = useRef(activePeriods);
   activeIndexRef.current = activeIndex;
   onSelectRef.current = onSelectPeriod;
   reducedMotionRef.current = reducedMotion;
   motionRef.current = motion;
+  periodsRef.current = activePeriods;
 
   const pressLocalXRef = useRef(0);
   const dragStartSlotRef = useRef(activeIndex);
@@ -299,7 +311,7 @@ export function StatsPeriodSelector({
             const segW = Math.max((width - PADDING * 2) / 3, 1);
             const tappedSlot = Math.min(Math.max(Math.floor(innerX / segW), 0), 2);
             if (tappedSlot !== activeIndexRef.current) {
-              onSelectRef.current(PERIODS[tappedSlot].type);
+              onSelectRef.current(periodsRef.current[tappedSlot].type);
             }
           } else {
             Animated.spring(slideAnim, {
@@ -325,7 +337,7 @@ export function StatsPeriodSelector({
         const swipeVelocitySlots = Math.max(Math.min((gestureState.vx / segW) * 1000, 10), -10);
         if (targetSlot !== activeIndexRef.current) {
           skipNextEffectAnimRef.current = true;
-          onSelectRef.current(PERIODS[targetSlot].type);
+          onSelectRef.current(periodsRef.current[targetSlot].type);
         }
 
         const reduced = reducedMotionRef.current;
@@ -433,7 +445,7 @@ export function StatsPeriodSelector({
       )}
 
       <View style={styles.labelsRow} pointerEvents="none" collapsable={false}>
-        {PERIODS.map(period => {
+        {activePeriods.map(period => {
           const isSelected = selectedPeriod === period.type;
           const textColor = isSelected
             ? onActiveColor

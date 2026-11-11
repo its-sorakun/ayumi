@@ -91,6 +91,7 @@ export function BentoCard({
         {
           borderRadius: fullWidth ? surfaces.fullWidthCardRadius : surfaces.cardRadius,
           paddingHorizontal: isHeaderInlineLayout ? 15 : fullWidth ? 16 : 13,
+          paddingVertical: isHeaderInlineLayout ? 12 : 14,
           backgroundColor: resolvedBg,
           borderWidth: resolvedBorder.borderWidth,
           borderColor: resolvedBorder.borderColor,
@@ -98,8 +99,8 @@ export function BentoCard({
           shadowOpacity: surfaces.cardShadowOpacity,
           flex: fullWidth ? 0 : 1,
           width: fullWidth ? '100%' : undefined,
-          minHeight: fullWidth ? 98 : 108,
-          justifyContent: isHeaderInlineLayout ? 'space-between' : 'center',
+          minHeight: isHeaderInlineLayout ? (fullWidth ? 90 : 94) : (fullWidth ? 98 : 108),
+          justifyContent: isHeaderInlineLayout ? 'flex-start' : 'center',
         },
         style,
       ]}

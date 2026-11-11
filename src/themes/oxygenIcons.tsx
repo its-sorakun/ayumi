@@ -38,7 +38,7 @@ import {
   Zap,
 } from 'lucide-react-native';
 
-import { colorWithOpacity, selectAccessibleForeground } from './paletteUtils';
+import { selectAccessibleForeground } from './paletteUtils';
 
 export interface OxygenIconProps {
   readonly size?: number;
@@ -270,15 +270,22 @@ export function OxygenDockHomeIcon({
   strokeWidth,
   filled = false,
 }: OxygenIconProps): React.JSX.Element {
+  if (filled) {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Path
+          d="M11.15 2.85C11.64 2.45 12.36 2.45 12.85 2.85L20.35 8.95C20.76 9.29 21 9.79 21 10.32V19.2C21 20.42 20.02 21.4 18.8 21.4H14.9C14.46 21.4 14.1 21.04 14.1 20.6V15.75C14.1 14.59 13.16 13.65 12 13.65C10.84 13.65 9.9 14.59 9.9 15.75V20.6C9.9 21.04 9.54 21.4 9.1 21.4H5.2C3.98 21.4 3 20.42 3 19.2V10.32C3 9.79 3.24 9.29 3.65 8.95L11.15 2.85Z"
+          fill={color}
+        />
+      </Svg>
+    );
+  }
+
   return (
     <House
       size={size}
       color={color}
-      strokeWidth={
-        strokeWidth ??
-        (filled ? OXYGEN_ICON_SPEC.strokeWidthActive : OXYGEN_ICON_SPEC.strokeWidthRegular)
-      }
-      fill={filled ? colorWithOpacity(color, OXYGEN_ICON_SPEC.dockActiveFillOpacity) : 'none'}
+      strokeWidth={strokeWidth ?? OXYGEN_ICON_SPEC.strokeWidthRegular}
       strokeLinecap="round"
       strokeLinejoin="round"
       nonScalingStroke
@@ -292,13 +299,21 @@ export function OxygenDockStatsIcon({
   strokeWidth,
   filled = false,
 }: OxygenIconProps): React.JSX.Element {
+  if (filled) {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Rect x="4" y="11" width="4" height="9" rx="1.6" fill={color} />
+        <Rect x="10" y="5" width="4" height="15" rx="1.6" fill={color} />
+        <Rect x="16" y="8" width="4" height="12" rx="1.6" fill={color} />
+      </Svg>
+    );
+  }
+
   return (
     <ChartColumn
       size={size}
       color={color}
-      strokeWidth={
-        strokeWidth ?? (filled ? 2.25 : OXYGEN_ICON_SPEC.strokeWidthRegular)
-      }
+      strokeWidth={strokeWidth ?? OXYGEN_ICON_SPEC.strokeWidthRegular}
       strokeLinecap="round"
       strokeLinejoin="round"
       nonScalingStroke
@@ -312,15 +327,24 @@ export function OxygenDockWaterIcon({
   strokeWidth,
   filled = false,
 }: OxygenIconProps): React.JSX.Element {
+  if (filled) {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Path
+          d="M12 2.4C12.3 2.4 12.6 2.6 12.8 2.8C15.1 5.6 18.8 10.4 18.8 14.4C18.8 18.3 15.7 21.4 12 21.4C8.3 21.4 5.2 18.3 5.2 14.4C5.2 10.4 8.9 5.6 11.2 2.8C11.4 2.6 11.7 2.4 12 2.4ZM9.3 14.5C9.3 16.1 10.2 17.3 11.6 17.7C12.1 17.8 12.3 18.5 11.8 18.7C11.4 18.8 10.9 18.8 10.3 18.6C8.6 18 7.5 16.3 7.7 14.2C7.8 13.7 8.4 13.5 8.8 13.8C9 14 9.3 14.2 9.3 14.5Z"
+          fill={color}
+          fillRule="evenodd"
+          clipRule="evenodd"
+        />
+      </Svg>
+    );
+  }
+
   return (
     <Droplet
       size={size}
       color={color}
-      strokeWidth={
-        strokeWidth ??
-        (filled ? OXYGEN_ICON_SPEC.strokeWidthActive : OXYGEN_ICON_SPEC.strokeWidthRegular)
-      }
-      fill={filled ? colorWithOpacity(color, OXYGEN_ICON_SPEC.dockActiveFillOpacity) : 'none'}
+      strokeWidth={strokeWidth ?? OXYGEN_ICON_SPEC.strokeWidthRegular}
       strokeLinecap="round"
       strokeLinejoin="round"
       nonScalingStroke
@@ -334,13 +358,24 @@ export function OxygenDockSettingsIcon({
   strokeWidth,
   filled = false,
 }: OxygenIconProps): React.JSX.Element {
+  if (filled) {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Path
+          d="M10.45 2.4C10.96 2.13 13.04 2.13 13.55 2.4L14.24 3.92C14.74 4.05 15.22 4.25 15.67 4.51L17.24 3.94C17.88 4.28 19.35 5.75 19.69 6.39L19.12 7.96C19.38 8.41 19.58 8.89 19.71 9.39L21.23 10.08C21.5 10.59 21.5 12.67 21.23 13.18L19.71 13.87C19.58 14.37 19.38 14.85 19.12 15.3L19.69 16.87C19.35 17.51 17.88 18.98 17.24 19.32L15.67 18.75C15.22 19.01 14.74 19.21 14.24 19.34L13.55 20.86C13.04 21.13 10.96 21.13 10.45 20.86L9.76 19.34C9.26 19.21 8.78 19.01 8.33 18.75L6.76 19.32C6.12 18.98 4.65 17.51 4.31 16.87L4.88 15.3C4.62 14.85 4.42 14.37 4.29 13.87L2.77 13.18C2.5 12.67 2.5 10.59 2.77 10.08L4.29 9.39C4.42 8.89 4.62 8.41 4.88 7.96L4.31 6.39C4.65 5.75 6.12 4.28 6.76 3.94L8.33 4.51C8.78 4.25 9.26 4.05 9.76 3.92L10.45 2.4ZM12 8.8C10.44 8.8 9.17 10.07 9.17 11.63C9.17 13.19 10.44 14.46 12 14.46C13.56 14.46 14.83 13.19 14.83 11.63C14.83 10.07 13.56 8.8 12 8.8Z"
+          fill={color}
+          fillRule="evenodd"
+          clipRule="evenodd"
+        />
+      </Svg>
+    );
+  }
+
   return (
     <Settings
       size={size}
       color={color}
-      strokeWidth={
-        strokeWidth ?? (filled ? 2.25 : OXYGEN_ICON_SPEC.strokeWidthRegular)
-      }
+      strokeWidth={strokeWidth ?? OXYGEN_ICON_SPEC.strokeWidthRegular}
       strokeLinecap="round"
       strokeLinejoin="round"
       nonScalingStroke

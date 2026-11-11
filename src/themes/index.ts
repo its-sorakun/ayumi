@@ -33,6 +33,8 @@ export {
   OXYGEN_MOTION_PRESET,
 } from './oxygenColorOsTheme';
 export {
+  deriveGradientHighlightHex,
+  OxygenAmbientBackdrop,
   OxygenColorOsDockBar,
   OxygenMetricCard,
   OxygenStepHeroCard,

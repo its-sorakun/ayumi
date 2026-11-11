@@ -484,6 +484,52 @@ export function colorWithOpacity(color: string, alpha: number): string {
 }
 
 /**
+ * Composites `overlayColor` over `baseColor` into an opaque `#RRGGBB` hex string so
+ * elevated Android surfaces never bleed shadow layers through translucent RGBA fills.
+ */
+export function blendHexColors(
+  baseColor: string,
+  overlayColor: string,
+  overlayWeight: number,
+): string {
+  const base = parseRgbChannels(baseColor);
+  const overlay = parseRgbChannels(overlayColor);
+  if (!base || !overlay) {
+    return colorWithOpacity(overlayColor, overlayWeight);
+  }
+  const t = Math.min(Math.max(overlayWeight, 0), 1);
+  const inv = 1 - t;
+  return channelsToHex(
+    base[0] * inv + overlay[0] * t,
+    base[1] * inv + overlay[1] * t,
+    base[2] * inv + overlay[2] * t,
+  );
+}
+
+/**
+ * Computes a secondary ambient backdrop hue harmonically paired with `primaryHex` in Oklch
+ * space—pairing cool blue/indigo seeds with warm rose-coral glow and warm seeds with
+ * cool sky glow, while collapsing cleanly to `fallbackHex` under monochrome palettes.
+ */
+export function deriveHarmonicGlowSecondaryHex(
+  primaryHex: string,
+  fallbackHex: string,
+  isDark: boolean,
+): string {
+  const lch = hexToOklch(primaryHex);
+  if (!lch || lch.C < 0.015) {
+    return fallbackHex;
+  }
+  const shiftDegrees = lch.h >= 190 && lch.h <= 290 ? 118 : 195;
+  const secondaryHue = (lch.h + shiftDegrees) % 360;
+  return oklchToHex({
+    L: isDark ? 0.68 : 0.62,
+    C: Math.min(0.21, Math.max(0.14, lch.C * 0.92)),
+    h: secondaryHue,
+  });
+}
+
+/**
  * Evaluates perceptual ITU-R BT.709 luminance across both `#RRGGBB` and `rgb(r,g,b)` formats.
  */
 export function isColorDark(color: string): boolean {

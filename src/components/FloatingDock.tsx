@@ -34,6 +34,7 @@ import { OxygenColorOsDockBar, useAyumiTheme } from '../themes';
 
 export interface FloatingDockProps {
   readonly activeTab?: 'home' | 'stats' | 'water' | 'settings';
+  readonly activeStatsMetric?: 'steps' | 'distance' | 'water';
   readonly pagerProgress?: Animated.AnimatedInterpolation<number> | Animated.Value;
   readonly onHomePress?: () => void;
   readonly onAnalyticsPress?: () => void;
@@ -43,6 +44,7 @@ export interface FloatingDockProps {
 
 export function FloatingDock({
   activeTab = 'home',
+  activeStatsMetric = 'steps',
   pagerProgress,
   onHomePress,
   onAnalyticsPress,
@@ -52,7 +54,7 @@ export function FloatingDock({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const { navigation, shapes, motion } = useAyumiTheme();
+  const { navigation, shapes, motion, metricAccents } = useAyumiTheme();
 
   // Container width measured on layout for accurate slot centering
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -216,6 +218,7 @@ export function FloatingDock({
     return (
       <OxygenColorOsDockBar
         activeTab={activeTab}
+        activeStatsMetric={activeStatsMetric}
         containerWidth={containerWidth}
         bottomOffset={bottomOffset}
         indicatorTranslateX={indicatorTranslateX}
@@ -224,6 +227,7 @@ export function FloatingDock({
         shapes={shapes}
         pillWidth={pillWidth}
         pillHeight={pillHeight}
+        metricAccents={metricAccents}
         onLayout={onLayout}
         onHomePress={onHomePress}
         onAnalyticsPress={onAnalyticsPress}

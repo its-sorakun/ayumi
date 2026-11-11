@@ -3,10 +3,11 @@
  *
  * Isolates OEM-styled visual containers and controls inside `src/themes/` without
  * touching any Default theme component trees:
- *  - `OxygenStepHeroCard`: split left readout + concentric circular progress ring
+ *  - `OxygenAmbientBackdrop`: dynamic top-right multi-stop ambient wash
+ *  - `OxygenStepHeroCard`: split left readout + concentric gradient circular progress ring
  *  - `OxygenMetricCard`: balanced top-header / bottom-metric 2x2 grid card
  *  - `OxygenWaterHomeCard`: full-width hydration card with `+ 250 ml` action pill
- *  - `OxygenColorOsDockBar`: Lucide monoline labeled dock synced to pager springs
+ *  - `OxygenColorOsDockBar`: Lucide/filled labeled dock synced to pager & metric accents
  *  - `SettingsSectionGroup`: modular grouped card wrapper for Settings lists
  *  - `ThemeOptionCard`: live multi-accent preview theme selector card
  */
@@ -20,7 +21,14 @@ import {
   View,
 } from 'react-native';
 import { RadioButton, Text, useTheme } from 'react-native-paper';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, {
+  Circle,
+  Defs,
+  LinearGradient,
+  RadialGradient,
+  Rect,
+  Stop,
+} from 'react-native-svg';
 
 import { useReducedMotion } from '../theme/motion';
 import { oxygenColorOsThemeDefinition } from './oxygenColorOsTheme';
@@ -32,7 +40,12 @@ import {
   OxygenDockWaterIcon,
   OxygenFootstepsIcon,
 } from './oxygenIcons';
-import { colorWithOpacity, resolveMetricBadgeColors } from './paletteUtils';
+import {
+  colorWithOpacity,
+  hexToOklch,
+  oklchToHex,
+  resolveMetricBadgeColors,
+} from './paletteUtils';
 import type {
   AyumiProgressTokens,
   AyumiShapeTokens,
@@ -42,6 +55,79 @@ import type {
   DockPresentationProps,
   MetricAccentRoles,
 } from './types';
+
+/**
+ * Derives a luminous highlight stop from an Oklch accent color so progress rings and
+ * vertical chart bars render subtle OxygenOS depth without hardcoded palette hexes.
+ */
+export function deriveGradientHighlightHex(hexColor: string, isDark: boolean): string {
+  const lch = hexToOklch(hexColor);
+  if (!lch) {
+    return hexColor;
+  }
+  const isNeutral = lch.C < 0.015;
+  const targetL = isDark
+    ? Math.min(0.88, lch.L + 0.14)
+    : Math.min(0.84, Math.max(0.68, lch.L + 0.16));
+  const targetC = isNeutral ? 0 : Math.max(0.03, lch.C * 0.92);
+  const targetHue = isNeutral ? 0 : (lch.h - 10 + 360) % 360;
+  return oklchToHex({ L: targetL, C: targetC, h: targetHue });
+}
+
+interface OxygenAmbientBackdropProps {
+  readonly enabled: boolean;
+  readonly primaryHex: string;
+  readonly secondaryHex?: string;
+  readonly isDark: boolean;
+  readonly testID?: string;
+}
+
+/**
+ * Dynamic top-right multi-stop ambient glow backdrop isolated to OxygenOS / ColorOS screens.
+ * Never renders when `enabled` is false so Default Ayumi surfaces stay 100% solid.
+ */
+export function OxygenAmbientBackdrop({
+  enabled,
+  primaryHex,
+  secondaryHex,
+  isDark,
+  testID = 'oxygen-ambient-backdrop',
+}: OxygenAmbientBackdropProps): React.JSX.Element | null {
+  if (!enabled) {
+    return null;
+  }
+
+  const resolvedSecondary = secondaryHex ?? deriveGradientHighlightHex(primaryHex, isDark);
+  const primaryPeakOpacity = isDark ? 0.25 : 0.36;
+  const primaryMidOpacity = isDark ? 0.11 : 0.16;
+  const secondaryPeakOpacity = isDark ? 0.18 : 0.26;
+  const secondaryMidOpacity = isDark ? 0.06 : 0.1;
+
+  return (
+    <View testID={testID} style={styles.ambientBackdropLayer} pointerEvents="none">
+      <Svg
+        width="100%"
+        height="100%"
+        viewBox="0 0 400 340"
+        preserveAspectRatio="xMaxYMin slice">
+        <Defs>
+          <RadialGradient id="oxygenAmbientPrimary" cx="86%" cy="15%" rx="64%" ry="58%">
+            <Stop offset="0%" stopColor={primaryHex} stopOpacity={primaryPeakOpacity} />
+            <Stop offset="46%" stopColor={primaryHex} stopOpacity={primaryMidOpacity} />
+            <Stop offset="100%" stopColor={primaryHex} stopOpacity={0} />
+          </RadialGradient>
+          <RadialGradient id="oxygenAmbientSecondary" cx="54%" cy="6%" rx="50%" ry="46%">
+            <Stop offset="0%" stopColor={resolvedSecondary} stopOpacity={secondaryPeakOpacity} />
+            <Stop offset="50%" stopColor={resolvedSecondary} stopOpacity={secondaryMidOpacity} />
+            <Stop offset="100%" stopColor={resolvedSecondary} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width="400" height="340" fill="url(#oxygenAmbientSecondary)" />
+        <Rect x="0" y="0" width="400" height="340" fill="url(#oxygenAmbientPrimary)" />
+      </Svg>
+    </View>
+  );
+}
 
 interface OxygenStepHeroCardProps {
   readonly steps: number;
@@ -110,7 +196,8 @@ export function OxygenStepHeroCard({
   const percent = Math.round(targetRatio * 100);
 
   const cardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
-  const trackColor = colorWithOpacity(theme.colors.onSurface, isDark ? 0.12 : 0.08);
+  const trackColor = colorWithOpacity(theme.colors.onSurface, isDark ? 0.12 : 0.075);
+  const heroHighlightColor = deriveGradientHighlightHex(stepsAccent.color, isDark);
 
   return (
     <TouchableOpacity
@@ -168,6 +255,12 @@ export function OxygenStepHeroCard({
 
         <View style={styles.heroRingBox}>
           <Svg width={OEM_RING_SIZE} height={OEM_RING_SIZE}>
+            <Defs>
+              <LinearGradient id="oxygenHeroRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor={heroHighlightColor} />
+                <Stop offset="100%" stopColor={stepsAccent.color} />
+              </LinearGradient>
+            </Defs>
             <Circle
               cx={OEM_RING_CENTER}
               cy={OEM_RING_CENTER}
@@ -181,7 +274,7 @@ export function OxygenStepHeroCard({
                 cx={OEM_RING_CENTER}
                 cy={OEM_RING_CENTER}
                 r={radius}
-                stroke={stepsAccent.color}
+                stroke="url(#oxygenHeroRingGrad)"
                 strokeWidth={strokeWidth}
                 fill="none"
                 strokeDasharray={`${circumference} ${circumference}`}
@@ -351,8 +444,8 @@ export function OxygenWaterHomeCard({
 }: OxygenWaterHomeCardProps): React.JSX.Element {
   const theme = useTheme();
   const trackBg = colorWithOpacity(
-    theme.colors.onSurface,
-    theme.dark ? 0.12 : 0.08,
+    accentColor,
+    theme.dark ? 0.2 : 0.14,
   );
 
   return (
@@ -440,14 +533,17 @@ interface OxygenDockRenderProps extends DockPresentationProps {
   readonly shapes: AyumiShapeTokens;
   readonly pillWidth: number;
   readonly pillHeight: number;
+  readonly metricAccents: MetricAccentRoles;
 }
 
 /**
- * OxygenOS / ColorOS floating navigation dock with calibrated monoline Lucide icons,
- * crisp labels, subtle hairline border, and continuous pager pill indicator motion.
+ * OxygenOS / ColorOS floating navigation dock with filled active glyphs, monoline
+ * idle icons, per-destination accent capsules (without hard inner borders), and
+ * spring-synchronized sliding pill transitions.
  */
 export function OxygenColorOsDockBar({
   activeTab,
+  activeStatsMetric = 'steps',
   containerWidth,
   bottomOffset,
   indicatorTranslateX,
@@ -456,6 +552,7 @@ export function OxygenColorOsDockBar({
   shapes,
   pillWidth,
   pillHeight,
+  metricAccents,
   onLayout,
   onHomePress,
   onAnalyticsPress,
@@ -467,12 +564,23 @@ export function OxygenColorOsDockBar({
 
   const dockBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
   const dockBorder = isDark
-    ? colorWithOpacity(theme.colors.onSurface, 0.11)
-    : colorWithOpacity(theme.colors.onSurface, 0.07);
+    ? colorWithOpacity(theme.colors.onSurface, 0.1)
+    : colorWithOpacity(theme.colors.onSurface, 0.055);
   const pillTop = Math.max((shapes.dockHeight - pillHeight) / 2, 4);
-  const pillRadius = Math.min(pillHeight / 2, 23);
-  const activePillBg = colorWithOpacity(theme.colors.primary, isDark ? 0.2 : 0.11);
-  const activePillBorder = colorWithOpacity(theme.colors.primary, isDark ? 0.28 : 0.15);
+  const pillRadius = Math.min(pillHeight / 2, 26);
+
+  const tabTintById: Record<'home' | 'stats' | 'water' | 'settings', string> = {
+    home: theme.colors.primary,
+    stats: metricAccents[activeStatsMetric].color,
+    water: metricAccents.water.color,
+    settings: theme.colors.primary,
+  };
+
+  const activePillTint = tabTintById[activeTab] ?? theme.colors.primary;
+  const activePillBg = colorWithOpacity(activePillTint, isDark ? 0.24 : 0.14);
+  const idleTint = isDark
+    ? theme.colors.onSurfaceVariant
+    : colorWithOpacity(theme.colors.onSurface, 0.72);
 
   const tabs: ReadonlyArray<{
     readonly id: 'home' | 'stats' | 'water' | 'settings';
@@ -487,7 +595,7 @@ export function OxygenColorOsDockBar({
       accessibilityLabel: 'Home tab',
       onPress: onHomePress,
       renderIcon: (color, active) => (
-        <OxygenDockHomeIcon size={20} filled={active} color={color} />
+        <OxygenDockHomeIcon size={21} filled={active} color={color} />
       ),
     },
     {
@@ -496,7 +604,7 @@ export function OxygenColorOsDockBar({
       accessibilityLabel: 'Stats tab',
       onPress: onAnalyticsPress,
       renderIcon: (color, active) => (
-        <OxygenDockStatsIcon size={20} filled={active} color={color} />
+        <OxygenDockStatsIcon size={21} filled={active} color={color} />
       ),
     },
     {
@@ -505,7 +613,7 @@ export function OxygenColorOsDockBar({
       accessibilityLabel: 'Water tab',
       onPress: onWaterPress,
       renderIcon: (color, active) => (
-        <OxygenDockWaterIcon size={20} filled={active} color={color} />
+        <OxygenDockWaterIcon size={21} filled={active} color={color} />
       ),
     },
     {
@@ -514,7 +622,7 @@ export function OxygenColorOsDockBar({
       accessibilityLabel: 'Settings tab',
       onPress: onProfilePress,
       renderIcon: (color, active) => (
-        <OxygenDockSettingsIcon size={20} filled={active} color={color} />
+        <OxygenDockSettingsIcon size={21} filled={active} color={color} />
       ),
     },
   ];
@@ -543,6 +651,7 @@ export function OxygenColorOsDockBar({
             style={[styles.pillTrackClip, { borderRadius: shapes.dockRadius }]}
             pointerEvents="none">
             <Animated.View
+              testID="oxygen-dock-active-pill"
               style={[
                 styles.slidingIndicatorPill,
                 {
@@ -551,8 +660,6 @@ export function OxygenColorOsDockBar({
                   top: pillTop,
                   borderRadius: pillRadius,
                   backgroundColor: activePillBg,
-                  borderWidth: 1,
-                  borderColor: activePillBorder,
                   transform: [
                     { translateX: indicatorTranslateX },
                     { scaleX: indicatorScaleX },
@@ -566,9 +673,7 @@ export function OxygenColorOsDockBar({
 
         {tabs.map(tab => {
           const isActive = activeTab === tab.id;
-          const tint = isActive
-            ? theme.colors.primary
-            : theme.colors.onSurfaceVariant;
+          const tint = isActive ? tabTintById[tab.id] : idleTint;
           return (
             <TouchableOpacity
               key={tab.id}
@@ -819,6 +924,15 @@ export function ThemeOptionCard({
 }
 
 const styles = StyleSheet.create({
+  ambientBackdropLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 340,
+    overflow: 'hidden',
+    zIndex: 0,
+  },
   heroCard: {
     marginHorizontal: 16,
     marginTop: 8,
@@ -847,7 +961,7 @@ const styles = StyleSheet.create({
   heroIconBadge: {
     width: 32,
     height: 32,
-    borderRadius: OXYGEN_ICON_SPEC.metricBadgeRadius,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -888,8 +1002,8 @@ const styles = StyleSheet.create({
   },
   metricCardContainer: {
     flex: 1,
-    justifyContent: 'space-between',
-    minHeight: 84,
+    justifyContent: 'flex-start',
+    minHeight: 72,
   },
   metricHeaderRow: {
     flexDirection: 'row',
@@ -913,7 +1027,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
   metricFooterBlock: {
-    marginTop: 10,
+    marginTop: 12,
   },
   metricValue: {
     fontWeight: '800',

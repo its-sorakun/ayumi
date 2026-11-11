@@ -84,6 +84,7 @@ jest.mock('react-native-svg', () => {
     G: createSvgMock('G'),
     Defs: createSvgMock('Defs'),
     LinearGradient: createSvgMock('LinearGradient'),
+    RadialGradient: createSvgMock('RadialGradient'),
     Stop: createSvgMock('Stop'),
   };
 });
@@ -405,6 +406,7 @@ import {
   deriveOxygenMultiAccentRoles,
   getAyumiThemeDefinition,
   normalizeVisualThemeId,
+  OxygenAmbientBackdrop,
   oxygenColorOsThemeDefinition,
   useAyumiTheme,
 } from '../src/themes';
@@ -421,9 +423,13 @@ import { createDarkTheme, createLightTheme } from '../src/theme';
 import MaterialYou from 'react-native-material-you-colors';
 import { SettingsProvider, useSettings } from '../src/contexts/SettingsContext';
 import { SettingsScreen } from '../src/screens/SettingsScreen';
+import { WaterLoggerScreen } from '../src/screens/WaterLoggerScreen';
 import { FloatingDock } from '../src/components/FloatingDock';
 import { BentoCard } from '../src/components/BentoCard';
 import { HeroStepGauge } from '../src/components/HeroStepGauge';
+import { StatsMetricSelector } from '../src/components/StatsMetricSelector';
+import { StatsPeriodSelector } from '../src/components/StatsPeriodSelector';
+import { StatsChart } from '../src/components/StatsChart';
 
 const CUSTOM_WALLPAPER_PALETTE: MaterialYouPalette = {
   // Distinct cobalt blue accent1 (13 shades T0..T1000)
@@ -1192,6 +1198,265 @@ describe('Extended OxygenOS Multi-Color Palette & Iconography Isolation', () => 
       (Platform as { OS: string }).OS = originalPlatformOs;
       NativeModules.AyumiSystemPalette = originalModule;
       warnSpy.mockRestore();
+    }
+  });
+
+  it('implements OxygenOS ambient backdrop, per-tab dock accents, Statistics cards, and separated Water Logger cards with strict Default isolation', async () => {
+    // 1. Declarative token contract verification
+    expect(defaultThemeDefinition.surfaces.ambientGradientStyle).toBe('none');
+    expect(defaultThemeDefinition.surfaces.metricSelectorVariant).toBe('cards_stacked');
+    expect(defaultThemeDefinition.surfaces.separateWaterPresetCards).toBe(false);
+    expect(defaultThemeDefinition.surfaces.statsMainSummaryInline).toBe(false);
+    expect(defaultThemeDefinition.surfaces.activeControlStyle).toBe('tonal_container');
+
+    expect(oxygenColorOsThemeDefinition.surfaces.ambientGradientStyle).toBe('dynamic_glow');
+    expect(oxygenColorOsThemeDefinition.surfaces.metricSelectorVariant).toBe('horizontal_pills');
+    expect(oxygenColorOsThemeDefinition.surfaces.separateWaterPresetCards).toBe(true);
+    expect(oxygenColorOsThemeDefinition.surfaces.statsMainSummaryInline).toBe(true);
+    expect(oxygenColorOsThemeDefinition.surfaces.activeControlStyle).toBe('filled_pill');
+
+    const defaultPaperTheme = createLightTheme(
+      defaultThemeDefinition.mapPaletteToPaperColors(CUSTOM_WALLPAPER_PALETTE, false),
+    );
+    const oosPaperTheme = createLightTheme(
+      oxygenColorOsThemeDefinition.mapPaletteToPaperColors(CUSTOM_WALLPAPER_PALETTE, false),
+    );
+
+    // 2. Ambient backdrop renders RadialGradient ONLY when enabled
+    let backdropEnabledTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    let backdropDisabledTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      backdropEnabledTree = ReactTestRenderer.create(
+        <OxygenAmbientBackdrop
+          enabled
+          primaryHex={oosPaperTheme.colors.primary}
+          secondaryHex={oosPaperTheme.colors.tertiary}
+          isDark={false}
+        />,
+      );
+      backdropDisabledTree = ReactTestRenderer.create(
+        <OxygenAmbientBackdrop
+          enabled={false}
+          primaryHex={defaultPaperTheme.colors.primary}
+          secondaryHex={defaultPaperTheme.colors.tertiary}
+          isDark={false}
+        />,
+      );
+    });
+    expect(
+      backdropEnabledTree!.root.findAllByType('RadialGradient' as React.ElementType).length,
+    ).toBe(2);
+    expect(backdropDisabledTree!.toJSON()).toBeNull();
+
+    // 3. FloatingDock borderless active capsule dynamically follows active tab & activeStatsMetric
+    let oosStatsDistDock: ReactTestRenderer.ReactTestRenderer | null = null;
+    let oosWaterDock: ReactTestRenderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      oosStatsDistDock = ReactTestRenderer.create(
+        <PaperProvider theme={oosPaperTheme}>
+          <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={oosPaperTheme}>
+            <FloatingDock activeTab="stats" activeStatsMetric="distance" />
+          </AyumiThemeProvider>
+        </PaperProvider>,
+      );
+      oosWaterDock = ReactTestRenderer.create(
+        <PaperProvider theme={oosPaperTheme}>
+          <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={oosPaperTheme}>
+            <FloatingDock activeTab="water" activeStatsMetric="steps" />
+          </AyumiThemeProvider>
+        </PaperProvider>,
+      );
+    });
+
+    const dockContainerLayout = { nativeEvent: { layout: { width: 350, height: 66 } } };
+    await act(async () => {
+      const statsViewWithLayout = oosStatsDistDock!.root.find(
+        n => typeof n.props?.onLayout === 'function',
+      );
+      statsViewWithLayout.props.onLayout(dockContainerLayout);
+      const waterViewWithLayout = oosWaterDock!.root.find(
+        n => typeof n.props?.onLayout === 'function',
+      );
+      waterViewWithLayout.props.onLayout(dockContainerLayout);
+    });
+
+    const statsActivePill = oosStatsDistDock!.root.findByProps({ testID: 'oxygen-dock-active-pill' });
+    const statsPillFlat = Object.assign({}, ...[statsActivePill.props.style].flat().filter(Boolean));
+    expect(statsPillFlat.borderWidth).toBeUndefined();
+
+    const waterActivePill = oosWaterDock!.root.findByProps({ testID: 'oxygen-dock-active-pill' });
+    const waterPillFlat = Object.assign({}, ...[waterActivePill.props.style].flat().filter(Boolean));
+    expect(statsPillFlat.backgroundColor).not.toBe(waterPillFlat.backgroundColor);
+
+    // 4. Stats controls & cards under OxygenOS vs Default
+    let oosStatsUiTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    let defaultStatsUiTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    const sampleHourly = [
+      { key: 'h9', label: '09', subLabel: '09:00', value: 1200, status: 'recorded' as const },
+      { key: 'h12', label: '12', subLabel: '12:00', value: 1905, status: 'recorded' as const },
+    ];
+    await act(async () => {
+      oosStatsUiTree = ReactTestRenderer.create(
+        <PaperProvider theme={oosPaperTheme}>
+          <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={oosPaperTheme}>
+            <StatsMetricSelector selectedMetric="steps" onSelectMetric={jest.fn()} />
+            <StatsPeriodSelector selectedPeriod="daily" onSelectPeriod={jest.fn()} />
+            <StatsChart
+              metric="steps"
+              period="daily"
+              subtitle="Daily • Tue, 11 Nov 2026"
+              totalValueText="3,105"
+              unitText="steps"
+              data={sampleHourly}
+              goalSummary={{ goalText: '6,000 steps', percent: 52 }}
+              fillCard
+            />
+          </AyumiThemeProvider>
+        </PaperProvider>,
+      );
+
+      defaultStatsUiTree = ReactTestRenderer.create(
+        <PaperProvider theme={defaultPaperTheme}>
+          <AyumiThemeProvider themeId="default" paperTheme={defaultPaperTheme}>
+            <StatsMetricSelector selectedMetric="steps" onSelectMetric={jest.fn()} />
+            <StatsPeriodSelector selectedPeriod="daily" onSelectPeriod={jest.fn()} />
+            <StatsChart
+              metric="steps"
+              period="daily"
+              subtitle="Daily • Nov 11, 2026"
+              totalValueText="3,105"
+              unitText="steps"
+              data={sampleHourly}
+            />
+          </AyumiThemeProvider>
+        </PaperProvider>,
+      );
+    });
+
+    expect(
+      oosStatsUiTree!.root.findAllByProps({ testID: 'stats-metric-selector-horizontal' }).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      defaultStatsUiTree!.root.findAllByProps({ testID: 'stats-metric-selector-horizontal' }),
+    ).toHaveLength(0);
+
+    const oosStatsTexts = collectAllText(oosStatsUiTree!.root);
+    expect(oosStatsTexts).toContain('Day');
+    expect(oosStatsTexts).toContain('Daily Goal');
+    expect(oosStatsTexts).toContain('Progress');
+    expect(oosStatsTexts).toContain('6,000 steps');
+    expect(oosStatsTexts).toContain('52%');
+    expect(oosStatsTexts).not.toContain('This Week');
+    expect(oosStatsTexts.some(text => text.includes('vs. yesterday'))).toBe(false);
+    expect(
+      oosStatsUiTree!.root.findAllByProps({ testID: 'stats-comparison-badge' }),
+    ).toHaveLength(0);
+
+    const defaultStatsTexts = collectAllText(defaultStatsUiTree!.root);
+    expect(defaultStatsTexts).toContain('Daily');
+    expect(defaultStatsTexts).not.toContain('Daily Goal');
+    expect(
+      defaultStatsUiTree!.root.findAllByProps({ testID: 'stats-inline-goal-tile' }),
+    ).toHaveLength(0);
+    expect(
+      defaultStatsUiTree!.root.findAllByType('LinearGradient' as React.ElementType),
+    ).toHaveLength(0);
+
+    // 5. WaterLoggerScreen renders separated cards & ambient backdrop ONLY under OxygenOS
+    let oosWaterScreenTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    let defaultWaterScreenTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      oosWaterScreenTree = ReactTestRenderer.create(
+        <SettingsProvider>
+          <PaperProvider theme={oosPaperTheme}>
+            <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={oosPaperTheme}>
+              <WaterLoggerScreen hideDock />
+            </AyumiThemeProvider>
+          </PaperProvider>
+        </SettingsProvider>,
+      );
+      defaultWaterScreenTree = ReactTestRenderer.create(
+        <SettingsProvider>
+          <PaperProvider theme={defaultPaperTheme}>
+            <AyumiThemeProvider themeId="default" paperTheme={defaultPaperTheme}>
+              <WaterLoggerScreen hideDock />
+            </AyumiThemeProvider>
+          </PaperProvider>
+        </SettingsProvider>,
+      );
+    });
+
+    expect(
+      oosWaterScreenTree!.root
+        .findAllByProps({ testID: 'water-ambient-backdrop' })
+        .filter(node => typeof node.type === 'string').length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      oosWaterScreenTree!.root.findAllByType('RadialGradient' as React.ElementType).length,
+    ).toBe(2);
+    expect(
+      oosWaterScreenTree!.root.findAllByProps({ testID: 'water-add-separate-section' }).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      oosWaterScreenTree!.root.findAllByProps({ testID: 'water-custom-amount-card' }).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      oosWaterScreenTree!.root.findAllByProps({ testID: 'water-todays-log-grouped-section' }).length,
+    ).toBeGreaterThanOrEqual(1);
+
+    expect(
+      defaultWaterScreenTree!.root
+        .findAllByProps({ testID: 'water-ambient-backdrop' })
+        .filter(node => typeof node.type === 'string'),
+    ).toHaveLength(0);
+    expect(
+      defaultWaterScreenTree!.root.findAllByType('RadialGradient' as React.ElementType),
+    ).toHaveLength(0);
+    expect(
+      defaultWaterScreenTree!.root.findAllByProps({ testID: 'water-add-separate-section' }),
+    ).toHaveLength(0);
+    expect(
+      defaultWaterScreenTree!.root.findAllByProps({ testID: 'water-todays-log-grouped-section' }),
+    ).toHaveLength(0);
+
+    // Selecting a quick-add water preset highlights the tile with an opaque composite hex and zero elevation bleed
+    jest.useFakeTimers();
+    try {
+      const add500Button = oosWaterScreenTree!.root.findByProps({
+        accessibilityLabel: 'Add 500 ml water',
+      });
+      await act(async () => {
+        add500Button.props.onPress();
+        await Promise.resolve();
+        await Promise.resolve();
+        jest.advanceTimersByTime(2500);
+      });
+      const updated500Button = oosWaterScreenTree!.root.findByProps({
+        accessibilityLabel: 'Add 500 ml water',
+      });
+      const activeTileStyle = Object.assign(
+        {},
+        ...[updated500Button.props.style].flat().filter(Boolean),
+      );
+      expect(updated500Button.props.accessibilityState).toEqual({ selected: true });
+      expect(activeTileStyle.backgroundColor).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      expect(activeTileStyle.backgroundColor.toUpperCase()).not.toBe(
+        oosPaperTheme.colors.surface.toUpperCase(),
+      );
+      expect(activeTileStyle.elevation ?? 0).toBe(0);
+    } finally {
+      await act(async () => {
+        jest.advanceTimersByTime(2500);
+        backdropEnabledTree!.unmount();
+        backdropDisabledTree!.unmount();
+        oosStatsDistDock!.unmount();
+        oosWaterDock!.unmount();
+        oosStatsUiTree!.unmount();
+        defaultStatsUiTree!.unmount();
+        oosWaterScreenTree!.unmount();
+        defaultWaterScreenTree!.unmount();
+      });
+      jest.useRealTimers();
     }
   });
 });
