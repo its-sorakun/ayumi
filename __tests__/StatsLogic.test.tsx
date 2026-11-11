@@ -81,10 +81,15 @@ jest.mock('../src/hooks', () => ({
   }),
 }));
 
+import {
+  AnimatedStatNumber,
+  formatInterpolatedStatValue,
+} from '../src/components/AnimatedStatNumber';
 import { computeNiceAxisMax, formatMetricAxisTick } from '../src/components/StatsChart';
 import { StatsMetricSelector } from '../src/components/StatsMetricSelector';
 import { StatsPeriodSelector } from '../src/components/StatsPeriodSelector';
 import { extractWaterLogHour, formatChartSubtitle } from '../src/screens/StatsScreen';
+import { MotionTokens } from '../src/theme/motion';
 
 describe('Stats axis scaling & unit formatting', () => {
   it('formats water Y-axis ticks in Liters (L) instead of k', () => {
@@ -242,5 +247,106 @@ describe('Stats selectors layering and single-tap selection', () => {
     });
     expect(onSelectPeriod).toHaveBeenCalledTimes(1);
     expect(onSelectPeriod).toHaveBeenCalledWith('week');
+  });
+});
+
+describe('Synchronized stat number interpolation & motion tokens', () => {
+  it('formats raw and kilo metric scales cleanly across mid-roll and settled states', () => {
+    // Raw scale rounds integer units like steps or ml/m
+    expect(formatInterpolatedStatValue(0, 'raw', 450, false)).toBe('0');
+    expect(formatInterpolatedStatValue(450.4, 'raw', 450, true)).toBe('450');
+
+    // Small integer kilo values (e.g. 2 L = 2000 ml) show 1 decimal mid-roll and exact integer when settled
+    expect(formatInterpolatedStatValue(0, 'kilo', 2000, false)).toBe('0.0');
+    expect(formatInterpolatedStatValue(1500, 'kilo', 2000, false)).toBe('1.5');
+    expect(formatInterpolatedStatValue(2000, 'kilo', 2000, true)).toBe('2');
+
+    // Fractional kilo targets (e.g. 6.24 km = 6240 m) preserve 2-decimal fidelity
+    expect(formatInterpolatedStatValue(3120, 'kilo', 6240, false)).toBe('3.12');
+    expect(formatInterpolatedStatValue(6240, 'kilo', 6240, true)).toBe('6.24');
+  });
+
+  it('restarts count from zero on unit switch without mixing incompatible units and settles cleanly', async () => {
+    jest.useFakeTimers();
+    try {
+      let tree!: ReactTestRenderer.ReactTestRenderer;
+
+      await ReactTestRenderer.act(async () => {
+        tree = ReactTestRenderer.create(
+          <AnimatedStatNumber
+            value={450}
+            fallbackText="--"
+            unitKey="steps"
+            scaleUnit="raw"
+            syncKey="steps-week-0"
+            duration={400}
+          />,
+        );
+      });
+
+      await ReactTestRenderer.act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+      expect(tree.root.findByType(RNText).props.children).toBe('450');
+
+      // Switch to kilo water unit: must reset roll at 0.0 instead of interpolating from 450 -> 2
+      await ReactTestRenderer.act(async () => {
+        tree.update(
+          <AnimatedStatNumber
+            value={2000}
+            fallbackText="--"
+            unitKey="water-l"
+            scaleUnit="kilo"
+            syncKey="water-week-0"
+            duration={400}
+          />,
+        );
+      });
+      expect(tree.root.findByType(RNText).props.children).toBe('0.0');
+
+      await ReactTestRenderer.act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+      expect(tree.root.findByType(RNText).props.children).toBe('2');
+
+      // Null data displays fallback text cleanly
+      await ReactTestRenderer.act(async () => {
+        tree.update(
+          <AnimatedStatNumber
+            value={null}
+            fallbackText="--"
+            unitKey="water-l"
+            scaleUnit="kilo"
+            syncKey="water-week-null"
+            duration={400}
+          />,
+        );
+      });
+      expect(tree.root.findByType(RNText).props.children).toBe('--');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('defines distinct per-period chart reveal curves and separated selector spring physics', () => {
+    expect(MotionTokens.chartReveal.week.duration).toBeGreaterThanOrEqual(900);
+    expect(MotionTokens.chartReveal.daily.duration).toBeGreaterThanOrEqual(900);
+    expect(MotionTokens.chartReveal.month.duration).toBeGreaterThanOrEqual(900);
+
+    expect(MotionTokens.chartReveal.week.overshoot).toBeGreaterThan(
+      MotionTokens.chartReveal.daily.overshoot,
+    );
+    expect(MotionTokens.chartReveal.daily.overshoot).toBeGreaterThan(
+      MotionTokens.chartReveal.month.overshoot,
+    );
+    expect(MotionTokens.chartReveal.month.overshoot).toBeGreaterThan(0);
+
+    // Metric selector uses cushioned bouncy spring while Period selector uses tauter ferrofluid capsule physics
+    expect(MotionTokens.spring.periodCapsule.stiffness).toBeGreaterThan(
+      MotionTokens.spring.metricCard.stiffness,
+    );
+    expect(MotionTokens.spring.periodCapsule.mass).toBeLessThan(
+      MotionTokens.spring.metricCard.mass,
+    );
   });
 });
