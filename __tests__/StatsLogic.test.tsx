@@ -85,10 +85,18 @@ import {
   AnimatedStatNumber,
   formatInterpolatedStatValue,
 } from '../src/components/AnimatedStatNumber';
-import { computeNiceAxisMax, formatMetricAxisTick } from '../src/components/StatsChart';
+import {
+  computeNiceAxisMax,
+  formatMetricAxisTick,
+  StatsChart,
+} from '../src/components/StatsChart';
 import { StatsMetricSelector } from '../src/components/StatsMetricSelector';
 import { StatsPeriodSelector } from '../src/components/StatsPeriodSelector';
-import { extractWaterLogHour, formatChartSubtitle } from '../src/screens/StatsScreen';
+import {
+  computeAdaptiveStatsLayout,
+  extractWaterLogHour,
+  formatChartSubtitle,
+} from '../src/screens/StatsScreen';
 import { MotionTokens } from '../src/theme/motion';
 
 describe('Stats axis scaling & unit formatting', () => {
@@ -348,5 +356,98 @@ describe('Synchronized stat number interpolation & motion tokens', () => {
     expect(MotionTokens.spring.periodCapsule.mass).toBeLessThan(
       MotionTokens.spring.metricCard.mass,
     );
+  });
+});
+
+describe('Adaptive Stats vertical distribution & zero-shift overlay tooltip', () => {
+  it('distributes available vertical slack proportionally without exceeding slack or caps', () => {
+    const compact = computeAdaptiveStatsLayout(0);
+    expect(compact.totalAdded).toBe(0);
+    expect(compact.chartHeight).toBe(140);
+    expect(compact.metricHeight).toBe(74);
+    expect(compact.periodHeight).toBe(42);
+    expect(compact.navigatorHeight).toBe(36);
+    expect(compact.summaryCardPaddingVertical).toBe(14);
+
+    // Tall phone slack uses every available dp proportionally across selectors, cards, and chart
+    const tallPhone = computeAdaptiveStatsLayout(85);
+    expect(tallPhone.totalAdded).toBe(85);
+    expect(tallPhone.chartHeight).toBeGreaterThan(170);
+    expect(tallPhone.metricHeight).toBeGreaterThan(compact.metricHeight);
+    expect(tallPhone.periodHeight).toBeGreaterThan(compact.periodHeight);
+    expect(tallPhone.navigatorHeight).toBeGreaterThan(compact.navigatorHeight);
+    expect(tallPhone.summaryCardPaddingVertical).toBeGreaterThan(
+      compact.summaryCardPaddingVertical,
+    );
+
+    // Extreme height stays bounded by upper aesthetic caps and never exceeds slack
+    const extreme = computeAdaptiveStatsLayout(500);
+    expect(extreme.totalAdded).toBeLessThanOrEqual(500);
+    expect(extreme.chartHeight).toBe(140 + 76);
+  });
+
+  it('renders StatsChart with custom height and mounts tapped-bar tooltip inside an absolute overlay', async () => {
+    jest.useFakeTimers();
+    const sampleData = [
+      { key: '2026-11-05', label: 'Thu', value: 5852, status: 'recorded' as const },
+      { key: '2026-11-06', label: 'Fri', value: 2400, status: 'recorded' as const },
+    ];
+    let tree: ReactTestRenderer.ReactTestRenderer | undefined;
+
+    try {
+      await ReactTestRenderer.act(async () => {
+        tree = ReactTestRenderer.create(
+          <StatsChart
+            metric="steps"
+            period="week"
+            subtitle="Weekly • Nov 5 – Nov 11, 2026"
+            totalValueText="8,252"
+            totalRawValue={8252}
+            totalScaleUnit="raw"
+            unitText="steps"
+            data={sampleData}
+            chartHeight={181}
+          />,
+        );
+      });
+
+      const cardNode = tree!.root.findAll(n => typeof n.props.onLayout === 'function')[0];
+      await ReactTestRenderer.act(async () => {
+        cardNode.props.onLayout({ nativeEvent: { layout: { width: 320 } } });
+      });
+
+      // Honor custom expanded chartHeight on plot row
+      const expandedRow = tree!.root.findAll(
+        n =>
+          typeof n.type === 'string' &&
+          n.props.style != null &&
+          StyleSheet.flatten(n.props.style)?.height === 181,
+      );
+      expect(expandedRow.length).toBeGreaterThan(0);
+
+      // Tap first bar and confirm tooltip renders inside pointerEvents="none" absolute overlay
+      const barButtons = tree!.root.findAll(n => typeof n.props.onPress === 'function');
+      expect(barButtons.length).toBeGreaterThan(0);
+      await ReactTestRenderer.act(async () => {
+        barButtons[0].props.onPress();
+        jest.runAllTimers();
+      });
+
+      const overlayWrapper = tree!.root.findAll(
+        n =>
+          typeof n.type === 'string' &&
+          n.props.pointerEvents === 'none' &&
+          n.props.style != null &&
+          StyleSheet.flatten(n.props.style)?.position === 'absolute' &&
+          StyleSheet.flatten(n.props.style)?.zIndex === 20,
+      );
+      expect(overlayWrapper.length).toBe(1);
+
+      await ReactTestRenderer.act(async () => {
+        tree?.unmount();
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
