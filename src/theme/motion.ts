@@ -8,9 +8,44 @@
  *  - Spring dynamics with natural damping (preventing uncontrolled bouncing)
  *  - Squish and stretch deformation factors for sliding pill containers
  *  - Consistent gesture thresholds for velocity-aware horizontal pagers
+ *  - System reduced-motion subscription hook via AccessibilityInfo
  */
 
-import { Easing } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AccessibilityInfo, Easing } from 'react-native';
+
+export function useReducedMotion(): boolean {
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (mounted) {
+          setReducedMotion(Boolean(enabled));
+        }
+      })
+      .catch(() => {
+        // Keep false when OS accessibility query is unavailable in non-native tests
+      });
+
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      (enabled) => {
+        if (mounted) {
+          setReducedMotion(Boolean(enabled));
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription?.remove();
+    };
+  }, []);
+
+  return reducedMotion;
+}
 
 export const MotionTokens = {
   // Standard durations in milliseconds (calibrated to Android 1x system motion)
