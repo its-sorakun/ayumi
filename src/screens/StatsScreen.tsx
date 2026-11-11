@@ -157,6 +157,91 @@ function formatWaterSummary(ml: number, unitSuffix?: string): { value: string; u
   };
 }
 
+export interface AdaptiveStatsLayout {
+  readonly headerTopExtra: number;
+  readonly headerBottomMargin: number;
+  readonly metricMarginTop: number;
+  readonly metricHeight: number;
+  readonly periodMarginTop: number;
+  readonly periodHeight: number;
+  readonly navigatorMarginTop: number;
+  readonly navigatorHeight: number;
+  readonly chartMarginTop: number;
+  readonly chartPaddingVertical: number;
+  readonly chartHeaderMarginBottom: number;
+  readonly chartHeight: number;
+  readonly xAxisMarginTop: number;
+  readonly summaryMarginTop: number;
+  readonly summaryCardPaddingVertical: number;
+  readonly summaryInnerMarginBottom: number;
+  readonly totalAdded: number;
+}
+
+/**
+ * Distributes measured vertical viewport slack proportionally across every Stats section
+ * so taller phones fill cleanly down to the dock while shorter screens keep compact floors.
+ */
+export function computeAdaptiveStatsLayout(rawSlackDp: number): AdaptiveStatsLayout {
+  const slack = Math.max(0, Math.floor(rawSlackDp));
+
+  const dHeaderTop = Math.min(4, Math.floor(slack * 0.025));
+  const dHeaderBottom = Math.min(6, Math.floor(slack * 0.04));
+  const dMetricMargin = Math.min(4, Math.floor(slack * 0.025));
+  const dMetricHeight = Math.min(12, Math.floor(slack * 0.08));
+  const dPeriodMargin = Math.min(6, Math.floor(slack * 0.04));
+  const dPeriodHeight = Math.min(6, Math.floor(slack * 0.04));
+  const dNavMargin = Math.min(4, Math.floor(slack * 0.03));
+  const dNavHeight = Math.min(4, Math.floor(slack * 0.025));
+  const dChartMargin = Math.min(5, Math.floor(slack * 0.035));
+  const dChartPadV = Math.min(3, Math.floor(slack * 0.02));
+  const dChartHeaderMargin = Math.min(4, Math.floor(slack * 0.03));
+  const dXAxisMargin = Math.min(3, Math.floor(slack * 0.02));
+  const dSummaryMargin = Math.min(6, Math.floor(slack * 0.04));
+  const dSummaryPadV = Math.min(6, Math.floor(slack * 0.045));
+  const dSummaryInnerMargin = Math.min(4, Math.floor(slack * 0.03));
+
+  const nonChartUsed =
+    dHeaderTop +
+    dHeaderBottom +
+    dMetricMargin +
+    dMetricHeight +
+    dPeriodMargin +
+    dPeriodHeight +
+    dNavMargin +
+    dNavHeight +
+    dChartMargin +
+    dChartPadV * 2 +
+    dChartHeaderMargin +
+    dXAxisMargin +
+    dSummaryMargin +
+    dSummaryPadV * 2 +
+    dSummaryInnerMargin;
+
+  // Give remaining slack to chart plot height up to cap so bar reveal stays centered
+  const dChartHeight = Math.min(76, Math.max(0, slack - nonChartUsed));
+  const totalAdded = nonChartUsed + dChartHeight;
+
+  return {
+    headerTopExtra: dHeaderTop,
+    headerBottomMargin: 6 + dHeaderBottom,
+    metricMarginTop: 6 + dMetricMargin,
+    metricHeight: 74 + dMetricHeight,
+    periodMarginTop: 8 + dPeriodMargin,
+    periodHeight: 42 + dPeriodHeight,
+    navigatorMarginTop: 6 + dNavMargin,
+    navigatorHeight: 36 + dNavHeight,
+    chartMarginTop: 8 + dChartMargin,
+    chartPaddingVertical: 16 + dChartPadV,
+    chartHeaderMarginBottom: 12 + dChartHeaderMargin,
+    chartHeight: 140 + dChartHeight,
+    xAxisMarginTop: 6 + dXAxisMargin,
+    summaryMarginTop: 8 + dSummaryMargin,
+    summaryCardPaddingVertical: 14 + dSummaryPadV,
+    summaryInnerMarginBottom: 6 + dSummaryInnerMargin,
+    totalAdded,
+  };
+}
+
 export function StatsScreen({
   hideDock = false,
   activeMetricProp,
@@ -180,7 +265,10 @@ export function StatsScreen({
   const [navDirection, setNavDirection] = useState<'prev' | 'next'>('next');
   const [loading, setLoading] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
-  const [contentHeight, setContentHeight] = useState(0);
+  const [baselineMeasure, setBaselineMeasure] = useState<{
+    readonly bodyHeight: number;
+    readonly fontScale: number;
+  } | null>(null);
 
   // Atomic committed dataset ensures chart title, total, bars, and summary always match
   const [committedDataset, setCommittedDataset] = useState<PeriodDataset | null>(null);
@@ -812,11 +900,29 @@ export function StatsScreen({
   const numericSyncKey = `${committedPeriod}:${committedDataset?.anchorKey ?? 'none'}:${selectedMetric}:${hourlyUnavailable ? 'na' : 'ok'}`;
   const revealDuration = MotionTokens.chartReveal[committedPeriod].duration;
 
-  // Preserve non-scrolling layout on standard viewports while unlocking scroll only on smaller screens or large font scales
-  const dockReserve = Math.max(insets.bottom + 8, 16) + 58 + 10;
+  const currentFontScale = PixelRatio.getFontScale();
+  const baseBodyHeight =
+    baselineMeasure !== null && Math.abs(baselineMeasure.fontScale - currentFontScale) < 0.01
+      ? baselineMeasure.bodyHeight
+      : 0;
+  const baselineContentHeight = baseBodyHeight > 0 ? baseBodyHeight + insets.top : 0;
+
+  // Dock sits insets.bottom + 8..16 from bottom edge with 58dp height; keep 12dp visual clearance above it
+  const dockTopOffset = Math.max(insets.bottom + 8, 16) + 58;
+  const dockReserve = dockTopOffset + 2;
+  const scrollPaddingBottom = dockTopOffset + 6;
   const requiresScroll =
-    PixelRatio.getFontScale() > 1.15 ||
-    (viewportHeight > 0 && contentHeight > 0 && contentHeight + dockReserve > viewportHeight + 1);
+    currentFontScale > 1.15 ||
+    (viewportHeight > 0 &&
+      baselineContentHeight > 0 &&
+      baselineContentHeight + dockReserve > viewportHeight + 1);
+
+  const rawSlack =
+    !requiresScroll && viewportHeight > 0 && baselineContentHeight > 0
+      ? Math.max(0, Math.floor(viewportHeight - dockReserve - baselineContentHeight - 1))
+      : 0;
+
+  const adaptiveLayout = useMemo(() => computeAdaptiveStatsLayout(rawSlack), [rawSlack]);
 
   const contentTranslateX = contentSlideAnim.interpolate({
     inputRange: [-1, 0, 1],
@@ -840,18 +946,29 @@ export function StatsScreen({
         overScrollMode={requiresScroll ? 'always' : 'never'}
         contentContainerStyle={[
           styles.contentContainer,
-          requiresScroll ? { paddingBottom: dockReserve } : styles.nonScrollingContainer,
+          requiresScroll ? { paddingBottom: scrollPaddingBottom } : styles.nonScrollingContainer,
         ]}
         showsVerticalScrollIndicator={false}>
         <View
-          onLayout={e => setContentHeight(e.nativeEvent.layout.height)}
-          style={{ paddingTop: insets.top + 6 }}>
+          onLayout={e => {
+            if (adaptiveLayout.totalAdded === 0) {
+              const measuredBody = Math.max(0, e.nativeEvent.layout.height - insets.top);
+              if (measuredBody > 0) {
+                setBaselineMeasure({
+                  bodyHeight: measuredBody,
+                  fontScale: currentFontScale,
+                });
+              }
+            }
+          }}
+          style={{ paddingTop: insets.top + 6 + adaptiveLayout.headerTopExtra }}>
 
         {/* 1. Top Header: Stats Title & Subtitle */}
         <Animated.View
           style={[
             styles.headerRow,
             {
+              marginBottom: adaptiveLayout.headerBottomMargin,
               opacity: entranceHeader,
               transform: [
                 {
@@ -887,6 +1004,8 @@ export function StatsScreen({
           <StatsMetricSelector
             selectedMetric={selectedMetric}
             onSelectMetric={handleSelectMetric}
+            containerHeight={adaptiveLayout.metricHeight}
+            marginTop={adaptiveLayout.metricMarginTop}
           />
         </Animated.View>
 
@@ -906,6 +1025,8 @@ export function StatsScreen({
           <StatsPeriodSelector
             selectedPeriod={selectedPeriod}
             onSelectPeriod={setSelectedPeriod}
+            containerHeight={adaptiveLayout.periodHeight}
+            marginTop={adaptiveLayout.periodMarginTop}
           />
 
           {/* 4. Period Navigator (< Date Range >) */}
@@ -915,6 +1036,8 @@ export function StatsScreen({
             onPrevious={handlePrevious}
             onNext={handleNext}
             transitionDirection={navDirection}
+            height={adaptiveLayout.navigatorHeight}
+            marginTop={adaptiveLayout.navigatorMarginTop}
           />
         </Animated.View>
 
@@ -937,6 +1060,11 @@ export function StatsScreen({
               data={chartDataPoints}
               loading={loading}
               unavailableNotice={unavailableNotice}
+              chartHeight={adaptiveLayout.chartHeight}
+              marginTop={adaptiveLayout.chartMarginTop}
+              cardPaddingVertical={adaptiveLayout.chartPaddingVertical}
+              headerMarginBottom={adaptiveLayout.chartHeaderMarginBottom}
+              xAxisMarginTop={adaptiveLayout.xAxisMarginTop}
             />
 
             {/* 6. Contextual Summary Cards (Average & Highest) */}
@@ -953,6 +1081,9 @@ export function StatsScreen({
               highestLabel={committedPeriod === 'daily' ? 'Highest (Hr)' : 'Highest (Day)'}
               syncKey={numericSyncKey}
               duration={revealDuration}
+              marginTop={adaptiveLayout.summaryMarginTop}
+              cardPaddingVertical={adaptiveLayout.summaryCardPaddingVertical}
+              contentRowMarginBottom={adaptiveLayout.summaryInnerMarginBottom}
             />
           </Animated.View>
         </View>
