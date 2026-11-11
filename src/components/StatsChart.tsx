@@ -18,7 +18,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Easing,
   LayoutChangeEvent,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
@@ -28,6 +27,7 @@ import type { StatMetricType } from './StatsMetricSelector';
 import type { StatPeriodType } from './StatsPeriodSelector';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
 import { MotionTokens, useReducedMotion } from '../theme/motion';
+import { AnimatedStatNumber, type StatNumberScaleUnit } from './AnimatedStatNumber';
 
 export type ChartPointStatus = 'recorded' | 'missing' | 'future';
 
@@ -44,13 +44,15 @@ interface StatsChartProps {
   readonly period: StatPeriodType;
   readonly subtitle: string;
   readonly totalValueText: string;
+  readonly totalRawValue?: number | null;
+  readonly totalScaleUnit?: StatNumberScaleUnit;
   readonly unitText: string;
   readonly data: readonly ChartDataPoint[];
   readonly loading?: boolean;
   readonly unavailableNotice?: string | null;
 }
 
-const CHART_HEIGHT = 184;
+const CHART_HEIGHT = 140;
 const PLOT_TOP_PADDING = 8;
 const PLOT_BOTTOM_PADDING = 8;
 const PLOT_SPAN = CHART_HEIGHT - PLOT_TOP_PADDING - PLOT_BOTTOM_PADDING;
@@ -124,6 +126,8 @@ export function StatsChart({
   period,
   subtitle,
   totalValueText,
+  totalRawValue,
+  totalScaleUnit = 'raw',
   unitText,
   data,
   loading = false,
@@ -136,6 +140,8 @@ export function StatsChart({
   const [containerWidth, setContainerWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
+  const revealConfig = MotionTokens.chartReveal[period];
+
   // Native-driven baseline growth factor (0 -> 1)
   const growthAnim = useRef(new Animated.Value(0)).current;
   const tooltipAnim = useRef(new Animated.Value(0)).current;
@@ -146,7 +152,7 @@ export function StatsChart({
     return `${metric}:${period}:${valuesSig}`;
   }, [metric, period, data]);
 
-  // Deliberate, legible baseline reveal (~820ms cubic glide with subtle left-to-right cascade)
+  // Deliberate, period-tailored baseline wave reveal with controlled overshoot & true settle
   useEffect(() => {
     growthAnim.stopAnimation();
     if (reducedMotion) {
@@ -155,13 +161,13 @@ export function StatsChart({
       growthAnim.setValue(0);
       Animated.timing(growthAnim, {
         toValue: 1,
-        duration: 820,
-        easing: Easing.out(Easing.cubic),
+        duration: revealConfig.duration,
+        easing: MotionTokens.easing.dataReveal,
         useNativeDriver: true,
       }).start();
     }
     setSelectedIndex(null);
-  }, [datasetSignature, reducedMotion, growthAnim]);
+  }, [datasetSignature, revealConfig.duration, reducedMotion, growthAnim]);
 
   // Tooltip entrance animation
   useEffect(() => {
@@ -282,12 +288,26 @@ export function StatsChart({
         </View>
 
         <View style={styles.headerRight}>
-          <Text
-            style={[styles.totalValueText, { color: theme.colors.onSurface }]}
-            numberOfLines={1}
-            adjustsFontSizeToFit>
-            {totalValueText}
-          </Text>
+          {totalRawValue !== undefined ? (
+            <AnimatedStatNumber
+              value={totalRawValue}
+              fallbackText={totalValueText}
+              unitKey={`${metric}:${unitText}`}
+              scaleUnit={totalScaleUnit}
+              syncKey={datasetSignature}
+              duration={revealConfig.duration}
+              style={[styles.totalValueText, { color: theme.colors.onSurface }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            />
+          ) : (
+            <Text
+              style={[styles.totalValueText, { color: theme.colors.onSurface }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit>
+              {totalValueText}
+            </Text>
+          )}
           <Text style={[styles.unitText, { color: theme.colors.onSurfaceVariant }]}>
             {unitText}
           </Text>
@@ -388,12 +408,14 @@ export function StatsChart({
                   : 2;
                 const isSelected = selectedIndex === index;
 
-                // Controlled left-to-right cascade across 40% of the reveal window
-                const startFrac = dataCount > 1 ? (index / (dataCount - 1)) * 0.4 : 0;
-                const endFrac = Math.min(startFrac + 0.6, 1.0);
+                // Period-tailored wave stagger with subtle overshoot peak settling at exact data scale (1.0)
+                const startFrac = dataCount > 1 ? (index / (dataCount - 1)) * revealConfig.staggerSpread : 0;
+                const span = Math.max(1 - revealConfig.staggerSpread, 0.25);
+                const endFrac = Math.min(startFrac + span, 1.0);
+                const peakFrac = Math.min(startFrac + (endFrac - startFrac) * 0.72, endFrac - 0.005);
                 const barWave = growthAnim.interpolate({
-                  inputRange: [startFrac, endFrac],
-                  outputRange: [0.001, 1],
+                  inputRange: [startFrac, peakFrac, endFrac],
+                  outputRange: [0.001, 1 + revealConfig.overshoot, 1],
                   extrapolate: 'clamp',
                 });
 
@@ -530,10 +552,9 @@ export function StatsChart({
 const styles = StyleSheet.create({
   card: {
     marginHorizontal: 20,
-    marginTop: 10,
+    marginTop: 8,
     borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
+    padding: 16,
     elevation: 1,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
@@ -543,7 +564,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -662,7 +683,7 @@ const styles = StyleSheet.create({
   xAxisRow: {
     height: 22,
     position: 'relative',
-    marginTop: 8,
+    marginTop: 6,
   },
   xAxisLabelWrapper: {
     position: 'absolute',
