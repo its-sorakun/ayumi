@@ -41,19 +41,42 @@ export type TimeGranularity = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 /** Data for a single day in a historical chart */
 export interface HistoricalStepData {
-  readonly date: string; // YYYY-MM-DD
+  readonly date: string; // YYYY-MM-DD (local calendar date)
   readonly steps: number;
+  readonly hasRecord?: boolean;
 }
 
 /** Data for a single day in a historical chart for distance */
 export interface HistoricalDistanceData {
-  readonly date: string; // YYYY-MM-DD
+  readonly date: string; // YYYY-MM-DD (local calendar date)
   readonly distance: number; // meters
+  readonly hasRecord?: boolean;
 }
 
 export interface HistoricalWaterData {
-  readonly date: string; // YYYY-MM-DD
+  readonly date: string; // YYYY-MM-DD (local calendar date)
   readonly water: number; // ml
+  readonly hasRecord?: boolean;
+}
+
+/** Granular hourly bucket for single-day step breakdowns */
+export interface HourlyStepData {
+  readonly hour: number; // 0..23 local hour
+  readonly steps: number;
+  readonly hasRecord?: boolean;
+}
+
+/** Granular hourly bucket for single-day distance breakdowns */
+export interface HourlyDistanceData {
+  readonly hour: number; // 0..23 local hour
+  readonly distance: number; // meters
+  readonly hasRecord?: boolean;
+}
+
+/** Hourly breakdown result indicating whether the active provider supports hourly slicing */
+export interface HourlyBreakdownResult<T> {
+  readonly supported: boolean;
+  readonly buckets: readonly T[];
 }
 
 /** Summarized duration of a specific exercise type */
