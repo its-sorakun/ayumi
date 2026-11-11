@@ -9,16 +9,18 @@
  *  - Responsive touch targets with tactile feedback and Material You theming
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
   Animated,
+  Easing,
   LayoutChangeEvent,
   PanResponder,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
+import { useReducedMotion } from '../theme/motion';
 
 export type StatMetricType = 'steps' | 'distance' | 'water';
 
@@ -67,6 +69,7 @@ export function StatsMetricSelector({
 }: StatsMetricSelectorProps): React.JSX.Element {
   const theme = useTheme();
   const isDark = theme.dark;
+  const reducedMotion = useReducedMotion();
 
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -76,12 +79,14 @@ export function StatsMetricSelector({
   const compressYAnim = useRef(new Animated.Value(1)).current;
   const pressScaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Live refs keep PanResponder closures synchronized without stale layout or selection state
+  // Live refs keep PanResponder closures synchronized without stale layout, accessibility, or selection state
   const containerWidthRef = useRef(0);
   const activeIndexRef = useRef(activeIndex);
   const onSelectRef = useRef(onSelectMetric);
+  const reducedMotionRef = useRef(reducedMotion);
   activeIndexRef.current = activeIndex;
   onSelectRef.current = onSelectMetric;
+  reducedMotionRef.current = reducedMotion;
 
   const pressLocalXRef = useRef(0);
   const dragStartSlotRef = useRef(activeIndex);
@@ -90,75 +95,88 @@ export function StatsMetricSelector({
 
   const currentSlotWidth = containerWidth > 0 ? (containerWidth - GAP * 2) / 3 : 0;
 
-  const settleDeformation = () => {
+  const settleDeformation = useCallback(() => {
     Animated.parallel([
       Animated.spring(stretchXAnim, {
         toValue: 1,
-        stiffness: 240,
-        damping: 20,
+        stiffness: reducedMotionRef.current ? 400 : 145,
+        damping: reducedMotionRef.current ? 38 : 13,
         useNativeDriver: true,
       }),
       Animated.spring(compressYAnim, {
         toValue: 1,
-        stiffness: 240,
-        damping: 20,
+        stiffness: reducedMotionRef.current ? 400 : 145,
+        damping: reducedMotionRef.current ? 38 : 13,
         useNativeDriver: true,
       }),
       Animated.spring(pressScaleAnim, {
         toValue: 1,
-        stiffness: 280,
-        damping: 22,
+        stiffness: 260,
+        damping: 20,
         useNativeDriver: true,
       }),
     ]).start();
-  };
+  }, [stretchXAnim, compressYAnim, pressScaleAnim]);
 
-  // Distinct tap transition: crisp M3 Expressive spatial slide with restrained micro-bloom
-  // keeping indicator geometry strictly inside the 10dp inter-card gutter.
+  // Tap transition: prominent mid-flight stretch/compress squeeze with bouncy spring arrival.
   useEffect(() => {
     if (skipNextEffectAnimRef.current) {
       skipNextEffectAnimRef.current = false;
       return;
     }
 
+    if (reducedMotion) {
+      stretchXAnim.setValue(1);
+      compressYAnim.setValue(1);
+      Animated.timing(slideAnim, {
+        toValue: activeIndex,
+        duration: 120,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: activeIndex,
-        stiffness: 220,
-        damping: 22,
-        mass: 0.88,
+        stiffness: 165,
+        damping: 16,
+        mass: 0.95,
         useNativeDriver: true,
       }),
       Animated.sequence([
         Animated.parallel([
           Animated.timing(stretchXAnim, {
-            toValue: 1.03,
-            duration: 90,
+            toValue: 1.16,
+            duration: 110,
+            easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(compressYAnim, {
-            toValue: 0.97,
-            duration: 90,
+            toValue: 0.87,
+            duration: 110,
+            easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
         ]),
         Animated.parallel([
           Animated.spring(stretchXAnim, {
             toValue: 1,
-            stiffness: 220,
-            damping: 20,
+            stiffness: 145,
+            damping: 13,
             useNativeDriver: true,
           }),
           Animated.spring(compressYAnim, {
             toValue: 1,
-            stiffness: 220,
-            damping: 20,
+            stiffness: 145,
+            damping: 13,
             useNativeDriver: true,
           }),
         ]),
       ]),
     ]).start();
-  }, [activeIndex, slideAnim, stretchXAnim, compressYAnim]);
+  }, [activeIndex, reducedMotion, slideAnim, stretchXAnim, compressYAnim]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -205,21 +223,26 @@ export function StatsMetricSelector({
         const clampedSlot = applyBoundaryResistance(rawSlot, 0, 2);
         slideAnim.setValue(clampedSlot);
 
-        // Cap horizontal stretch at 1.06 (~3dp max per edge inside 10dp gutter) to prevent neighbor bleed.
-        const travelFactor = Math.min(
-          Math.abs(vx) * 0.04 + Math.min(Math.abs(dx) / stepDist, 1) * 0.035,
-          0.06
-        );
-        stretchXAnim.setValue(1 + travelFactor);
-        compressYAnim.setValue(1 - travelFactor * 0.7);
+        if (reducedMotionRef.current) {
+          stretchXAnim.setValue(1);
+          compressYAnim.setValue(1);
+        } else {
+          // Squeeze intensity peaks smoothly across slot mid-points and high swipe velocity.
+          const wrappedFrac = Math.min(Math.max(clampedSlot, 0), 2) % 1;
+          const midBridge = Math.sin(Math.PI * wrappedFrac);
+          const velocityBoost = Math.min(Math.abs(vx) * 0.08, 0.09);
+          const travelFactor = Math.min(midBridge * 0.13 + velocityBoost, 0.19);
+          stretchXAnim.setValue(1 + travelFactor);
+          compressYAnim.setValue(1 - travelFactor * 0.72);
+        }
       },
 
       onPanResponderRelease: (_, gestureState) => {
         const width = containerWidthRef.current;
         Animated.spring(pressScaleAnim, {
           toValue: 1,
-          stiffness: 280,
-          damping: 22,
+          stiffness: 260,
+          damping: 20,
           useNativeDriver: true,
         }).start();
 
@@ -229,12 +252,14 @@ export function StatsMetricSelector({
               Math.max(Math.floor((pressLocalXRef.current / width) * 3), 0),
               2
             );
-            onSelectRef.current(METRICS[tappedSlot].type);
+            if (tappedSlot !== activeIndexRef.current) {
+              onSelectRef.current(METRICS[tappedSlot].type);
+            }
           } else {
             Animated.spring(slideAnim, {
               toValue: activeIndexRef.current,
-              stiffness: 220,
-              damping: 22,
+              stiffness: 165,
+              damping: 16,
               useNativeDriver: true,
             }).start();
             settleDeformation();
@@ -259,25 +284,26 @@ export function StatsMetricSelector({
           onSelectRef.current(METRICS[targetSlot].type);
         }
 
+        const reduced = reducedMotionRef.current;
         Animated.parallel([
           Animated.spring(slideAnim, {
             toValue: targetSlot,
             velocity: swipeVelocitySlots,
-            stiffness: 220,
-            damping: 22,
-            mass: 0.88,
+            stiffness: reduced ? 320 : 160,
+            damping: reduced ? 34 : 16,
+            mass: 0.9,
             useNativeDriver: true,
           }),
           Animated.spring(stretchXAnim, {
             toValue: 1,
-            stiffness: 240,
-            damping: 20,
+            stiffness: reduced ? 380 : 145,
+            damping: reduced ? 38 : 13,
             useNativeDriver: true,
           }),
           Animated.spring(compressYAnim, {
             toValue: 1,
-            stiffness: 240,
-            damping: 20,
+            stiffness: reduced ? 380 : 145,
+            damping: reduced ? 38 : 13,
             useNativeDriver: true,
           }),
         ]).start();
@@ -287,8 +313,8 @@ export function StatsMetricSelector({
         isHorizontalDragRef.current = false;
         Animated.spring(slideAnim, {
           toValue: activeIndexRef.current,
-          stiffness: 220,
-          damping: 22,
+          stiffness: 165,
+          damping: 16,
           useNativeDriver: true,
         }).start();
         settleDeformation();
@@ -353,8 +379,11 @@ export function StatsMetricSelector({
         />
       )}
 
-      {/* Foreground Content Labels & Icons (non-interactive overlay so container owns exact coords) */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* Foreground Content Labels & Icons (non-interactive overlay elevated above sliding indicator) */}
+      <View
+        style={[StyleSheet.absoluteFill, styles.foregroundOverlay]}
+        pointerEvents="none"
+        collapsable={false}>
         <View style={styles.contentRow}>
           {METRICS.map(metric => {
             const isSelected = selectedMetric === metric.type;
@@ -362,7 +391,7 @@ export function StatsMetricSelector({
             const textColor = isSelected ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant;
 
             return (
-              <View key={metric.type} style={styles.cardButton}>
+              <View key={metric.type} style={styles.cardButton} collapsable={false}>
                 <View style={styles.iconWrapper}>
                   {metric.renderIcon(iconColor)}
                 </View>
@@ -390,7 +419,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: GAP,
     marginHorizontal: 20,
-    marginTop: 6,
+    marginTop: 8,
     height: CONTAINER_HEIGHT,
     position: 'relative',
   },
@@ -409,11 +438,12 @@ const styles = StyleSheet.create({
     left: 0,
     height: CONTAINER_HEIGHT,
     borderRadius: 18,
-    zIndex: 1,
+    zIndex: 2,
     elevation: 2,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+  },
+  foregroundOverlay: {
+    zIndex: 10,
+    elevation: 4,
   },
   contentRow: {
     flex: 1,
@@ -425,7 +455,7 @@ const styles = StyleSheet.create({
     height: CONTAINER_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2,
+    zIndex: 12,
     paddingVertical: 8,
   },
   iconWrapper: {
