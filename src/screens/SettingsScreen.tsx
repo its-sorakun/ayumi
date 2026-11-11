@@ -26,6 +26,8 @@ import { useSettings } from '../contexts/SettingsContext';
 import {
   AYUMI_THEME_OPTIONS,
   AyumiThemeId,
+  OxygenSettingsIconId,
+  OxygenSettingsRowIcon,
   SettingsSectionGroup,
   ThemeOptionCard,
   useAyumiTheme,
@@ -35,10 +37,41 @@ export interface SettingsScreenProps {
   readonly hideDock?: boolean;
 }
 
+function DefaultEmojiIcon({ emoji }: { readonly emoji: string }): React.JSX.Element {
+  return <Text>{emoji}</Text>;
+}
+
+function makeSettingLeading(
+  isOxygenIcons: boolean,
+  fallbackEmoji: string,
+  oxygenId: OxygenSettingsIconId,
+  accentColor: string,
+  badgeFgColor?: string,
+) {
+  return (props: { color?: string; style?: object }) =>
+    isOxygenIcons ? (
+      <OxygenSettingsRowIcon
+        icon={oxygenId}
+        accentColor={accentColor}
+        badgeFgColor={badgeFgColor}
+      />
+    ) : (
+      <List.Icon {...props} icon={() => <DefaultEmojiIcon emoji={fallbackEmoji} />} />
+    );
+}
+
 export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { themeId: activeSessionThemeId, surfaces, typography } = useAyumiTheme();
+  const { themeId: activeSessionThemeId, surfaces, typography, metricAccents } = useAyumiTheme();
+  const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
+
+  const renderSettingIcon = (
+    fallbackEmoji: string,
+    oxygenId: OxygenSettingsIconId,
+    accentColor: string,
+    badgeFgColor?: string,
+  ) => makeSettingLeading(isOxygenIcons, fallbackEmoji, oxygenId, accentColor, badgeFgColor);
   const {
     theme: currentTheme, visualTheme, provider: currentProvider, stepGoal, distanceGoal,
     gender, weight, height, age, customWaterGoal,
@@ -167,19 +200,31 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
               <List.Item
                 title="System Auto"
                 description="Follow device theme"
-                left={props => <List.Icon {...props} icon={() => <Text>⚙️</Text>} />}
+                left={renderSettingIcon('⚙️', 'theme', theme.colors.primary, theme.colors.onPrimary)}
                 right={props => <RadioButton {...props} value="auto" />}
                 onPress={() => setTheme('auto')}
               />
+              {surfaces.groupedSettingsCards && <Divider style={styles.rowDivider} />}
               <List.Item
                 title="Light Mode"
-                left={props => <List.Icon {...props} icon={() => <Text>☀️</Text>} />}
+                left={renderSettingIcon(
+                  '☀️',
+                  'sun',
+                  metricAccents.totalCalories.badgeBg ?? metricAccents.totalCalories.color,
+                  metricAccents.totalCalories.onBadge,
+                )}
                 right={props => <RadioButton {...props} value="light" />}
                 onPress={() => setTheme('light')}
               />
+              {surfaces.groupedSettingsCards && <Divider style={styles.rowDivider} />}
               <List.Item
                 title="Dark Mode"
-                left={props => <List.Icon {...props} icon={() => <Text>🌙</Text>} />}
+                left={renderSettingIcon(
+                  '🌙',
+                  'moon',
+                  metricAccents.activeTime.badgeBg ?? metricAccents.activeTime.color,
+                  metricAccents.activeTime.onBadge,
+                )}
                 right={props => <RadioButton {...props} value="dark" />}
                 onPress={() => setTheme('dark')}
               />
@@ -226,15 +271,26 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
                 title="Google Health Connect"
                 description="Syncs history with other fitness apps (Recommended)"
                 descriptionNumberOfLines={2}
-                left={props => <List.Icon {...props} icon={() => <Text>🔄</Text>} />}
+                left={renderSettingIcon(
+                  '🔄',
+                  'sync',
+                  metricAccents.water.badgeBg ?? metricAccents.water.color,
+                  metricAccents.water.onBadge,
+                )}
                 right={props => <RadioButton {...props} value="health_connect" />}
                 onPress={() => setProvider('health_connect')}
               />
+              {surfaces.groupedSettingsCards && <Divider style={styles.rowDivider} />}
               <List.Item
                 title="Device Sensor Only"
                 description="Bypass Health Connect. 100% private, tracks via hardware chip."
                 descriptionNumberOfLines={2}
-                left={props => <List.Icon {...props} icon={() => <Text>📱</Text>} />}
+                left={renderSettingIcon(
+                  '📱',
+                  'device',
+                  metricAccents.distance.badgeBg ?? metricAccents.distance.color,
+                  metricAccents.distance.onBadge,
+                )}
                 right={props => <RadioButton {...props} value="device_sensor" />}
                 onPress={() => setProvider('device_sensor')}
               />
@@ -253,7 +309,12 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
             <List.Item
               title="Biological Sex"
               description="Used for BMR formula"
-              left={props => <List.Icon {...props} icon={() => <Text>🚻</Text>} />}
+              left={renderSettingIcon(
+                '🚻',
+                'gender',
+                metricAccents.steps.badgeBg ?? metricAccents.steps.color,
+                metricAccents.steps.onBadge,
+              )}
               right={() => (
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <RadioButton.Group onValueChange={value => setGender(value as any)} value={gender || ''}>
@@ -271,9 +332,15 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
                 </View>
               )}
             />
+            {surfaces.groupedSettingsCards && <Divider style={styles.rowDivider} />}
             <List.Item
               title="Weight (kg)"
-              left={props => <List.Icon {...props} icon={() => <Text>⚖️</Text>} />}
+              left={renderSettingIcon(
+                '⚖️',
+                'weight',
+                metricAccents.calories.badgeBg ?? metricAccents.calories.color,
+                metricAccents.calories.onBadge,
+              )}
               right={() => (
                 <TextInput
                   mode="outlined"
@@ -287,9 +354,15 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
                 />
               )}
             />
+            {surfaces.groupedSettingsCards && <Divider style={styles.rowDivider} />}
             <List.Item
               title="Height (cm)"
-              left={props => <List.Icon {...props} icon={() => <Text>📏</Text>} />}
+              left={renderSettingIcon(
+                '📏',
+                'height',
+                metricAccents.distance.badgeBg ?? metricAccents.distance.color,
+                metricAccents.distance.onBadge,
+              )}
               right={() => (
                 <TextInput
                   mode="outlined"
@@ -303,9 +376,15 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
                 />
               )}
             />
+            {surfaces.groupedSettingsCards && <Divider style={styles.rowDivider} />}
             <List.Item
               title="Age (years)"
-              left={props => <List.Icon {...props} icon={() => <Text>🎂</Text>} />}
+              left={renderSettingIcon(
+                '🎂',
+                'age',
+                metricAccents.totalCalories.badgeBg ?? metricAccents.totalCalories.color,
+                metricAccents.totalCalories.onBadge,
+              )}
               right={() => (
                 <TextInput
                   mode="outlined"
@@ -330,7 +409,12 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
             <List.Item
               title="Daily Steps"
               description="Your target step count"
-              left={props => <List.Icon {...props} icon={() => <Text>👟</Text>} />}
+              left={renderSettingIcon(
+                '👟',
+                'steps_goal',
+                metricAccents.steps.badgeBg ?? metricAccents.steps.color,
+                metricAccents.steps.onBadge,
+              )}
               right={() => (
                 <TextInput
                   mode="outlined"
@@ -343,10 +427,16 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
                 />
               )}
             />
+            {surfaces.groupedSettingsCards && <Divider style={styles.rowDivider} />}
             <List.Item
               title="Daily Distance (m)"
               description="Target distance in meters"
-              left={props => <List.Icon {...props} icon={() => <Text>📏</Text>} />}
+              left={renderSettingIcon(
+                '📏',
+                'distance_goal',
+                metricAccents.distance.badgeBg ?? metricAccents.distance.color,
+                metricAccents.distance.onBadge,
+              )}
               right={() => (
                 <TextInput
                   mode="outlined"
@@ -359,10 +449,16 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
                 />
               )}
             />
+            {surfaces.groupedSettingsCards && <Divider style={styles.rowDivider} />}
             <List.Item
               title="Custom Water Goal (ml)"
               description="Leave blank for auto-recommendation"
-              left={props => <List.Icon {...props} icon={() => <Text>💧</Text>} />}
+              left={renderSettingIcon(
+                '💧',
+                'water_goal',
+                metricAccents.water.badgeBg ?? metricAccents.water.color,
+                metricAccents.water.onBadge,
+              )}
               right={() => (
                 <TextInput
                   mode="outlined"
@@ -433,6 +529,9 @@ const styles = StyleSheet.create({
   },
   divider: {
     marginVertical: 8,
+  },
+  rowDivider: {
+    marginHorizontal: 16,
   },
   input: {
     width: 100,

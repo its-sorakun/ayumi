@@ -37,7 +37,16 @@ import {
 } from '../components';
 import { useHealthData, useWaterTracker } from '../hooks';
 import { useSettings } from '../contexts/SettingsContext';
-import { colorWithOpacity, useAyumiTheme } from '../themes';
+import {
+  colorWithOpacity,
+  OxygenActiveTimeIcon,
+  OxygenCaloriesIcon,
+  OxygenDistanceIcon,
+  OxygenTotalCaloriesIcon,
+  OxygenWaterIcon,
+  resolveMetricBadgeColors,
+  useAyumiTheme,
+} from '../themes';
 import {
   formatDistance,
   formatCalories,
@@ -66,7 +75,20 @@ export function DashboardScreen({
   onNavigateToStats,
 }: DashboardScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
-  const { typography, metricAccents } = useAyumiTheme();
+  const { surfaces, typography, metricAccents } = useAyumiTheme();
+  const useSoftOemBadges = surfaces.bentoLayout === 'header_inline';
+  const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
+  const isSolidBadges = surfaces.badgeStyle === 'solid';
+  const defaultCardBg = theme.dark ? theme.colors.elevation.level1 : theme.colors.surface;
+  const caloriesBadge = resolveMetricBadgeColors(metricAccents.calories, surfaces.badgeStyle);
+  const distanceBadge = resolveMetricBadgeColors(metricAccents.distance, surfaces.badgeStyle);
+  const totalCaloriesBadge = resolveMetricBadgeColors(metricAccents.totalCalories, surfaces.badgeStyle);
+  const activeTimeBadge = resolveMetricBadgeColors(metricAccents.activeTime, surfaces.badgeStyle);
+  const waterBadge = resolveMetricBadgeColors(metricAccents.water, surfaces.badgeStyle);
+  const resolveBadgeBg = (accentColor: string, fallbackContainer: string) =>
+    useSoftOemBadges
+      ? colorWithOpacity(accentColor, theme.dark ? 0.2 : 0.11)
+      : fallbackContainer;
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -279,20 +301,41 @@ export function DashboardScreen({
                 title={'Active\nCalories'}
                 value={calValue}
                 unit={calUnit}
-                icon={<FlameIcon size={22} color={metricAccents.calories.color} />}
-                iconBgColor={metricAccents.calories.container}
-                cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
+                icon={
+                  isOxygenIcons ? (
+                    <OxygenCaloriesIcon size={17} color={caloriesBadge.fg} filled={isSolidBadges} />
+                  ) : (
+                    <FlameIcon size={useSoftOemBadges ? 17 : 22} color={metricAccents.calories.color} />
+                  )
+                }
+                iconBgColor={
+                  isSolidBadges
+                    ? caloriesBadge.bg
+                    : resolveBadgeBg(metricAccents.calories.color, metricAccents.calories.container)
+                }
+                cardBgColor={defaultCardBg}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
+                progressBarColor={metricAccents.calories.color}
               />
               <BentoCard
                 title="Distance"
                 value={distValue}
                 unit={distUnit}
                 subtitle={`Goal: ${formatDistance(distanceGoal)}`}
-                icon={<RouteMapIcon size={22} color={metricAccents.distance.color} />}
-                iconBgColor={metricAccents.distance.container}
-                cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
+                icon={
+                  isOxygenIcons ? (
+                    <OxygenDistanceIcon size={17} color={distanceBadge.fg} filled={isSolidBadges} />
+                  ) : (
+                    <RouteMapIcon size={useSoftOemBadges ? 17 : 22} color={metricAccents.distance.color} />
+                  )
+                }
+                iconBgColor={
+                  isSolidBadges
+                    ? distanceBadge.bg
+                    : resolveBadgeBg(metricAccents.distance.color, metricAccents.distance.container)
+                }
+                cardBgColor={defaultCardBg}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
                 subtitleColor={theme.colors.onSurfaceVariant}
@@ -309,23 +352,52 @@ export function DashboardScreen({
                 value={totalCalValue}
                 unit={totalCalUnit}
                 subtitle={formattedValues.totalCalories === 'Setup' ? 'Tap to configure' : undefined}
-                icon={<BoltIcon size={22} color={metricAccents.calories.color} />}
-                iconBgColor={metricAccents.calories.container}
-                cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
+                icon={
+                  isOxygenIcons ? (
+                    <OxygenTotalCaloriesIcon
+                      size={17}
+                      color={totalCaloriesBadge.fg}
+                      filled={isSolidBadges}
+                    />
+                  ) : (
+                    <BoltIcon size={useSoftOemBadges ? 17 : 22} color={metricAccents.totalCalories.color} />
+                  )
+                }
+                iconBgColor={
+                  isSolidBadges
+                    ? totalCaloriesBadge.bg
+                    : resolveBadgeBg(
+                        metricAccents.totalCalories.color,
+                        metricAccents.totalCalories.container,
+                      )
+                }
+                cardBgColor={defaultCardBg}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
                 subtitleColor={theme.colors.onSurfaceVariant}
+                progressBarColor={metricAccents.totalCalories.color}
                 onPress={formattedValues.totalCalories === 'Setup' ? () => navigation.navigate('Settings') : undefined}
               />
               <BentoCard
                 title="Active Time"
                 value={activeTimeValue}
                 unit={activeTimeUnit}
-                icon={<StopwatchIcon size={22} color={metricAccents.activeTime.color} />}
-                iconBgColor={metricAccents.activeTime.container}
-                cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
+                icon={
+                  isOxygenIcons ? (
+                    <OxygenActiveTimeIcon size={17} color={activeTimeBadge.fg} filled={isSolidBadges} />
+                  ) : (
+                    <StopwatchIcon size={useSoftOemBadges ? 17 : 22} color={metricAccents.activeTime.color} />
+                  )
+                }
+                iconBgColor={
+                  isSolidBadges
+                    ? activeTimeBadge.bg
+                    : resolveBadgeBg(metricAccents.activeTime.color, metricAccents.activeTime.container)
+                }
+                cardBgColor={defaultCardBg}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
+                progressBarColor={metricAccents.activeTime.color}
               />
             </View>
 
@@ -336,12 +408,26 @@ export function DashboardScreen({
                 value={`${totalWater}`}
                 unit="ml"
                 subtitle={`Goal: ${formattedValues.waterGoalText}`}
-                icon={<DropletIcon size={22} color={metricAccents.water.color} />}
-                iconBgColor={theme.dark ? colorWithOpacity(theme.colors.onSurface, 0.12) : theme.colors.surface}
-                cardBgColor={metricAccents.water.container}
-                titleColor={metricAccents.water.onContainer}
-                valueColor={metricAccents.water.onContainer}
-                subtitleColor={metricAccents.water.onContainer}
+                icon={
+                  isOxygenIcons ? (
+                    <OxygenWaterIcon size={17} color={waterBadge.fg} filled={isSolidBadges} />
+                  ) : (
+                    <DropletIcon size={useSoftOemBadges ? 17 : 22} color={metricAccents.water.color} />
+                  )
+                }
+                iconBgColor={
+                  surfaces.tintHomeWaterCard
+                    ? theme.dark
+                      ? colorWithOpacity(theme.colors.onSurface, 0.12)
+                      : theme.colors.surface
+                    : isSolidBadges
+                    ? waterBadge.bg
+                    : resolveBadgeBg(metricAccents.water.color, metricAccents.water.container)
+                }
+                cardBgColor={surfaces.tintHomeWaterCard ? metricAccents.water.container : defaultCardBg}
+                titleColor={surfaces.tintHomeWaterCard ? metricAccents.water.onContainer : theme.colors.onSurfaceVariant}
+                valueColor={surfaces.tintHomeWaterCard ? metricAccents.water.onContainer : theme.colors.onSurface}
+                subtitleColor={surfaces.tintHomeWaterCard ? metricAccents.water.onContainer : theme.colors.onSurfaceVariant}
                 fullWidth={true}
                 progress={formattedValues.waterProgress}
                 progressBarColor={metricAccents.water.color}

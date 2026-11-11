@@ -57,6 +57,8 @@ jest.mock('react-native-svg', () => {
     Line: PrimitiveMock,
     G: PrimitiveMock,
     Polygon: PrimitiveMock,
+    Polyline: PrimitiveMock,
+    Ellipse: PrimitiveMock,
   };
 });
 

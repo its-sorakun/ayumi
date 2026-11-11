@@ -27,12 +27,20 @@ import type {
 export * from './types';
 export * from './paletteUtils';
 export { defaultThemeDefinition } from './defaultTheme';
-export { oxygenColorOsThemeDefinition, OXYGEN_MOTION_PRESET } from './oxygenColorOsTheme';
+export {
+  deriveOxygenMultiAccentRoles,
+  oxygenColorOsThemeDefinition,
+  OXYGEN_MOTION_PRESET,
+} from './oxygenColorOsTheme';
 export {
   OxygenColorOsDockBar,
+  OxygenMetricCard,
+  OxygenStepHeroCard,
+  OxygenWaterHomeCard,
   SettingsSectionGroup,
   ThemeOptionCard,
 } from './oxygenColorOsUI';
+export * from './oxygenIcons';
 
 export const AYUMI_THEMES: Record<AyumiThemeId, AyumiThemeDefinition> = {
   default: defaultThemeDefinition,
@@ -92,7 +100,7 @@ export function AyumiThemeProvider({
       definition,
       colors: paperTheme.colors,
       isDark: paperTheme.dark,
-      metricAccents: definition.getMetricAccents(paperTheme.colors),
+      metricAccents: definition.getMetricAccents(paperTheme.colors, paperTheme.dark),
       surfaces: definition.surfaces,
       shapes: definition.shapes,
       typography: definition.typography,
@@ -126,7 +134,7 @@ export function useAyumiTheme(): AyumiThemeContextValue {
       definition: def,
       colors: paperTheme.colors,
       isDark: paperTheme.dark,
-      metricAccents: def.getMetricAccents(paperTheme.colors),
+      metricAccents: def.getMetricAccents(paperTheme.colors, paperTheme.dark),
       surfaces: def.surfaces,
       shapes: def.shapes,
       typography: def.typography,

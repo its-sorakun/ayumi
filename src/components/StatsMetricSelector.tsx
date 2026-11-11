@@ -21,7 +21,13 @@ import {
 import { Text, useTheme } from 'react-native-paper';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
 import { useReducedMotion } from '../theme/motion';
-import { useAyumiTheme } from '../themes';
+import {
+  colorWithOpacity,
+  OxygenDistanceIcon,
+  OxygenFootstepsIcon,
+  OxygenWaterIcon,
+  useAyumiTheme,
+} from '../themes';
 
 export type StatMetricType = 'steps' | 'distance' | 'water';
 
@@ -36,6 +42,7 @@ interface MetricItemConfig {
   readonly type: StatMetricType;
   readonly label: string;
   readonly renderIcon: (color: string) => React.ReactNode;
+  readonly renderOxygenIcon: (color: string, active: boolean) => React.ReactNode;
 }
 
 const METRICS: readonly MetricItemConfig[] = [
@@ -43,16 +50,25 @@ const METRICS: readonly MetricItemConfig[] = [
     type: 'steps',
     label: 'Steps',
     renderIcon: (color: string) => <SneakerIcon size={22} color={color} />,
+    renderOxygenIcon: (color: string, active: boolean) => (
+      <OxygenFootstepsIcon size={20} color={color} filled={active} />
+    ),
   },
   {
     type: 'distance',
     label: 'Distance',
     renderIcon: (color: string) => <RouteMapIcon size={22} color={color} />,
+    renderOxygenIcon: (color: string, active: boolean) => (
+      <OxygenDistanceIcon size={20} color={color} filled={active} />
+    ),
   },
   {
     type: 'water',
     label: 'Water',
     renderIcon: (color: string) => <DropletIcon size={22} color={color} />,
+    renderOxygenIcon: (color: string, active: boolean) => (
+      <OxygenWaterIcon size={20} color={color} filled={active} />
+    ),
   },
 ];
 
@@ -76,6 +92,7 @@ export function StatsMetricSelector({
   const isDark = theme.dark;
   const reducedMotion = useReducedMotion();
   const { motion, surfaces, shapes, metricAccents, resolveCardBorder } = useAyumiTheme();
+  const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
   const activeMetricAccent =
     selectedMetric === 'distance'
       ? metricAccents.distance
@@ -457,6 +474,13 @@ export function StatsMetricSelector({
   });
   const translateX = Animated.add(baseTranslateX, leanXAnim);
 
+  const isSoftOutlined = surfaces.activeControlStyle === 'soft_outlined';
+  const indicatorBg = isSoftOutlined
+    ? colorWithOpacity(activeMetricAccent.color, isDark ? 0.22 : 0.11)
+    : activeMetricAccent.container;
+  const indicatorBorderWidth = isSoftOutlined ? 1.5 : 0;
+  const indicatorBorderColor = isSoftOutlined ? activeMetricAccent.color : 'transparent';
+
   return (
     <View
       style={[styles.container, { height: containerHeight, marginTop }]}
@@ -497,7 +521,9 @@ export function StatsMetricSelector({
               width: currentSlotWidth,
               height: containerHeight,
               borderRadius: shapes.selectorSlotRadius,
-              backgroundColor: activeMetricAccent.container,
+              backgroundColor: indicatorBg,
+              borderWidth: indicatorBorderWidth,
+              borderColor: indicatorBorderColor,
               transform: [
                 { translateX },
                 { scaleX: stretchXAnim },
@@ -517,7 +543,11 @@ export function StatsMetricSelector({
           {METRICS.map(metric => {
             const isSelected = selectedMetric === metric.type;
             const iconColor = isSelected ? activeMetricAccent.color : theme.colors.onSurfaceVariant;
-            const textColor = isSelected ? activeMetricAccent.onContainer : theme.colors.onSurfaceVariant;
+            const textColor = isSelected
+              ? isSoftOutlined
+                ? activeMetricAccent.color
+                : activeMetricAccent.onContainer
+              : theme.colors.onSurfaceVariant;
 
             return (
               <View
@@ -525,7 +555,9 @@ export function StatsMetricSelector({
                 style={[styles.cardButton, { height: containerHeight }]}
                 collapsable={false}>
                 <View style={styles.iconWrapper}>
-                  {metric.renderIcon(iconColor)}
+                  {isOxygenIcons
+                    ? metric.renderOxygenIcon(iconColor, isSelected)
+                    : metric.renderIcon(iconColor)}
                 </View>
                 <Text
                   style={[

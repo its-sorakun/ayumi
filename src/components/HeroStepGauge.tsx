@@ -14,7 +14,7 @@ import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import Svg, { Circle } from 'react-native-svg';
 import { SneakerIcon } from './AestheticIcons';
-import { useAyumiTheme } from '../themes';
+import { OxygenStepHeroCard, useAyumiTheme } from '../themes';
 
 interface HeroStepGaugeProps {
   readonly steps: number;
@@ -27,7 +27,22 @@ const GAUGE_SIZE = Math.min(SCREEN_WIDTH - 84, 226);
 
 export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): React.JSX.Element {
   const theme = useTheme();
-  const { progress, typography, metricAccents } = useAyumiTheme();
+  const { progress, surfaces, typography, metricAccents, resolveCardBorder } = useAyumiTheme();
+
+  if (surfaces.heroLayout === 'modular_card') {
+    return (
+      <OxygenStepHeroCard
+        steps={steps}
+        goal={goal}
+        onPress={onPress}
+        progress={progress}
+        surfaces={surfaces}
+        typography={typography}
+        metricAccents={metricAccents}
+        border={resolveCardBorder()}
+      />
+    );
+  }
 
   const strokeWidth = progress.heroStrokeWidth;
   const center = GAUGE_SIZE / 2;

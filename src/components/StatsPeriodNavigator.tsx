@@ -13,7 +13,11 @@ import { View, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { ChevronLeftIcon, ChevronRightIcon } from './AestheticIcons';
 import { useReducedMotion } from '../theme/motion';
-import { useAyumiTheme } from '../themes';
+import {
+  OxygenChevronLeftIcon,
+  OxygenChevronRightIcon,
+  useAyumiTheme,
+} from '../themes';
 
 interface StatsPeriodNavigatorProps {
   readonly dateRangeText: string;
@@ -36,7 +40,8 @@ export function StatsPeriodNavigator({
 }: StatsPeriodNavigatorProps): React.JSX.Element {
   const theme = useTheme();
   const reducedMotion = useReducedMotion();
-  const { motion } = useAyumiTheme();
+  const { motion, surfaces } = useAyumiTheme();
+  const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
 
   const animValue = useRef(new Animated.Value(0)).current;
 
@@ -73,7 +78,11 @@ export function StatsPeriodNavigator({
         style={styles.navButton}
         accessibilityRole="button"
         accessibilityLabel="Previous period">
-        <ChevronLeftIcon size={20} color={theme.colors.onSurface} />
+        {isOxygenIcons ? (
+          <OxygenChevronLeftIcon size={20} color={theme.colors.onSurface} />
+        ) : (
+          <ChevronLeftIcon size={20} color={theme.colors.onSurface} />
+        )}
       </TouchableOpacity>
 
       <View style={styles.labelContainer}>
@@ -94,7 +103,11 @@ export function StatsPeriodNavigator({
         accessibilityRole="button"
         accessibilityLabel="Next period"
         accessibilityState={{ disabled: !canGoNext }}>
-        <ChevronRightIcon size={20} color={theme.colors.onSurface} />
+        {isOxygenIcons ? (
+          <OxygenChevronRightIcon size={20} color={theme.colors.onSurface} />
+        ) : (
+          <ChevronRightIcon size={20} color={theme.colors.onSurface} />
+        )}
       </TouchableOpacity>
     </View>
   );

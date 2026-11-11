@@ -15,7 +15,13 @@ import { Text, useTheme } from 'react-native-paper';
 import { TargetBullseyeIcon, TrophyIcon } from './AestheticIcons';
 import { AnimatedStatNumber, type StatNumberScaleUnit } from './AnimatedStatNumber';
 import type { StatMetricType } from './StatsMetricSelector';
-import { useAyumiTheme } from '../themes';
+import {
+  colorWithOpacity,
+  OxygenTargetIcon,
+  OxygenTrophyIcon,
+  resolveMetricBadgeColors,
+  useAyumiTheme,
+} from '../themes';
 
 interface StatsSummaryCardsProps {
   readonly metric?: StatMetricType;
@@ -67,6 +73,16 @@ export function StatsSummaryCards({
 
   const cardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
   const { borderColor, borderWidth } = resolveCardBorder();
+  const isOemCards = surfaces.bentoLayout === 'header_inline';
+  const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
+  const isSolidBadges = surfaces.badgeStyle === 'solid';
+  const summaryBadge = resolveMetricBadgeColors(metricAccent, surfaces.badgeStyle);
+  const badgeBg = isSolidBadges
+    ? summaryBadge.bg
+    : isOemCards
+    ? colorWithOpacity(metricAccent.color, isDark ? 0.2 : 0.11)
+    : metricAccent.container;
+  const badgeRadius = isSolidBadges ? 16 : isOemCards ? 10 : 16;
 
   return (
     <View style={[styles.container, { marginTop, marginBottom }]}>
@@ -85,8 +101,16 @@ export function StatsSummaryCards({
           },
         ]}>
         <View style={[styles.contentRow, { marginBottom: contentRowMarginBottom }]}>
-          <View style={[styles.iconBubble, { backgroundColor: metricAccent.container }]}>
-            <TargetBullseyeIcon size={18} color={metricAccent.color} />
+          <View
+            style={[
+              styles.iconBubble,
+              { backgroundColor: badgeBg, borderRadius: badgeRadius },
+            ]}>
+            {isOxygenIcons ? (
+              <OxygenTargetIcon size={17} color={summaryBadge.fg} filled={isSolidBadges} />
+            ) : (
+              <TargetBullseyeIcon size={18} color={metricAccent.color} />
+            )}
           </View>
           <Text style={[styles.cardLabel, { color: theme.colors.onSurfaceVariant }]}>
             Average
@@ -139,8 +163,16 @@ export function StatsSummaryCards({
           },
         ]}>
         <View style={[styles.contentRow, { marginBottom: contentRowMarginBottom }]}>
-          <View style={[styles.iconBubble, { backgroundColor: metricAccent.container }]}>
-            <TrophyIcon size={18} color={metricAccent.color} />
+          <View
+            style={[
+              styles.iconBubble,
+              { backgroundColor: badgeBg, borderRadius: badgeRadius },
+            ]}>
+            {isOxygenIcons ? (
+              <OxygenTrophyIcon size={17} color={summaryBadge.fg} filled={isSolidBadges} />
+            ) : (
+              <TrophyIcon size={18} color={metricAccent.color} />
+            )}
           </View>
           <Text style={[styles.cardLabel, { color: theme.colors.onSurfaceVariant }]}>
             {highestLabel}

@@ -115,6 +115,12 @@ export const defaultThemeDefinition: AyumiThemeDefinition = {
     cardShadowOpacity: 0.03,
     groupedSettingsCards: false,
     tintHomeWaterCard: true,
+    heroLayout: 'floating_gauge',
+    bentoLayout: 'left_bubble',
+    activeControlStyle: 'tonal_container',
+    subtleTimelineMenuButton: false,
+    badgeStyle: 'tonal',
+    iconFamily: 'ayumi_default',
   },
   shapes: {
     selectorSlotRadius: 18,
@@ -165,6 +171,7 @@ export const defaultThemeDefinition: AyumiThemeDefinition = {
     return {
       steps: primaryRole,
       calories: primaryRole,
+      totalCalories: primaryRole,
       distance: primaryRole,
       activeTime: primaryRole,
       water: primaryRole,

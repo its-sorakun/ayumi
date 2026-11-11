@@ -46,7 +46,18 @@ import {
 import { useSettings } from '../contexts/SettingsContext';
 import { useWaterTracker, type WaterLog } from '../hooks/useWaterTracker';
 import { useReducedMotion } from '../theme/motion';
-import { useAyumiTheme } from '../themes';
+import {
+  colorWithOpacity,
+  OxygenChevronRightIcon,
+  OxygenMoreIcon,
+  OxygenPencilIcon,
+  OxygenTrashIcon,
+  OxygenWaterIcon,
+  OxygenWaterVesselIcon,
+  type OxygenWaterVesselVariant,
+  resolveMetricBadgeColors,
+  useAyumiTheme,
+} from '../themes';
 import { calculateWaterGoal } from '../utils';
 
 export interface WaterLoggerScreenProps {
@@ -57,10 +68,18 @@ export interface WaterLoggerScreenProps {
   readonly onNavigateSettings?: () => void;
 }
 
+function resolveOxygenVesselVariant(amountMl: number): OxygenWaterVesselVariant {
+  if (amountMl <= 300) return 'cup';
+  if (amountMl <= 600) return 'bottle_sm';
+  if (amountMl <= 850) return 'tumbler';
+  return 'bottle_lg';
+}
+
 interface WaterPresetOption {
   readonly ml: number;
   readonly label: string;
   readonly renderIcon: (color: string) => React.ReactNode;
+  readonly renderOxygenIcon: (color: string) => React.ReactNode;
 }
 
 const WATER_PRESETS: readonly WaterPresetOption[] = [
@@ -68,21 +87,33 @@ const WATER_PRESETS: readonly WaterPresetOption[] = [
     ml: 250,
     label: '250 ml',
     renderIcon: color => <WaterCupIcon size={22} color={color} />,
+    renderOxygenIcon: color => (
+      <OxygenWaterVesselIcon variant="cup" size={21} color={color} />
+    ),
   },
   {
     ml: 500,
     label: '500 ml',
     renderIcon: color => <WaterBottleSmallIcon size={22} color={color} />,
+    renderOxygenIcon: color => (
+      <OxygenWaterVesselIcon variant="bottle_sm" size={21} color={color} />
+    ),
   },
   {
     ml: 750,
     label: '750 ml',
     renderIcon: color => <WaterTumblerIcon size={22} color={color} />,
+    renderOxygenIcon: color => (
+      <OxygenWaterVesselIcon variant="tumbler" size={21} color={color} />
+    ),
   },
   {
     ml: 1000,
     label: '1.0 L',
     renderIcon: color => <WaterBottleLargeIcon size={22} color={color} />,
+    renderOxygenIcon: color => (
+      <OxygenWaterVesselIcon variant="bottle_lg" size={21} color={color} />
+    ),
   },
 ];
 
@@ -161,9 +192,10 @@ function WaterPresetTile({
   onPress,
 }: PresetTileProps): React.JSX.Element {
   const theme = useTheme();
-  const { motion, metricAccents } = useAyumiTheme();
+  const { motion, surfaces, metricAccents } = useAyumiTheme();
   const waterAccent = metricAccents.water;
   const pressScale = useRef(new Animated.Value(1)).current;
+  const isSoftOutlined = surfaces.activeControlStyle === 'soft_outlined';
 
   const handlePressIn = () => {
     if (reducedMotion) return;
@@ -187,9 +219,13 @@ function WaterPresetTile({
   };
 
   const tileBg = isActive
-    ? waterAccent.container
+    ? isSoftOutlined
+      ? colorWithOpacity(waterAccent.color, theme.dark ? 0.2 : 0.1)
+      : waterAccent.container
     : theme.dark
     ? theme.colors.elevation.level2
+    : isSoftOutlined
+    ? theme.colors.surface
     : theme.colors.background;
   const tileBorder = isActive
     ? waterAccent.color
@@ -198,7 +234,9 @@ function WaterPresetTile({
     ? waterAccent.color
     : theme.colors.onSurfaceVariant;
   const labelColor = isActive
-    ? waterAccent.onContainer
+    ? isSoftOutlined
+      ? waterAccent.color
+      : waterAccent.onContainer
     : theme.colors.onSurfaceVariant;
 
   return (
@@ -220,7 +258,11 @@ function WaterPresetTile({
         accessibilityRole="button"
         accessibilityState={{ selected: isActive }}
         accessibilityLabel={`Add ${preset.label} water`}>
-        <View style={styles.presetIconBox}>{preset.renderIcon(iconColor)}</View>
+        <View style={styles.presetIconBox}>
+          {surfaces.iconFamily === 'oxygen_lucide'
+            ? preset.renderOxygenIcon(iconColor)
+            : preset.renderIcon(iconColor)}
+        </View>
         <Text
           numberOfLines={1}
           style={[
@@ -257,8 +299,9 @@ function WaterTimelineRow({
   onOpenMenu,
 }: WaterTimelineRowProps): React.JSX.Element {
   const theme = useTheme();
-  const { motion, shapes, metricAccents } = useAyumiTheme();
+  const { motion, surfaces, shapes, metricAccents } = useAyumiTheme();
   const waterAccent = metricAccents.water;
+  const isOemRow = surfaces.bentoLayout === 'header_inline';
   const enterAnim = useRef(new Animated.Value(isNewlyAdded ? 0 : 1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const exitAnim = useRef(new Animated.Value(0)).current;
@@ -310,6 +353,8 @@ function WaterTimelineRow({
 
   const rowBg = theme.dark
     ? theme.colors.elevation.level2
+    : isOemRow
+    ? theme.colors.surface
     : theme.colors.elevation.level1;
 
   const translateY = enterAnim.interpolate({
@@ -381,9 +426,22 @@ function WaterTimelineRow({
         <View
           style={[
             styles.logEntryIconBox,
-            { backgroundColor: waterAccent.container },
+            {
+              borderRadius: isOemRow ? 11 : 18,
+              backgroundColor: isOemRow
+                ? colorWithOpacity(waterAccent.color, theme.dark ? 0.2 : 0.11)
+                : waterAccent.container,
+            },
           ]}>
-          <WaterCupIcon size={18} color={waterAccent.color} />
+          {surfaces.iconFamily === 'oxygen_lucide' ? (
+            <OxygenWaterVesselIcon
+              variant={resolveOxygenVesselVariant(log.amount)}
+              size={18}
+              color={waterAccent.color}
+            />
+          ) : (
+            <WaterCupIcon size={18} color={waterAccent.color} />
+          )}
         </View>
 
         <View style={styles.logEntryTextCol}>
@@ -405,14 +463,20 @@ function WaterTimelineRow({
           style={[
             styles.moreButton,
             {
-              backgroundColor: theme.dark
+              backgroundColor: surfaces.subtleTimelineMenuButton
+                ? 'transparent'
+                : theme.dark
                 ? theme.colors.elevation.level3
                 : theme.colors.surface,
             },
           ]}
           accessibilityRole="button"
           accessibilityLabel={`Options for ${formatWaterEntryAmount(log.amount)} at ${log.time}`}>
-          <MoreDotsIcon size={16} color={theme.colors.onSurfaceVariant} />
+          {surfaces.iconFamily === 'oxygen_lucide' ? (
+            <OxygenMoreIcon size={17} color={theme.colors.onSurfaceVariant} />
+          ) : (
+            <MoreDotsIcon size={16} color={theme.colors.onSurfaceVariant} />
+          )}
         </TouchableOpacity>
       </View>
     </Animated.View>
@@ -690,6 +754,17 @@ export function WaterLoggerScreen({
   const cardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
   const cardBorder = resolveCardBorder();
   const customDraftLabel = formatConfirmWaterLabel(customDraftMl, customDraftUnit);
+  const isOemWaterVisual = surfaces.bentoLayout === 'header_inline';
+  const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
+  const isSolidBadges = surfaces.badgeStyle === 'solid';
+  const waterBadge = resolveMetricBadgeColors(waterAccent, surfaces.badgeStyle);
+  const softWaterTint = isOemWaterVisual
+    ? colorWithOpacity(waterAccent.color, isDark ? 0.2 : 0.11)
+    : waterAccent.container;
+  const pillTextColor =
+    surfaces.activeControlStyle === 'soft_outlined'
+      ? waterAccent.color
+      : waterAccent.onContainer;
 
   const headerAndControls = (
     <View
@@ -741,9 +816,20 @@ export function WaterLoggerScreen({
               <View
                 style={[
                   styles.intakeBadge,
-                  { backgroundColor: waterAccent.container },
+                  {
+                    backgroundColor: isSolidBadges ? waterBadge.bg : softWaterTint,
+                    borderRadius: isSolidBadges ? 16 : isOemWaterVisual ? 10 : 16,
+                  },
                 ]}>
-                <DropletIcon size={17} color={waterAccent.color} />
+                {isOxygenIcons ? (
+                  <OxygenWaterIcon
+                    size={17}
+                    color={isSolidBadges ? waterBadge.fg : waterAccent.color}
+                    filled={isSolidBadges}
+                  />
+                ) : (
+                  <DropletIcon size={17} color={waterAccent.color} />
+                )}
               </View>
               <Text
                 style={[
@@ -778,14 +864,22 @@ export function WaterLoggerScreen({
             <View
               style={[
                 styles.remainingPill,
-                { backgroundColor: waterAccent.container },
+                { backgroundColor: softWaterTint },
               ]}>
-              <WaterCupIcon size={14} color={waterAccent.color} />
+              {isOxygenIcons ? (
+                <OxygenWaterVesselIcon
+                  variant="cup"
+                  size={14}
+                  color={waterAccent.color}
+                />
+              ) : (
+                <WaterCupIcon size={14} color={waterAccent.color} />
+              )}
               <Text
                 numberOfLines={1}
                 style={[
                   styles.remainingPillText,
-                  { color: waterAccent.onContainer },
+                  { color: pillTextColor },
                 ]}>
                 {actualProgress.remainingLabel}
               </Text>
@@ -804,9 +898,14 @@ export function WaterLoggerScreen({
                 cy={RING_CENTER}
                 r={ringRadius}
                 stroke={
-                  isDark
-                    ? theme.colors.elevation.level3
-                    : theme.colors.surfaceVariant
+                  isOemWaterVisual
+                    ? colorWithOpacity(
+                        theme.colors.onSurface,
+                        isDark ? 0.12 : 0.08,
+                      )
+                    : isDark
+                      ? theme.colors.elevation.level3
+                      : theme.colors.surfaceVariant
                 }
                 strokeWidth={ringStroke}
                 fill="none"
@@ -930,7 +1029,11 @@ export function WaterLoggerScreen({
           accessibilityRole="button"
           accessibilityLabel={`Custom amount, currently ${customDraftLabel}`}>
           <View style={styles.customRowLeft}>
-            <PencilEditIcon size={17} color={theme.colors.onSurfaceVariant} />
+            {isOxygenIcons ? (
+              <OxygenPencilIcon size={17} color={theme.colors.onSurfaceVariant} />
+            ) : (
+              <PencilEditIcon size={17} color={theme.colors.onSurfaceVariant} />
+            )}
             <Text
               style={[
                 styles.customRowLabel,
@@ -958,7 +1061,11 @@ export function WaterLoggerScreen({
                 {customDraftLabel}
               </Text>
             </View>
-            <ChevronRightIcon size={18} color={theme.colors.onSurfaceVariant} />
+            {isOxygenIcons ? (
+              <OxygenChevronRightIcon size={18} color={theme.colors.onSurfaceVariant} />
+            ) : (
+              <ChevronRightIcon size={18} color={theme.colors.onSurfaceVariant} />
+            )}
           </View>
         </TouchableOpacity>
       </View>
@@ -995,12 +1102,12 @@ export function WaterLoggerScreen({
         <View
           style={[
             styles.totalBadgePill,
-            { backgroundColor: waterAccent.container },
+            { backgroundColor: softWaterTint },
           ]}>
           <Text
             style={[
               styles.totalBadgeText,
-              { color: waterAccent.onContainer },
+              { color: pillTextColor },
             ]}>
             Total {actualProgress.consumedLiters}
           </Text>
@@ -1170,7 +1277,11 @@ export function WaterLoggerScreen({
                 { backgroundColor: theme.colors.elevation.level1 },
               ]}
               accessibilityRole="button">
-              <PencilEditIcon size={18} color={waterAccent.color} />
+              {isOxygenIcons ? (
+                <OxygenPencilIcon size={18} color={waterAccent.color} />
+              ) : (
+                <PencilEditIcon size={18} color={waterAccent.color} />
+              )}
               <Text
                 style={[
                   styles.actionOptionText,
@@ -1194,7 +1305,11 @@ export function WaterLoggerScreen({
                 { backgroundColor: theme.colors.errorContainer },
               ]}
               accessibilityRole="button">
-              <TrashDeleteIcon size={18} color={theme.colors.onErrorContainer} />
+              {isOxygenIcons ? (
+                <OxygenTrashIcon size={18} color={theme.colors.onErrorContainer} />
+              ) : (
+                <TrashDeleteIcon size={18} color={theme.colors.onErrorContainer} />
+              )}
               <Text
                 style={[
                   styles.actionOptionText,

@@ -22,16 +22,59 @@ export function normalizeVisualThemeId(raw: string | null | undefined): AyumiThe
   return 'default';
 }
 
+export interface ExtendedSystemSemanticTokens {
+  readonly primaryLight?: string;
+  readonly primaryDark?: string;
+  readonly primaryContainerLight?: string;
+  readonly primaryContainerDark?: string;
+  readonly secondaryLight?: string;
+  readonly secondaryDark?: string;
+  readonly tertiaryLight?: string;
+  readonly tertiaryDark?: string;
+  readonly errorLight?: string;
+  readonly errorDark?: string;
+  readonly errorContainerLight?: string;
+  readonly errorContainerDark?: string;
+  readonly surfaceLight?: string;
+  readonly surfaceDark?: string;
+  readonly surfaceContainerLowLight?: string;
+  readonly surfaceContainerLowDark?: string;
+  readonly outlineVariantLight?: string;
+  readonly outlineVariantDark?: string;
+  readonly [key: string]: string | undefined;
+}
+
+export interface ExtendedSystemPalette {
+  readonly sdkInt?: number;
+  readonly system_accent1: readonly string[];
+  readonly system_accent2: readonly string[];
+  readonly system_accent3: readonly string[];
+  readonly system_neutral1: readonly string[];
+  readonly system_neutral2: readonly string[];
+  readonly system_error?: readonly string[];
+  readonly semantic?: ExtendedSystemSemanticTokens;
+  readonly wallpaper?: {
+    readonly primaryHex?: string;
+    readonly secondaryHex?: string;
+    readonly tertiaryHex?: string;
+    readonly colorHints?: number;
+    readonly error?: string;
+  };
+}
+
 export interface AccentColorRole {
   readonly color: string;
   readonly onColor: string;
   readonly container: string;
   readonly onContainer: string;
+  readonly badgeBg?: string;
+  readonly onBadge?: string;
 }
 
 export interface MetricAccentRoles {
   readonly steps: AccentColorRole;
   readonly calories: AccentColorRole;
+  readonly totalCalories: AccentColorRole;
   readonly distance: AccentColorRole;
   readonly activeTime: AccentColorRole;
   readonly water: AccentColorRole;
@@ -47,6 +90,12 @@ export interface AyumiSurfaceTokens {
   readonly cardShadowOpacity: number;
   readonly groupedSettingsCards: boolean;
   readonly tintHomeWaterCard: boolean;
+  readonly heroLayout: 'floating_gauge' | 'modular_card';
+  readonly bentoLayout: 'left_bubble' | 'header_inline';
+  readonly activeControlStyle: 'tonal_container' | 'soft_outlined';
+  readonly subtleTimelineMenuButton: boolean;
+  readonly badgeStyle: 'tonal' | 'solid';
+  readonly iconFamily: 'ayumi_default' | 'oxygen_lucide';
 }
 
 export interface AyumiShapeTokens {
@@ -157,7 +206,11 @@ export interface AyumiThemeDefinition {
     palette: MaterialYouPalette,
     isDark: boolean,
   ) => MD3Theme['colors'];
-  readonly getMetricAccents: (colors: MD3Theme['colors']) => MetricAccentRoles;
+  readonly getMetricAccents: (
+    colors: MD3Theme['colors'],
+    isDark?: boolean,
+    extendedPalette?: ExtendedSystemPalette | null,
+  ) => MetricAccentRoles;
   readonly resolveCardBorder: (
     colors: MD3Theme['colors'],
     isDark: boolean,

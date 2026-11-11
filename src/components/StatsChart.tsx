@@ -27,7 +27,14 @@ import type { StatMetricType } from './StatsMetricSelector';
 import type { StatPeriodType } from './StatsPeriodSelector';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
 import { useReducedMotion } from '../theme/motion';
-import { useAyumiTheme } from '../themes';
+import {
+  colorWithOpacity,
+  OxygenDistanceIcon,
+  OxygenFootstepsIcon,
+  OxygenWaterIcon,
+  resolveMetricBadgeColors,
+  useAyumiTheme,
+} from '../themes';
 import { AnimatedStatNumber, type StatNumberScaleUnit } from './AnimatedStatNumber';
 
 export type ChartPointStatus = 'recorded' | 'missing' | 'future';
@@ -218,18 +225,32 @@ export function StatsChart({
     setContainerWidth(e.nativeEvent.layout.width);
   };
 
+  const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
+  const isSolidBadges = surfaces.badgeStyle === 'solid';
+  const headerBadge = resolveMetricBadgeColors(metricAccent, surfaces.badgeStyle);
+
   // Metric Icon configuration
   const metricIcon = useMemo(() => {
-    const iconColor = metricAccent.color;
+    const iconColor = headerBadge.fg;
+    if (isOxygenIcons) {
+      switch (metric) {
+        case 'steps':
+          return <OxygenFootstepsIcon size={19} color={iconColor} filled={isSolidBadges} />;
+        case 'distance':
+          return <OxygenDistanceIcon size={19} color={iconColor} filled={isSolidBadges} />;
+        case 'water':
+          return <OxygenWaterIcon size={19} color={iconColor} filled={isSolidBadges} />;
+      }
+    }
     switch (metric) {
       case 'steps':
-        return <SneakerIcon size={22} color={iconColor} />;
+        return <SneakerIcon size={22} color={metricAccent.color} />;
       case 'distance':
-        return <RouteMapIcon size={22} color={iconColor} />;
+        return <RouteMapIcon size={22} color={metricAccent.color} />;
       case 'water':
-        return <DropletIcon size={22} color={iconColor} />;
+        return <DropletIcon size={22} color={metricAccent.color} />;
     }
-  }, [metric, metricAccent.color]);
+  }, [metric, metricAccent.color, headerBadge.fg, isOxygenIcons, isSolidBadges]);
 
   const metricTitle = useMemo(() => {
     switch (metric) {
@@ -285,6 +306,21 @@ export function StatsChart({
   };
 
   const selectedPoint = selectedIndex !== null ? data[selectedIndex] : null;
+  const isOemVisual = surfaces.bentoLayout === 'header_inline';
+  const headerBadgeBg = isSolidBadges
+    ? headerBadge.bg
+    : isOemVisual
+    ? colorWithOpacity(metricAccent.color, isDark ? 0.2 : 0.11)
+    : metricAccent.container;
+  const headerBadgeRadius = isSolidBadges ? 19 : isOemVisual ? 11 : 19;
+  const tooltipBg =
+    surfaces.activeControlStyle === 'soft_outlined'
+      ? metricAccent.color
+      : metricAccent.container;
+  const tooltipTextColor =
+    surfaces.activeControlStyle === 'soft_outlined'
+      ? metricAccent.onColor
+      : metricAccent.onContainer;
 
   return (
     <View
@@ -308,7 +344,11 @@ export function StatsChart({
       {/* Card Header: Left = Metric + Period Subtitle, Right = Sum Value */}
       <View style={[styles.cardHeader, { marginBottom: headerMarginBottom }]}>
         <View style={styles.headerLeft}>
-          <View style={[styles.iconBubble, { backgroundColor: metricAccent.container }]}>
+          <View
+            style={[
+              styles.iconBubble,
+              { backgroundColor: headerBadgeBg, borderRadius: headerBadgeRadius },
+            ]}>
             {metricIcon}
           </View>
           <View style={styles.titleColumn}>
@@ -362,12 +402,12 @@ export function StatsChart({
               style={[
                 styles.tooltipBubble,
                 {
-                  backgroundColor: metricAccent.container,
+                  backgroundColor: tooltipBg,
                   transform: [{ scale: tooltipAnim }],
                   opacity: tooltipAnim,
                 },
               ]}>
-              <Text style={[styles.tooltipText, { color: metricAccent.onContainer }]}>
+              <Text style={[styles.tooltipText, { color: tooltipTextColor }]}>
                 {selectedPoint.subLabel || selectedPoint.label}:{' '}
                 <Text style={styles.tooltipBoldValue}>
                   {selectedPoint.status === 'future'

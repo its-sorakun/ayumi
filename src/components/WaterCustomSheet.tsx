@@ -26,7 +26,7 @@ import {
 import { Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../theme/motion';
-import { useAyumiTheme } from '../themes';
+import { OxygenCloseIcon, useAyumiTheme } from '../themes';
 import { CloseXIcon } from './AestheticIcons';
 
 export type WaterInputUnit = 'L' | 'ml';
@@ -129,7 +129,8 @@ export function WaterCustomSheet({
   onConfirm,
 }: WaterCustomSheetProps): React.JSX.Element {
   const theme = useTheme();
-  const { motion, shapes, metricAccents } = useAyumiTheme();
+  const { motion, shapes, surfaces, metricAccents } = useAyumiTheme();
+  const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
   const waterAccent = metricAccents.water;
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
@@ -305,7 +306,11 @@ export function WaterCustomSheet({
               ]}
               accessibilityRole="button"
               accessibilityLabel="Close custom amount editor">
-              <CloseXIcon size={18} color={theme.colors.onSurfaceVariant} />
+              {isOxygenIcons ? (
+                <OxygenCloseIcon size={18} color={theme.colors.onSurfaceVariant} />
+              ) : (
+                <CloseXIcon size={18} color={theme.colors.onSurfaceVariant} />
+              )}
             </TouchableOpacity>
           </View>
 

@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { Platform, ToastAndroid, View } from 'react-native';
+import { NativeModules, Platform, ToastAndroid, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import type { MaterialYouPalette } from 'react-native-material-you-colors';
@@ -78,6 +78,9 @@ jest.mock('react-native-svg', () => {
     Rect: createSvgMock('Rect'),
     Path: createSvgMock('Path'),
     Line: createSvgMock('Line'),
+    Polygon: createSvgMock('Polygon'),
+    Polyline: createSvgMock('Polyline'),
+    Ellipse: createSvgMock('Ellipse'),
     G: createSvgMock('G'),
     Defs: createSvgMock('Defs'),
     LinearGradient: createSvgMock('LinearGradient'),
@@ -104,92 +107,14 @@ jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => {
 });
 
 jest.mock('react-native-material-you-colors', () => {
-  const createSyntheticPalette = (seedHex = '#006E60'): MaterialYouPalette => {
-    const normalizeHex = /^#[0-9a-fA-F]{6}$/.test(seedHex) ? seedHex.toUpperCase() : '#006E60';
-    return {
-      system_accent1: [
-        '#FFFFFF',
-        '#F2F7F6',
-        '#E0F2EE',
-        '#C3E8E0',
-        '#9ADBD0',
-        '#69C7B7',
-        normalizeHex,
-        '#005B4F',
-        '#00483E',
-        '#00362F',
-        '#002520',
-        '#001511',
-        '#000000',
-      ],
-      system_accent2: [
-        '#FFFFFF',
-        '#F2F5F9',
-        '#E1E8F2',
-        '#C6D3E6',
-        '#9EB4D4',
-        '#7694BF',
-        '#4F73A6',
-        '#385887',
-        '#27426B',
-        '#1A2E4D',
-        '#0F1E36',
-        '#071021',
-        '#000000',
-      ],
-      system_accent3: [
-        '#FFFFFF',
-        '#FDF4EC',
-        '#FAE4D2',
-        '#F5CCA8',
-        '#EEAA73',
-        '#E58A44',
-        '#CE6B23',
-        '#A85214',
-        '#853E0C',
-        '#632B06',
-        '#421B02',
-        '#240D00',
-        '#000000',
-      ],
-      system_neutral1: [
-        '#FFFFFF',
-        '#F8FAF9',
-        '#F1F4F3',
-        '#E4E8E6',
-        '#CED4D1',
-        '#B0B8B4',
-        '#919995',
-        '#646C68',
-        '#4B524E',
-        '#333936',
-        '#1C211F',
-        '#101412',
-        '#000000',
-      ],
-      system_neutral2: [
-        '#FFFFFF',
-        '#F5F7F8',
-        '#ECEFF1',
-        '#DCE2E6',
-        '#C2CBD1',
-        '#A2AEB5',
-        '#829098',
-        '#5E6A72',
-        '#465057',
-        '#30383D',
-        '#1C2226',
-        '#0E1215',
-        '#000000',
-      ],
-    };
-  };
-
+  const MonetPalette = require('react-native-material-you-colors/lib/commonjs/Monet/Palette').default;
   return {
     __esModule: true,
     default: {
       getMaterialYouPalette: jest.fn(() => null),
-      generatePaletteFromColor: jest.fn((seed: string) => createSyntheticPalette(seed)),
+      generatePaletteFromColor: jest.fn((seed: string, style?: string) =>
+        MonetPalette.generate(seed, style),
+      ),
     },
     useMaterialYouTheme: jest.fn(() => ({
       palette: null,
@@ -392,7 +317,16 @@ jest.mock('react-native-paper', () => {
     actualReact.createElement(RNView, null, children);
   const MockListSubheader = ({ children }: { children?: React.ReactNode }) =>
     actualReact.createElement(Text, null, children);
-  const MockListIcon = () => null;
+  const MockListIcon = ({
+    icon,
+    color,
+  }: {
+    icon?: ((args: { color: string; size: number }) => React.ReactNode) | string;
+    color?: string;
+  }) =>
+    typeof icon === 'function'
+      ? actualReact.createElement(RNView, null, icon({ color: color ?? '#000', size: 24 }))
+      : null;
 
   const MockRadioGroup = ({ children }: { children?: React.ReactNode }) =>
     actualReact.createElement(RNView, null, children);
@@ -468,16 +402,23 @@ import {
   AyumiThemeProvider,
   DEFAULT_VISUAL_THEME_ID,
   defaultThemeDefinition,
+  deriveOxygenMultiAccentRoles,
   getAyumiThemeDefinition,
   normalizeVisualThemeId,
   oxygenColorOsThemeDefinition,
   useAyumiTheme,
 } from '../src/themes';
 import {
+  classifySystemPaletteMode,
+  getContrastRatio,
+  hexToOklch,
   PALETTE_SHADE,
+  readNativeExtendedSystemPalette,
   resolveCompleteDynamicPalette,
+  resolveMetricBadgeColors,
 } from '../src/themes/paletteUtils';
-import { createLightTheme } from '../src/theme';
+import { createDarkTheme, createLightTheme } from '../src/theme';
+import MaterialYou from 'react-native-material-you-colors';
 import { SettingsProvider, useSettings } from '../src/contexts/SettingsContext';
 import { SettingsScreen } from '../src/screens/SettingsScreen';
 import { FloatingDock } from '../src/components/FloatingDock';
@@ -621,7 +562,7 @@ describe('Theme Registry & Normalization', () => {
 });
 
 describe('Dynamic Multi-Accent Monet Palette Mapping', () => {
-  it('maps distinct system_accent1, system_accent2, system_accent3 and light/dark neutrals without hardcoded overrides', () => {
+  it('synthesizes vivid wallpaper-driven accents and ultra-low-chroma surfaces without dull Monet washing', () => {
     const lightColors = oxygenColorOsThemeDefinition.mapPaletteToPaperColors(
       CUSTOM_WALLPAPER_PALETTE,
       false,
@@ -631,25 +572,32 @@ describe('Dynamic Multi-Accent Monet Palette Mapping', () => {
       true,
     );
 
-    // Distinct wallpaper-derived accents (no static seed or hardcoded OEM red)
-    expect(lightColors.primary).toBe(CUSTOM_WALLPAPER_PALETTE.system_accent1[PALETTE_SHADE.T600]);
-    expect(lightColors.secondary).toBe(CUSTOM_WALLPAPER_PALETTE.system_accent2[PALETTE_SHADE.T600]);
-    expect(lightColors.tertiary).toBe(CUSTOM_WALLPAPER_PALETTE.system_accent3[PALETTE_SHADE.T600]);
+    // Distinct wallpaper-derived accents with boosted Oklch saturation (not muted T600)
     expect(new Set([lightColors.primary, lightColors.secondary, lightColors.tertiary]).size).toBe(3);
+    const lightPrimaryLch = hexToOklch(lightColors.primary);
+    expect(lightPrimaryLch).not.toBeNull();
+    expect(lightPrimaryLch!.C).toBeGreaterThan(0.14);
+    expect(lightPrimaryLch!.h).toBeGreaterThanOrEqual(220);
+    expect(lightPrimaryLch!.h).toBeLessThanOrEqual(285);
+    expect(getContrastRatio(lightColors.primary, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
+    expect(getContrastRatio(lightColors.onPrimary, lightColors.primary)).toBeGreaterThanOrEqual(4.5);
 
-    // Light surfaces step cleanly between T50 canvas and T0 card
-    expect(lightColors.background).toBe(CUSTOM_WALLPAPER_PALETTE.system_neutral1[PALETTE_SHADE.T50]);
-    expect(lightColors.surface).toBe(CUSTOM_WALLPAPER_PALETTE.system_neutral1[PALETTE_SHADE.T0]);
+    // Ultra-low-chroma light surfaces with subtle separation between canvas and white cards
+    const lightBgLch = hexToOklch(lightColors.background);
+    const lightSurfaceLch = hexToOklch(lightColors.surface);
+    expect(lightBgLch!.C).toBeLessThan(0.01);
+    expect(lightBgLch!.L).toBeGreaterThan(0.94);
+    expect(lightSurfaceLch!.L).toBeGreaterThan(lightBgLch!.L);
 
-    // Dark theme retains contrast and uses AMOLED/deep Monet neutrals
-    expect(darkColors.primary).toBe(CUSTOM_WALLPAPER_PALETTE.system_accent1[PALETTE_SHADE.T200]);
-    expect(darkColors.secondary).toBe(CUSTOM_WALLPAPER_PALETTE.system_accent2[PALETTE_SHADE.T200]);
-    expect(darkColors.tertiary).toBe(CUSTOM_WALLPAPER_PALETTE.system_accent3[PALETTE_SHADE.T200]);
-    expect(darkColors.background).toBe(CUSTOM_WALLPAPER_PALETTE.system_neutral1[PALETTE_SHADE.T1000]);
-    expect(darkColors.surface).toBe(CUSTOM_WALLPAPER_PALETTE.system_neutral1[PALETTE_SHADE.T900]);
+    // Dark theme uses luminous accessible primary and OLED-friendly pure black background
+    const darkPrimaryLch = hexToOklch(darkColors.primary);
+    expect(darkPrimaryLch!.L).toBeGreaterThan(0.6);
+    expect(darkColors.background).toBe('#000000');
+    expect(getContrastRatio(darkColors.primary, darkColors.surface)).toBeGreaterThanOrEqual(4.5);
+    expect(new Set([darkColors.primary, darkColors.secondary, darkColors.tertiary]).size).toBe(3);
   });
 
-  it('assigns multi-accent roles under OxygenOS / ColorOS and uniform primary accent under Default', () => {
+  it('assigns 6 vivid semantic metric roles under OxygenOS / ColorOS and uniform primary accent under Default', () => {
     const oosTheme = createLightTheme(
       oxygenColorOsThemeDefinition.mapPaletteToPaperColors(CUSTOM_WALLPAPER_PALETTE, false),
     );
@@ -657,20 +605,33 @@ describe('Dynamic Multi-Accent Monet Palette Mapping', () => {
       defaultThemeDefinition.mapPaletteToPaperColors(CUSTOM_WALLPAPER_PALETTE, false),
     );
 
-    const oosMetrics = oxygenColorOsThemeDefinition.getMetricAccents(oosTheme.colors);
+    const oosMetrics = oxygenColorOsThemeDefinition.getMetricAccents(oosTheme.colors, false, null);
     const defaultMetrics = defaultThemeDefinition.getMetricAccents(defaultTheme.colors);
 
-    expect(oosMetrics.steps.color).toBe(oosTheme.colors.primary);
-    expect(oosMetrics.activeTime.color).toBe(oosTheme.colors.primary);
-    expect(oosMetrics.distance.color).toBe(oosTheme.colors.secondary);
-    expect(oosMetrics.calories.color).toBe(oosTheme.colors.tertiary);
-    expect(oosMetrics.water.color).toBe(oosTheme.colors.tertiary);
-    expect(oosMetrics.distance.color).not.toBe(oosMetrics.steps.color);
-    expect(oosMetrics.water.color).not.toBe(oosMetrics.distance.color);
+    expect(
+      new Set([
+        oosMetrics.steps.color,
+        oosMetrics.calories.color,
+        oosMetrics.totalCalories.color,
+        oosMetrics.distance.color,
+        oosMetrics.activeTime.color,
+        oosMetrics.water.color,
+      ]).size,
+    ).toBe(6);
+
+    for (const role of Object.values(oosMetrics)) {
+      const lch = hexToOklch(role.color);
+      expect(lch!.C).toBeGreaterThanOrEqual(0.09);
+      expect(role.badgeBg).toBeDefined();
+      expect(role.onBadge).toBeDefined();
+      expect(getContrastRatio(role.color, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
+    }
 
     expect(defaultMetrics.steps.color).toBe(defaultTheme.colors.primary);
     expect(defaultMetrics.distance.color).toBe(defaultTheme.colors.primary);
     expect(defaultMetrics.calories.color).toBe(defaultTheme.colors.primary);
+    expect(defaultMetrics.totalCalories.color).toBe(defaultTheme.colors.primary);
+    expect(defaultMetrics.activeTime.color).toBe(defaultTheme.colors.primary);
     expect(defaultMetrics.water.color).toBe(defaultTheme.colors.primary);
   });
 
@@ -917,28 +878,41 @@ describe('OxygenOS / ColorOS vs Default Component Rendering', () => {
     });
   });
 
-  it('renders BentoCard and HeroStepGauge cleanly with oxygen_coloros multi-accent tokens', async () => {
+  it('renders BentoCard and modular OxygenStepHeroCard cleanly under oxygen_coloros vs floating gauge under default', async () => {
     const oosPaperTheme = createLightTheme(
       oxygenColorOsThemeDefinition.mapPaletteToPaperColors(CUSTOM_WALLPAPER_PALETTE, false),
     );
+    const defaultPaperTheme = createLightTheme(
+      defaultThemeDefinition.mapPaletteToPaperColors(CUSTOM_WALLPAPER_PALETTE, false),
+    );
     const oosMetrics = oxygenColorOsThemeDefinition.getMetricAccents(oosPaperTheme.colors);
 
-    let renderer: ReactTestRenderer.ReactTestRenderer | null = null;
+    let oosRenderer: ReactTestRenderer.ReactTestRenderer | null = null;
     await act(async () => {
-      renderer = ReactTestRenderer.create(
+      oosRenderer = ReactTestRenderer.create(
         <PaperProvider theme={oosPaperTheme}>
           <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={oosPaperTheme}>
             <HeroStepGauge steps={4820} goal={8000} />
             <BentoCard
-              title="Water Intake"
-              value="1.80 L"
-              subtitle="of 3.00 L"
+              title={'Active\nCalories'}
+              value="30"
+              unit="kcal"
+              icon={<View testID="mock-cal-icon" />}
+              iconBgColor={oosMetrics.calories.container}
+              cardBgColor={oosPaperTheme.colors.surface}
+            />
+            <BentoCard
+              title="Water"
+              value="1.80"
+              unit="L"
+              subtitle="Goal: 3.0 L"
+              fullWidth
               icon={<View testID="mock-water-icon" />}
               iconBgColor={oosMetrics.water.container}
               cardBgColor={oosPaperTheme.colors.surface}
               actionLabel="+ 250 ml"
-              actionBgColor={oosMetrics.water.container}
-              actionTextColor={oosMetrics.water.onContainer}
+              actionBgColor={oosMetrics.water.color}
+              actionTextColor={oosMetrics.water.onColor}
               onActionPress={jest.fn()}
             />
           </AyumiThemeProvider>
@@ -946,13 +920,278 @@ describe('OxygenOS / ColorOS vs Default Component Rendering', () => {
       );
     });
 
-    const renderedTexts = collectAllText(renderer!.root);
-    expect(renderedTexts).toContain('Water Intake');
-    expect(renderedTexts).toContain('1.80 L');
-    expect(renderedTexts).toContain('+ 250 ml');
+    const oosTexts = collectAllText(oosRenderer!.root);
+    expect(oosTexts).toContain('Steps');
+    expect(oosTexts).toContain('60%');
+    expect(oosTexts).toContain('of 8,000 steps');
+    expect(oosTexts).toContain('Active Calories');
+    expect(oosTexts).toContain('+ 250 ml');
+
+    let defaultRenderer: ReactTestRenderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      defaultRenderer = ReactTestRenderer.create(
+        <PaperProvider theme={defaultPaperTheme}>
+          <AyumiThemeProvider themeId="default" paperTheme={defaultPaperTheme}>
+            <HeroStepGauge steps={4820} goal={8000} />
+          </AyumiThemeProvider>
+        </PaperProvider>,
+      );
+    });
+
+    const defaultTexts = collectAllText(defaultRenderer!.root);
+    expect(defaultTexts).toContain('60% • Goal 8,000');
 
     await act(async () => {
-      renderer!.unmount();
+      oosRenderer!.unmount();
+      defaultRenderer!.unmount();
     });
+  });
+});
+
+describe('Extended OxygenOS Multi-Color Palette & Iconography Isolation', () => {
+  it('adapts primary across Blue, Green, Red, Neutral, and Monochrome seeds while preserving semantic metrics and contrast', () => {
+    const seedScenarios = [
+      { name: 'blue', palette: MaterialYou.generatePaletteFromColor('#1A56DB', 'TONAL_SPOT'), mode: 'chromatic' as const, hueRange: [220, 285] },
+      { name: 'green', palette: MaterialYou.generatePaletteFromColor('#16A34A', 'TONAL_SPOT'), mode: 'chromatic' as const, hueRange: [120, 175] },
+      { name: 'red', palette: MaterialYou.generatePaletteFromColor('#DC2626', 'TONAL_SPOT'), mode: 'chromatic' as const, hueRange: [5, 45] },
+      { name: 'neutral', palette: MaterialYou.generatePaletteFromColor('#808892', 'SPRITZ'), mode: 'neutral_accent' as const, hueRange: null },
+      { name: 'monochrome', palette: MaterialYou.generatePaletteFromColor('#1A56DB', 'MONOCHROMATIC'), mode: 'monochrome' as const, hueRange: null },
+    ];
+
+    for (const scenario of seedScenarios) {
+      expect(classifySystemPaletteMode(scenario.palette).mode).toBe(scenario.mode);
+
+      for (const isDark of [false, true]) {
+        const paperColors = oxygenColorOsThemeDefinition.mapPaletteToPaperColors(
+          scenario.palette,
+          isDark,
+        );
+        const paperTheme = isDark ? createDarkTheme(paperColors) : createLightTheme(paperColors);
+        const metrics = oxygenColorOsThemeDefinition.getMetricAccents(
+          paperTheme.colors,
+          isDark,
+          scenario.palette,
+        );
+
+        const primaryLch = hexToOklch(paperColors.primary);
+        expect(primaryLch).not.toBeNull();
+
+        if (scenario.mode === 'chromatic') {
+          expect(primaryLch!.C).toBeGreaterThanOrEqual(0.14);
+          expect(primaryLch!.h).toBeGreaterThanOrEqual(scenario.hueRange![0]);
+          expect(primaryLch!.h).toBeLessThanOrEqual(scenario.hueRange![1]);
+        } else if (scenario.mode === 'neutral_accent') {
+          expect(primaryLch!.C).toBeLessThan(0.03);
+        } else {
+          expect(primaryLch!.C).toBeLessThan(0.01);
+        }
+
+        // Interface contrast check
+        expect(getContrastRatio(paperColors.primary, paperColors.surface)).toBeGreaterThanOrEqual(4.5);
+        expect(getContrastRatio(paperColors.onPrimary, paperColors.primary)).toBeGreaterThanOrEqual(4.5);
+
+        if (scenario.mode === 'monochrome') {
+          for (const role of Object.values(metrics)) {
+            const roleLch = hexToOklch(role.color);
+            expect(roleLch!.C).toBeLessThan(0.025);
+          }
+          continue;
+        }
+
+        // Stable semantic metric hues across Chromatic AND Neutral seeds
+        const stepsLch = hexToOklch(metrics.steps.color)!;
+        const calLch = hexToOklch(metrics.calories.color)!;
+        const totalCalLch = hexToOklch(metrics.totalCalories.color)!;
+        const distLch = hexToOklch(metrics.distance.color)!;
+        const activeLch = hexToOklch(metrics.activeTime.color)!;
+        const waterLch = hexToOklch(metrics.water.color)!;
+
+        expect(stepsLch.h).toBeGreaterThanOrEqual(125);
+        expect(stepsLch.h).toBeLessThanOrEqual(170);
+        expect(calLch.h).toBeGreaterThanOrEqual(10);
+        expect(calLch.h).toBeLessThanOrEqual(45);
+        expect(totalCalLch.h).toBeGreaterThanOrEqual(45);
+        expect(totalCalLch.h).toBeLessThanOrEqual(90);
+        expect(distLch.h).toBeGreaterThanOrEqual(225);
+        expect(distLch.h).toBeLessThanOrEqual(280);
+        expect(activeLch.h).toBeGreaterThanOrEqual(165);
+        expect(activeLch.h).toBeLessThanOrEqual(210);
+        expect(waterLch.h).toBeGreaterThanOrEqual(205);
+        expect(waterLch.h).toBeLessThanOrEqual(250);
+
+        for (const role of Object.values(metrics)) {
+          const lch = hexToOklch(role.color)!;
+          expect(lch.C).toBeGreaterThanOrEqual(0.09);
+          const cardBg = isDark ? paperColors.surface : '#FFFFFF';
+          expect(getContrastRatio(role.color, cardBg)).toBeGreaterThanOrEqual(4.5);
+          expect(getContrastRatio(role.onColor, role.color)).toBeGreaterThanOrEqual(4.5);
+
+          const solidBadge = resolveMetricBadgeColors(role, 'solid');
+          expect(getContrastRatio(solidBadge.fg, solidBadge.bg)).toBeGreaterThanOrEqual(3.4);
+        }
+
+        // Warm amber Total Calories badge selects accessible dark charcoal foreground
+        const totalCalBadge = resolveMetricBadgeColors(metrics.totalCalories, 'solid');
+        expect(totalCalBadge.fg).toBe('#111827');
+        expect(getContrastRatio(totalCalBadge.fg, totalCalBadge.bg)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('respects Monochrome system palettes cleanly without inventing artificial rainbow accents', () => {
+    const monochromeTheme = createLightTheme({
+      ...createLightTheme().colors,
+      primary: '#5C5F62',
+      onPrimary: '#FFFFFF',
+      primaryContainer: '#E2E4E7',
+      onPrimaryContainer: '#1A1C1E',
+      secondary: '#6B6E72',
+      onSecondary: '#FFFFFF',
+      secondaryContainer: '#E6E8EB',
+      onSecondaryContainer: '#1E2022',
+      tertiary: '#4B4E52',
+      onTertiary: '#FFFFFF',
+      tertiaryContainer: '#DCDFE2',
+      onTertiaryContainer: '#141618',
+    });
+
+    const monoMetrics = deriveOxygenMultiAccentRoles(monochromeTheme.colors, false, null);
+    for (const role of Object.values(monoMetrics)) {
+      const lch = hexToOklch(role.color);
+      expect(lch).not.toBeNull();
+      expect(lch!.C).toBeLessThan(0.032);
+    }
+  });
+
+  it('isolates Lucide Settings & solid circular card badges strictly to OxygenOS / ColorOS while leaving Default intact', async () => {
+    expect(defaultThemeDefinition.surfaces.iconFamily).toBe('ayumi_default');
+    expect(defaultThemeDefinition.surfaces.badgeStyle).toBe('tonal');
+    expect(oxygenColorOsThemeDefinition.surfaces.iconFamily).toBe('oxygen_lucide');
+    expect(oxygenColorOsThemeDefinition.surfaces.badgeStyle).toBe('solid');
+
+    const defaultPaperTheme = createLightTheme(
+      defaultThemeDefinition.mapPaletteToPaperColors(CUSTOM_WALLPAPER_PALETTE, false),
+    );
+    const oosPaperTheme = createLightTheme(
+      oxygenColorOsThemeDefinition.mapPaletteToPaperColors(CUSTOM_WALLPAPER_PALETTE, false),
+    );
+    const defaultWaterBadge = resolveMetricBadgeColors(
+      defaultThemeDefinition.getMetricAccents(defaultPaperTheme.colors).water,
+      defaultThemeDefinition.surfaces.badgeStyle,
+    );
+    expect(defaultWaterBadge.bg).toBe(defaultPaperTheme.colors.primaryContainer);
+    expect(defaultWaterBadge.fg).toBe(defaultPaperTheme.colors.primary);
+
+    // SettingsScreen under OxygenOS uses squircle Lucide badges without raw emojis
+    let oosSettingsTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      oosSettingsTree = ReactTestRenderer.create(
+        <SettingsProvider>
+          <PaperProvider theme={oosPaperTheme}>
+            <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={oosPaperTheme}>
+              <SettingsScreen hideDock />
+            </AyumiThemeProvider>
+          </PaperProvider>
+        </SettingsProvider>,
+      );
+    });
+
+    const oosBadges = oosSettingsTree!.root.findAll(
+      n => typeof n.props?.testID === 'string' && n.props.testID.startsWith('oxygen-settings-icon-'),
+    );
+    expect(oosBadges.length).toBeGreaterThanOrEqual(10);
+    const oosSettingsTexts = collectAllText(oosSettingsTree!.root);
+    expect(oosSettingsTexts).not.toContain('⚙️');
+    expect(oosSettingsTexts).not.toContain('👟');
+    expect(oosSettingsTexts).not.toContain('💧');
+
+    // SettingsScreen under Default preserves original emojis with zero Oxygen badges
+    let defaultSettingsTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      defaultSettingsTree = ReactTestRenderer.create(
+        <SettingsProvider>
+          <PaperProvider theme={defaultPaperTheme}>
+            <AyumiThemeProvider themeId="default" paperTheme={defaultPaperTheme}>
+              <SettingsScreen hideDock />
+            </AyumiThemeProvider>
+          </PaperProvider>
+        </SettingsProvider>,
+      );
+    });
+
+    const defaultBadges = defaultSettingsTree!.root.findAll(
+      n => typeof n.props?.testID === 'string' && n.props.testID.startsWith('oxygen-settings-icon-'),
+    );
+    expect(defaultBadges).toHaveLength(0);
+    const defaultSettingsTexts = collectAllText(defaultSettingsTree!.root);
+    expect(defaultSettingsTexts).toContain('⚙️');
+    expect(defaultSettingsTexts).toContain('👟');
+    expect(defaultSettingsTexts).toContain('💧');
+
+    // Default HeroStepGauge and BentoCard keep Default structure with zero Oxygen component bodies or badges
+    let oosHeroTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    let defaultHeroAndBentoTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      oosHeroTree = ReactTestRenderer.create(
+        <PaperProvider theme={oosPaperTheme}>
+          <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={oosPaperTheme}>
+            <HeroStepGauge steps={4820} goal={8000} />
+          </AyumiThemeProvider>
+        </PaperProvider>,
+      );
+      defaultHeroAndBentoTree = ReactTestRenderer.create(
+        <PaperProvider theme={defaultPaperTheme}>
+          <AyumiThemeProvider themeId="default" paperTheme={defaultPaperTheme}>
+            <HeroStepGauge steps={4820} goal={8000} />
+            <BentoCard
+              title="Distance"
+              value="1.4"
+              unit="km"
+              icon={<View testID="default-bento-icon" />}
+              cardBgColor={defaultPaperTheme.colors.surface}
+            />
+          </AyumiThemeProvider>
+        </PaperProvider>,
+      );
+    });
+
+    expect(
+      oosHeroTree!.root.findAllByProps({ testID: 'oxygen-hero-steps-badge' }).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      defaultHeroAndBentoTree!.root.findAllByProps({ testID: 'oxygen-hero-steps-badge' }),
+    ).toHaveLength(0);
+    expect(
+      defaultHeroAndBentoTree!.root.findAllByProps({ testID: 'oxygen-metric-card-body' }),
+    ).toHaveLength(0);
+
+    await act(async () => {
+      oosSettingsTree!.unmount();
+      defaultSettingsTree!.unmount();
+      oosHeroTree!.unmount();
+      defaultHeroAndBentoTree!.unmount();
+    });
+  });
+
+  it('degrades gracefully when AyumiSystemPalette native bridge throws', () => {
+    const originalPlatformOs = Platform.OS;
+    const originalModule = NativeModules.AyumiSystemPalette;
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(jest.fn());
+
+    try {
+      (Platform as { OS: string }).OS = 'android';
+      NativeModules.AyumiSystemPalette = {
+        getExtendedSystemPalette: jest.fn(() => {
+          throw new Error('Map already consumed');
+        }),
+      };
+
+      expect(readNativeExtendedSystemPalette()).toBeNull();
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      (Platform as { OS: string }).OS = originalPlatformOs;
+      NativeModules.AyumiSystemPalette = originalModule;
+      warnSpy.mockRestore();
+    }
   });
 });

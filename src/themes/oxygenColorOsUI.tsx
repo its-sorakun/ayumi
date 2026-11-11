@@ -1,33 +1,440 @@
 /**
  * Dedicated OxygenOS / ColorOS UI presentation components for Ayumi.
  *
- * Keeps OEM-styled visual containers and controls isolated inside `src/themes/`:
- *  - `OxygenColorOsDockBar`: labeled icon+text floating capsule synced to pager progress
+ * Isolates OEM-styled visual containers and controls inside `src/themes/` without
+ * touching any Default theme component trees:
+ *  - `OxygenStepHeroCard`: split left readout + concentric circular progress ring
+ *  - `OxygenMetricCard`: balanced top-header / bottom-metric 2x2 grid card
+ *  - `OxygenWaterHomeCard`: full-width hydration card with `+ 250 ml` action pill
+ *  - `OxygenColorOsDockBar`: Lucide monoline labeled dock synced to pager springs
  *  - `SettingsSectionGroup`: modular grouped card wrapper for Settings lists
- *  - `ThemeOptionCard`: dynamic-palette theme picker card showing live accent swatches
+ *  - `ThemeOptionCard`: live multi-accent preview theme selector card
  */
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { RadioButton, Text, useTheme } from 'react-native-paper';
+import Svg, { Circle } from 'react-native-svg';
 
+import { useReducedMotion } from '../theme/motion';
+import { oxygenColorOsThemeDefinition } from './oxygenColorOsTheme';
 import {
-  DockChartIcon,
-  DockHomeIcon,
-  DockWaterIcon,
-  SettingsGearIcon,
-} from '../components/AestheticIcons';
+  OXYGEN_ICON_SPEC,
+  OxygenDockHomeIcon,
+  OxygenDockSettingsIcon,
+  OxygenDockStatsIcon,
+  OxygenDockWaterIcon,
+  OxygenFootstepsIcon,
+} from './oxygenIcons';
+import { colorWithOpacity, resolveMetricBadgeColors } from './paletteUtils';
 import type {
+  AyumiProgressTokens,
   AyumiShapeTokens,
   AyumiSurfaceTokens,
   AyumiThemeDefinition,
+  AyumiTypographyTokens,
   DockPresentationProps,
+  MetricAccentRoles,
 } from './types';
+
+interface OxygenStepHeroCardProps {
+  readonly steps: number;
+  readonly goal: number;
+  readonly onPress?: () => void;
+  readonly progress: AyumiProgressTokens;
+  readonly surfaces: AyumiSurfaceTokens;
+  readonly typography: AyumiTypographyTokens;
+  readonly metricAccents: MetricAccentRoles;
+  readonly border: { readonly borderWidth: number; readonly borderColor: string };
+}
+
+const OEM_RING_SIZE = 102;
+const OEM_RING_CENTER = OEM_RING_SIZE / 2;
+
+/**
+ * Modular OxygenOS / ColorOS Hero Steps card balancing a prominent tabular step figure
+ * on the left with a clean percentage-centered circular progress ring on the right.
+ */
+export function OxygenStepHeroCard({
+  steps,
+  goal,
+  onPress,
+  progress,
+  surfaces,
+  typography,
+  metricAccents,
+  border,
+}: OxygenStepHeroCardProps): React.JSX.Element {
+  const theme = useTheme();
+  const isDark = theme.dark;
+  const reducedMotion = useReducedMotion();
+  const stepsAccent = metricAccents.steps;
+  const stepsBadge = resolveMetricBadgeColors(stepsAccent, surfaces.badgeStyle);
+
+  const strokeWidth = progress.heroStrokeWidth;
+  const radius = OEM_RING_CENTER - strokeWidth / 2 - 2;
+  const circumference = 2 * Math.PI * radius;
+  const targetRatio = goal > 0 ? Math.min(Math.max(steps / goal, 0), 1) : 0;
+
+  const progressAnim = useRef(new Animated.Value(targetRatio)).current;
+  const [animatedRatio, setAnimatedRatio] = useState(targetRatio);
+
+  useEffect(() => {
+    const listenerId = progressAnim.addListener(({ value }) => {
+      setAnimatedRatio(value);
+    });
+    if (reducedMotion) {
+      progressAnim.setValue(targetRatio);
+      setAnimatedRatio(targetRatio);
+    } else {
+      Animated.timing(progressAnim, {
+        toValue: targetRatio,
+        duration: 460,
+        easing: Easing.bezier(0.2, 0.0, 0.0, 1.0),
+        useNativeDriver: false,
+      }).start();
+    }
+    return () => {
+      progressAnim.removeListener(listenerId);
+    };
+  }, [progressAnim, reducedMotion, targetRatio]);
+
+  const displayRatio = Math.min(Math.max(animatedRatio, 0), 1);
+  const dashOffset = circumference - circumference * displayRatio;
+  const percent = Math.round(targetRatio * 100);
+
+  const cardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
+  const trackColor = colorWithOpacity(theme.colors.onSurface, isDark ? 0.12 : 0.08);
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.86}
+      onPress={onPress}
+      disabled={!onPress}
+      testID="oxygen-step-hero-card"
+      style={[
+        styles.heroCard,
+        {
+          borderRadius: surfaces.fullWidthCardRadius,
+          backgroundColor: cardBg,
+          borderWidth: border.borderWidth,
+          borderColor: border.borderColor,
+          elevation: surfaces.cardElevation,
+          shadowOpacity: surfaces.cardShadowOpacity,
+        },
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={`Steps today: ${steps.toLocaleString()} out of ${goal.toLocaleString()}, ${percent} percent`}>
+      <View style={styles.heroRow}>
+        <View style={styles.heroLeftCol}>
+          <View style={styles.heroLabelRow}>
+            <View
+              testID="oxygen-hero-steps-badge"
+              style={[styles.heroIconBadge, { backgroundColor: stepsBadge.bg }]}>
+              <OxygenFootstepsIcon
+                size={17}
+                color={stepsBadge.fg}
+                filled={surfaces.badgeStyle === 'solid'}
+              />
+            </View>
+            <Text style={[styles.heroLabelText, { color: theme.colors.onSurfaceVariant }]}>
+              Steps
+            </Text>
+          </View>
+
+          <Text
+            style={[
+              styles.heroValueText,
+              { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}>
+            {steps.toLocaleString()}
+          </Text>
+
+          <Text
+            style={[styles.heroGoalText, { color: theme.colors.onSurfaceVariant }]}
+            numberOfLines={1}>
+            of {goal.toLocaleString()} steps
+          </Text>
+        </View>
+
+        <View style={styles.heroRingBox}>
+          <Svg width={OEM_RING_SIZE} height={OEM_RING_SIZE}>
+            <Circle
+              cx={OEM_RING_CENTER}
+              cy={OEM_RING_CENTER}
+              r={radius}
+              stroke={trackColor}
+              strokeWidth={strokeWidth}
+              fill="none"
+            />
+            {displayRatio > 0 && (
+              <Circle
+                cx={OEM_RING_CENTER}
+                cy={OEM_RING_CENTER}
+                r={radius}
+                stroke={stepsAccent.color}
+                strokeWidth={strokeWidth}
+                fill="none"
+                strokeDasharray={`${circumference} ${circumference}`}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="round"
+                transform={`rotate(-90, ${OEM_RING_CENTER}, ${OEM_RING_CENTER})`}
+              />
+            )}
+          </Svg>
+          <View style={styles.heroRingCenter} pointerEvents="none">
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              style={[
+                styles.heroPercentText,
+                { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+              ]}>
+              {percent}%
+            </Text>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+interface OxygenMetricCardProps {
+  readonly title: string;
+  readonly value: string | number;
+  readonly unit?: string;
+  readonly subtitle?: string;
+  readonly icon: React.ReactNode;
+  readonly accentColor: string;
+  readonly badgeBgColor: string;
+  readonly surfaces: AyumiSurfaceTokens;
+  readonly typography: AyumiTypographyTokens;
+  readonly progress: AyumiProgressTokens;
+  readonly progressFillWidth?: Animated.AnimatedInterpolation<string> | `${number}%` | number;
+  readonly hasProgressBar?: boolean;
+}
+
+/**
+ * Compact 2x2 grid inner card layout for OxygenOS / ColorOS with top-aligned icon badge
+ * and bottom-anchored tabular metric readout, eliminating dead vertical voids.
+ */
+export function OxygenMetricCard({
+  title,
+  value,
+  unit,
+  subtitle,
+  icon,
+  accentColor,
+  badgeBgColor,
+  typography,
+  progress,
+  progressFillWidth = '0%',
+  hasProgressBar = false,
+}: OxygenMetricCardProps): React.JSX.Element {
+  const theme = useTheme();
+  const trackBg = colorWithOpacity(
+    theme.colors.onSurface,
+    theme.dark ? 0.12 : 0.08,
+  );
+
+  return (
+    <View testID="oxygen-metric-card-body" style={styles.metricCardContainer}>
+      <View style={styles.metricHeaderRow}>
+        <View style={[styles.metricBadge, { backgroundColor: badgeBgColor }]}>
+          {icon}
+        </View>
+        <Text
+          style={[styles.metricTitle, { color: theme.colors.onSurfaceVariant }]}
+          numberOfLines={2}>
+          {title}
+        </Text>
+      </View>
+
+      <View style={styles.metricFooterBlock}>
+        <Text
+          style={[
+            styles.metricValue,
+            {
+              color: theme.colors.onSurface,
+              fontSize: typography.bentoValueSize,
+              fontWeight: typography.statValueWeight,
+            },
+          ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.78}>
+          {value}
+          {unit ? (
+            <Text style={[styles.metricUnit, { color: theme.colors.onSurfaceVariant }]}>
+              {` ${unit}`}
+            </Text>
+          ) : null}
+        </Text>
+
+        {subtitle ? (
+          <Text
+            style={[styles.metricSubtitle, { color: theme.colors.onSurfaceVariant }]}
+            numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+
+        {hasProgressBar ? (
+          <View
+            style={[
+              styles.linearTrack,
+              styles.metricProgressSpacing,
+              {
+                height: progress.linearTrackHeight,
+                backgroundColor: trackBg,
+              },
+            ]}>
+            <Animated.View
+              style={[
+                styles.linearFill,
+                {
+                  width: progressFillWidth,
+                  backgroundColor: accentColor,
+                },
+              ]}
+            />
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+interface OxygenWaterHomeCardProps {
+  readonly title: string;
+  readonly value: string | number;
+  readonly unit?: string;
+  readonly subtitle?: string;
+  readonly icon: React.ReactNode;
+  readonly accentColor: string;
+  readonly onAccentColor: string;
+  readonly badgeBgColor: string;
+  readonly typography: AyumiTypographyTokens;
+  readonly progress: AyumiProgressTokens;
+  readonly progressFillWidth?: Animated.AnimatedInterpolation<string> | `${number}%` | number;
+  readonly actionLabel: string;
+  readonly onActionPress?: () => void;
+}
+
+/**
+ * Full-width OxygenOS / ColorOS Water summary body for Home with crisp Lucide droplet
+ * squircle badge, cerulean `+ 250 ml` quick-add pill, and bottom hydration track.
+ */
+export function OxygenWaterHomeCard({
+  title,
+  value,
+  unit,
+  subtitle,
+  icon,
+  accentColor,
+  onAccentColor,
+  badgeBgColor,
+  typography,
+  progress,
+  progressFillWidth = '0%',
+  actionLabel,
+  onActionPress,
+}: OxygenWaterHomeCardProps): React.JSX.Element {
+  const theme = useTheme();
+  const trackBg = colorWithOpacity(
+    theme.colors.onSurface,
+    theme.dark ? 0.12 : 0.08,
+  );
+
+  return (
+    <View testID="oxygen-water-home-card-body">
+      <View style={styles.waterTopRow}>
+        <View style={styles.waterInfoCol}>
+          <View style={styles.waterLabelRow}>
+            <View style={[styles.metricBadge, { backgroundColor: badgeBgColor }]}>
+              {icon}
+            </View>
+            <Text style={[styles.metricTitle, { color: theme.colors.onSurfaceVariant }]}>
+              {title}
+            </Text>
+          </View>
+
+          <View style={styles.waterValueRow}>
+            <Text
+              style={[
+                styles.metricValue,
+                {
+                  color: theme.colors.onSurface,
+                  fontSize: typography.bentoValueSize,
+                  fontWeight: typography.statValueWeight,
+                },
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit>
+              {value}
+              {unit ? (
+                <Text style={[styles.metricUnit, { color: theme.colors.onSurfaceVariant }]}>
+                  {` ${unit}`}
+                </Text>
+              ) : null}
+            </Text>
+
+            {subtitle ? (
+              <Text
+                style={[styles.waterSubtitleText, { color: theme.colors.onSurfaceVariant }]}
+                numberOfLines={1}>
+                {`• ${subtitle}`}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+
+        {onActionPress ? (
+          <TouchableOpacity
+            testID="water-quick-add-btn"
+            style={[styles.waterActionPill, { backgroundColor: accentColor }]}
+            onPress={onActionPress}
+            activeOpacity={0.82}
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}>
+            <Text style={[styles.waterActionPillText, { color: onAccentColor }]}>
+              {actionLabel}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <View
+        style={[
+          styles.linearTrack,
+          styles.waterProgressSpacing,
+          {
+            height: progress.linearTrackHeight,
+            backgroundColor: trackBg,
+          },
+        ]}>
+        <Animated.View
+          style={[
+            styles.linearFill,
+            {
+              width: progressFillWidth,
+              backgroundColor: accentColor,
+            },
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
 
 interface OxygenDockRenderProps extends DockPresentationProps {
   readonly shapes: AyumiShapeTokens;
@@ -36,8 +443,8 @@ interface OxygenDockRenderProps extends DockPresentationProps {
 }
 
 /**
- * OxygenOS / ColorOS floating navigation dock with compact icons, crisp labels,
- * hairline surface separation, and continuous pill indicator motion.
+ * OxygenOS / ColorOS floating navigation dock with calibrated monoline Lucide icons,
+ * crisp labels, subtle hairline border, and continuous pager pill indicator motion.
  */
 export function OxygenColorOsDockBar({
   activeTab,
@@ -59,9 +466,13 @@ export function OxygenColorOsDockBar({
   const isDark = theme.dark;
 
   const dockBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
-  const dockBorder = theme.colors.outlineVariant;
+  const dockBorder = isDark
+    ? colorWithOpacity(theme.colors.onSurface, 0.11)
+    : colorWithOpacity(theme.colors.onSurface, 0.07);
   const pillTop = Math.max((shapes.dockHeight - pillHeight) / 2, 4);
-  const pillRadius = Math.min(pillHeight / 2, 24);
+  const pillRadius = Math.min(pillHeight / 2, 23);
+  const activePillBg = colorWithOpacity(theme.colors.primary, isDark ? 0.2 : 0.11);
+  const activePillBorder = colorWithOpacity(theme.colors.primary, isDark ? 0.28 : 0.15);
 
   const tabs: ReadonlyArray<{
     readonly id: 'home' | 'stats' | 'water' | 'settings';
@@ -75,14 +486,18 @@ export function OxygenColorOsDockBar({
       label: 'Home',
       accessibilityLabel: 'Home tab',
       onPress: onHomePress,
-      renderIcon: color => <DockHomeIcon size={19} color={color} />,
+      renderIcon: (color, active) => (
+        <OxygenDockHomeIcon size={20} filled={active} color={color} />
+      ),
     },
     {
       id: 'stats',
       label: 'Stats',
       accessibilityLabel: 'Stats tab',
       onPress: onAnalyticsPress,
-      renderIcon: color => <DockChartIcon size={19} color={color} />,
+      renderIcon: (color, active) => (
+        <OxygenDockStatsIcon size={20} filled={active} color={color} />
+      ),
     },
     {
       id: 'water',
@@ -90,7 +505,7 @@ export function OxygenColorOsDockBar({
       accessibilityLabel: 'Water tab',
       onPress: onWaterPress,
       renderIcon: (color, active) => (
-        <DockWaterIcon size={19} filled={active} color={color} />
+        <OxygenDockWaterIcon size={20} filled={active} color={color} />
       ),
     },
     {
@@ -98,7 +513,9 @@ export function OxygenColorOsDockBar({
       label: 'Settings',
       accessibilityLabel: 'Settings tab',
       onPress: onProfilePress,
-      renderIcon: color => <SettingsGearIcon size={19} color={color} />,
+      renderIcon: (color, active) => (
+        <OxygenDockSettingsIcon size={20} filled={active} color={color} />
+      ),
     },
   ];
 
@@ -133,7 +550,9 @@ export function OxygenColorOsDockBar({
                   height: pillHeight,
                   top: pillTop,
                   borderRadius: pillRadius,
-                  backgroundColor: theme.colors.primaryContainer,
+                  backgroundColor: activePillBg,
+                  borderWidth: 1,
+                  borderColor: activePillBorder,
                   transform: [
                     { translateX: indicatorTranslateX },
                     { scaleX: indicatorScaleX },
@@ -148,7 +567,7 @@ export function OxygenColorOsDockBar({
         {tabs.map(tab => {
           const isActive = activeTab === tab.id;
           const tint = isActive
-            ? theme.colors.onPrimaryContainer
+            ? theme.colors.primary
             : theme.colors.onSurfaceVariant;
           return (
             <TouchableOpacity
@@ -208,7 +627,9 @@ export function SettingsSectionGroup({
           backgroundColor: isDark
             ? theme.colors.elevation.level1
             : theme.colors.surface,
-          borderColor: theme.colors.outlineVariant,
+          borderColor: isDark
+            ? colorWithOpacity(theme.colors.onSurface, 0.09)
+            : theme.colors.outlineVariant,
         },
       ]}>
       {children}
@@ -240,21 +661,22 @@ export function ThemeOptionCard({
   const isOemPreview = option.id === 'oxygen_coloros';
 
   const cardBg = isSelected
-    ? theme.colors.primaryContainer
+    ? colorWithOpacity(theme.colors.primary, isDark ? 0.2 : 0.08)
     : isDark
     ? theme.colors.elevation.level2
-    : theme.colors.elevation.level1;
+    : theme.colors.background;
 
   const borderColor = isSelected
     ? theme.colors.primary
     : theme.colors.outlineVariant;
 
-  const titleColor = isSelected
-    ? theme.colors.onPrimaryContainer
-    : theme.colors.onSurface;
-  const subtitleColor = isSelected
-    ? theme.colors.onPrimaryContainer
-    : theme.colors.onSurfaceVariant;
+  const oemPreviewAccents = React.useMemo(
+    () =>
+      isOemPreview
+        ? oxygenColorOsThemeDefinition.getMetricAccents(theme.colors, isDark)
+        : null,
+    [isOemPreview, theme.colors, isDark],
+  );
 
   return (
     <TouchableOpacity
@@ -284,31 +706,45 @@ export function ThemeOptionCard({
           },
         ]}>
         <View style={styles.previewSwatchesRow}>
-          <View
-            style={[styles.previewDot, { backgroundColor: theme.colors.primary }]}
-          />
-          {isOemPreview ? (
+          {isOemPreview && oemPreviewAccents ? (
             <>
               <View
                 style={[
-                  styles.previewDot,
-                  { backgroundColor: theme.colors.secondary },
+                  styles.previewDotSmall,
+                  { backgroundColor: oemPreviewAccents.steps.badgeBg ?? oemPreviewAccents.steps.color },
                 ]}
               />
               <View
                 style={[
-                  styles.previewDot,
-                  { backgroundColor: theme.colors.tertiary },
+                  styles.previewDotSmall,
+                  { backgroundColor: oemPreviewAccents.calories.badgeBg ?? oemPreviewAccents.calories.color },
+                ]}
+              />
+              <View
+                style={[
+                  styles.previewDotSmall,
+                  { backgroundColor: oemPreviewAccents.distance.badgeBg ?? oemPreviewAccents.distance.color },
+                ]}
+              />
+              <View
+                style={[
+                  styles.previewDotSmall,
+                  { backgroundColor: oemPreviewAccents.water.badgeBg ?? oemPreviewAccents.water.color },
                 ]}
               />
             </>
           ) : (
-            <View
-              style={[
-                styles.previewWidePill,
-                { backgroundColor: theme.colors.primaryContainer },
-              ]}
-            />
+            <>
+              <View
+                style={[styles.previewDot, { backgroundColor: theme.colors.primary }]}
+              />
+              <View
+                style={[
+                  styles.previewWidePill,
+                  { backgroundColor: theme.colors.primaryContainer },
+                ]}
+              />
+            </>
           )}
         </View>
         <View
@@ -327,7 +763,7 @@ export function ThemeOptionCard({
       <View style={styles.themeTextCol}>
         <View style={styles.themeTitleRow}>
           <Text
-            style={[styles.themeTitleText, { color: titleColor }]}
+            style={[styles.themeTitleText, { color: theme.colors.onSurface }]}
             numberOfLines={1}>
             {option.name}
           </Text>
@@ -363,7 +799,7 @@ export function ThemeOptionCard({
         </View>
 
         <Text
-          style={[styles.themeDescriptionText, { color: subtitleColor }]}
+          style={[styles.themeDescriptionText, { color: theme.colors.onSurfaceVariant }]}
           numberOfLines={2}>
           {option.shortDescription}
         </Text>
@@ -383,6 +819,170 @@ export function ThemeOptionCard({
 }
 
 const styles = StyleSheet.create({
+  heroCard: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+  heroLeftCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  heroLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 5,
+  },
+  heroIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: OXYGEN_ICON_SPEC.metricBadgeRadius,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroLabelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  heroValueText: {
+    fontSize: 38,
+    lineHeight: 42,
+    fontWeight: '800',
+    letterSpacing: -1.1,
+    fontVariant: ['tabular-nums'],
+  },
+  heroGoalText: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  heroRingBox: {
+    width: OEM_RING_SIZE,
+    height: OEM_RING_SIZE,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroRingCenter: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroPercentText: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    fontVariant: ['tabular-nums'],
+  },
+  metricCardContainer: {
+    flex: 1,
+    justifyContent: 'space-between',
+    minHeight: 84,
+  },
+  metricHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    minHeight: 34,
+  },
+  metricBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: OXYGEN_ICON_SPEC.metricBadgeRadius,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  metricTitle: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 16,
+    letterSpacing: -0.1,
+  },
+  metricFooterBlock: {
+    marginTop: 10,
+  },
+  metricValue: {
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
+  },
+  metricUnit: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  metricSubtitle: {
+    fontSize: 11.5,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  linearTrack: {
+    borderRadius: 99,
+    overflow: 'hidden',
+  },
+  metricProgressSpacing: {
+    marginTop: 7,
+  },
+  waterProgressSpacing: {
+    marginTop: 10,
+  },
+  linearFill: {
+    height: '100%',
+    borderRadius: 99,
+  },
+  waterTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  waterInfoCol: {
+    flex: 1,
+    gap: 8,
+  },
+  waterLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  waterValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  waterSubtitleText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  waterActionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flexShrink: 0,
+  },
+  waterActionPillText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: -0.1,
+    fontVariant: ['tabular-nums'],
+  },
   dockWrapper: {
     position: 'absolute',
     left: 0,
@@ -438,7 +1038,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     elevation: 1,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.035,
     shadowRadius: 8,
   },
   themeOptionCard: {
@@ -456,7 +1056,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   previewBox: {
-    width: 48,
+    width: 50,
     height: 44,
     borderWidth: 1,
     padding: 6,
@@ -465,12 +1065,17 @@ const styles = StyleSheet.create({
   previewSwatchesRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   previewDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  previewDotSmall: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   previewWidePill: {
     width: 18,
@@ -512,4 +1117,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

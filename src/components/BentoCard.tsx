@@ -13,7 +13,11 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
-import { useAyumiTheme } from '../themes';
+import {
+  OxygenMetricCard,
+  OxygenWaterHomeCard,
+  useAyumiTheme,
+} from '../themes';
 
 interface BentoCardProps {
   readonly title: string;
@@ -74,6 +78,9 @@ export function BentoCard({
       ? { borderWidth: 0, borderColor: 'transparent' }
       : themeBorder;
 
+  const isHeaderInlineLayout = surfaces.bentoLayout === 'header_inline';
+  const normalizedTitle = isHeaderInlineLayout ? title.replace(/\s+/g, ' ').trim() : title;
+
   return (
     <TouchableOpacity
       activeOpacity={isInteractive ? 0.85 : 1}
@@ -83,7 +90,7 @@ export function BentoCard({
         styles.card,
         {
           borderRadius: fullWidth ? surfaces.fullWidthCardRadius : surfaces.cardRadius,
-          paddingHorizontal: fullWidth ? 16 : 13,
+          paddingHorizontal: isHeaderInlineLayout ? 15 : fullWidth ? 16 : 13,
           backgroundColor: resolvedBg,
           borderWidth: resolvedBorder.borderWidth,
           borderColor: resolvedBorder.borderColor,
@@ -92,113 +99,153 @@ export function BentoCard({
           flex: fullWidth ? 0 : 1,
           width: fullWidth ? '100%' : undefined,
           minHeight: fullWidth ? 98 : 108,
+          justifyContent: isHeaderInlineLayout ? 'space-between' : 'center',
         },
         style,
       ]}
       accessibilityRole={isInteractive ? 'button' : 'text'}
-      accessibilityLabel={`${title}: ${value}${unit ? ` ${unit}` : ''}${subtitle ? `, ${subtitle}` : ''}`}>
-      
-      <View style={[styles.contentRow, { gap: fullWidth ? 12 : 9 }]}>
-        {/* Left: Icon inside clean circular bubble */}
-        <View
-          style={[
-            styles.iconContainer,
-            {
-              backgroundColor: iconBgColor || theme.colors.surface,
-              width: fullWidth ? 48 : 40,
-              height: fullWidth ? 48 : 40,
-              borderRadius: fullWidth ? 24 : 20,
-            },
-          ]}>
-          {icon}
-        </View>
-
-        {/* Center: Details */}
-        <View style={styles.detailsContainer}>
-          <Text
+      accessibilityLabel={`${normalizedTitle}: ${value}${unit ? ` ${unit}` : ''}${subtitle ? `, ${subtitle}` : ''}`}>
+      {isHeaderInlineLayout ? (
+        fullWidth ? (
+          <OxygenWaterHomeCard
+            title={normalizedTitle}
+            value={value}
+            unit={unit}
+            subtitle={subtitle}
+            icon={icon}
+            accentColor={activeProgressColor}
+            onAccentColor={actionTextColor || theme.colors.onPrimary}
+            badgeBgColor={iconBgColor || theme.colors.surfaceVariant}
+            typography={typography}
+            progress={progressTokens}
+            progressFillWidth={`${Math.min(Math.max((progress ?? 0) * 100, 0), 100)}%`}
+            actionLabel={actionLabel || '+ 250 ml'}
+            onActionPress={onActionPress}
+          />
+        ) : (
+          <OxygenMetricCard
+            title={normalizedTitle}
+            value={value}
+            unit={unit}
+            subtitle={subtitle}
+            icon={icon}
+            accentColor={activeProgressColor}
+            badgeBgColor={iconBgColor || theme.colors.surfaceVariant}
+            surfaces={surfaces}
+            typography={typography}
+            progress={progressTokens}
+            hasProgressBar={progress != null}
+            progressFillWidth={`${Math.min(Math.max((progress ?? 0) * 100, 0), 100)}%`}
+          />
+        )
+      ) : (
+        <View style={[styles.contentRow, { gap: fullWidth ? 12 : 9 }]}>
+          {/* Left: Icon inside clean circular bubble */}
+          <View
             style={[
-              styles.titleText,
-              { color: titleColor || theme.colors.onSurfaceVariant },
-            ]}
-            numberOfLines={2}>
-            {title}
-          </Text>
-
-          {/* Value and unit rendered inline to guarantee baseline alignment and adaptive fit */}
-          <Text
-            style={[
-              styles.valueText,
+              styles.iconContainer,
               {
-                color: valueColor || theme.colors.onSurface,
-                fontSize: typography.bentoValueSize,
-                fontWeight: typography.statValueWeight,
+                backgroundColor: iconBgColor || theme.colors.surface,
+                width: fullWidth ? 48 : 40,
+                height: fullWidth ? 48 : 40,
+                borderRadius: fullWidth ? 24 : 20,
               },
-            ]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.82}>
-            {value}
-            {unit != null && unit.length > 0 && (
-              <Text
-                style={[
-                  styles.unitText,
-                  { color: valueColor || theme.colors.onSurface },
-                ]}>
-                {' ' + unit}
-              </Text>
-            )}
-          </Text>
+            ]}>
+            {icon}
+          </View>
 
-          {subtitle != null && (
+          {/* Center: Details */}
+          <View style={styles.detailsContainer}>
             <Text
               style={[
-                styles.subtitleText,
-                { color: subtitleColor || theme.colors.onSurfaceVariant },
+                styles.titleText,
+                { color: titleColor || theme.colors.onSurfaceVariant },
+              ]}
+              numberOfLines={2}>
+              {title}
+            </Text>
+
+            {/* Value and unit rendered inline to guarantee baseline alignment and adaptive fit */}
+            <Text
+              style={[
+                styles.valueText,
+                {
+                  color: valueColor || theme.colors.onSurface,
+                  fontSize: typography.bentoValueSize,
+                  fontWeight: typography.statValueWeight,
+                },
               ]}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.82}>
-              {subtitle}
+              {value}
+              {unit != null && unit.length > 0 && (
+                <Text
+                  style={[
+                    styles.unitText,
+                    { color: valueColor || theme.colors.onSurface },
+                  ]}>
+                  {' ' + unit}
+                </Text>
+              )}
             </Text>
+
+            {subtitle != null && (
+              <Text
+                style={[
+                  styles.subtitleText,
+                  { color: subtitleColor || theme.colors.onSurfaceVariant },
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}>
+                {subtitle}
+              </Text>
+            )}
+          </View>
+
+          {/* Right: Optional in-widget quick-action button */}
+          {actionLabel != null && onActionPress != null && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={onActionPress}
+              style={[
+                styles.actionButton,
+                {
+                  backgroundColor: actionBgColor || theme.colors.primary,
+                  borderRadius: shapes.buttonPillRadius,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={actionLabel}>
+              <Text
+                style={[
+                  styles.actionButtonText,
+                  { color: actionTextColor || theme.colors.onPrimary },
+                ]}>
+                {actionLabel}
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
+      )}
 
-        {/* Right: Optional in-widget quick-action button */}
-        {actionLabel != null && onActionPress != null && (
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={onActionPress}
-            style={[
-              styles.actionButton,
-              {
-                backgroundColor: actionBgColor || theme.colors.primary,
-                borderRadius: shapes.buttonPillRadius,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={actionLabel}>
-            <Text
-              style={[
-                styles.actionButtonText,
-                { color: actionTextColor || theme.colors.onPrimary },
-              ]}>
-              {actionLabel}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Horizontal progress bar */}
-      {progress != null && (
+      {/* Horizontal progress bar (Default layout renders here; OEM delegates to OxygenUI) */}
+      {progress != null && !isHeaderInlineLayout && (
         <View
           style={[
             styles.progressTrack,
             {
               height: progressTokens.linearTrackHeight,
               borderRadius: progressTokens.linearTrackHeight / 2,
-              backgroundColor: fullWidth
-                ? (isDark ? 'rgba(255, 255, 255, 0.15)' : theme.colors.surface)
-                : (isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.surfaceVariant),
+              backgroundColor:
+                fullWidth && isDefaultSurface === false && !isHeaderInlineLayout
+                  ? isDark
+                    ? 'rgba(255, 255, 255, 0.15)'
+                    : theme.colors.surface
+                  : isDark
+                  ? 'rgba(255, 255, 255, 0.08)'
+                  : theme.colors.surfaceVariant,
               marginTop: subtitle ? 8 : 10,
             },
           ]}>

@@ -17,6 +17,9 @@ class MainApplication : Application(), ReactApplication {
               // StepCounterModule: reads Android's hardware TYPE_STEP_COUNTER sensor
               // for use when Health Connect is unavailable (de-Googled/custom ROM devices)
               add(StepCounterPackage())
+              // SystemPalettePackage: reads public API 31+ / 34+ / 35+ android.R.color
+              // system tokens and WallpaperManager diagnostics for theme palette adaptation
+              add(SystemPalettePackage())
             },
     )
   }
