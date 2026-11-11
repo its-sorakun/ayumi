@@ -19,6 +19,7 @@ interface StatsSummaryCardsProps {
   readonly averageUnit: string;
   readonly highestValue: string;
   readonly highestUnit: string;
+  readonly highestLabel?: string;
 }
 
 export function StatsSummaryCards({
@@ -26,6 +27,7 @@ export function StatsSummaryCards({
   averageUnit,
   highestValue,
   highestUnit,
+  highestLabel = 'Highest (Day)',
 }: StatsSummaryCardsProps): React.JSX.Element {
   const theme = useTheme();
   const isDark = theme.dark;
@@ -81,7 +83,7 @@ export function StatsSummaryCards({
             <TrophyIcon size={18} color={theme.colors.primary} />
           </View>
           <Text style={[styles.cardLabel, { color: theme.colors.onSurfaceVariant }]}>
-            Highest (Day)
+            {highestLabel}
           </Text>
         </View>
 
