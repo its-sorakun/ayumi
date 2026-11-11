@@ -1,16 +1,17 @@
 /**
- * MainPagerScreen — fluid, gesture-driven horizontal pager between Home, Stats, and Settings.
+ * MainPagerScreen — fluid, gesture-driven horizontal pager between Home, Stats, Water, and Settings.
  *
  * Implements interactive finger-tracked page transitions inspired by OxygenOS 16 / ColorOS 16:
- *  - Continuous real-time horizontal tracking of finger displacement across 3 viewports:
+ *  - Continuous real-time horizontal tracking of finger displacement across 4 viewports:
  *      Page 0: Dashboard (Home)
  *      Page 1: Unified Stats Screen
- *      Page 2: Settings Screen
+ *      Page 2: Dedicated Water Logger Screen
+ *      Page 3: Settings Screen
  *  - Both outgoing and incoming viewports move synchronously during drag gestures
  *  - Directional rubber-banding resistance (0.32x) when overscrolling outer boundaries
  *  - Velocity-aware and distance-thresholded spring settlement physics
  *  - Unified bottom FloatingDock with dynamic sliding pill indicator and squeeze deformation
- *  - Unhindered vertical scrolling on all three pages via strict directional gesture arbitration
+ *  - Unhindered vertical scrolling on all four pages via strict directional gesture arbitration
  */
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
@@ -27,12 +28,15 @@ import { useRoute } from '@react-navigation/native';
 
 import { DashboardScreen } from './DashboardScreen';
 import { StatsScreen } from './StatsScreen';
+import { WaterLoggerScreen } from './WaterLoggerScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { FloatingDock } from '../components/FloatingDock';
 import { MotionTokens, useReducedMotion } from '../theme/motion';
 import type { StatMetricType } from '../components/StatsMetricSelector';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const TOTAL_PAGES = 4;
+const MAX_PAGE_INDEX = TOTAL_PAGES - 1;
 
 export function MainPagerScreen(): React.JSX.Element {
   const theme = useTheme();
@@ -42,9 +46,16 @@ export function MainPagerScreen(): React.JSX.Element {
   reducedMotionRef.current = reducedMotion;
 
   // Page index: 0 = Home, 1 = Stats, 2 = Settings
-  const initialPage = route.params?.initialPage ?? (
-    route.name === 'Stats' ? 1 : route.name === 'Settings' ? 2 : 0
+  const rawInitialPage = route.params?.initialPage ?? (
+    route.name === 'Stats'
+      ? 1
+      : route.name === 'Water'
+      ? 2
+      : route.name === 'Settings'
+      ? 3
+      : 0
   );
+  const initialPage = Math.min(Math.max(rawInitialPage, 0), MAX_PAGE_INDEX);
   const [activePageIndex, setActivePageIndex] = useState<number>(initialPage);
   const [activeStatsMetric, setActiveStatsMetric] = useState<StatMetricType>(
     route.params?.metric || 'steps'
@@ -60,13 +71,14 @@ export function MainPagerScreen(): React.JSX.Element {
   // Smooth spring (or brisk linear slide under reduced motion) navigation to a target page
   const goToPage = useCallback(
     (pageIndex: number, velocity?: number) => {
+      const clampedPage = Math.min(Math.max(pageIndex, 0), MAX_PAGE_INDEX);
       isDraggingRef.current = false;
-      currentPageRef.current = pageIndex;
-      setActivePageIndex(pageIndex);
+      currentPageRef.current = clampedPage;
+      setActivePageIndex(clampedPage);
 
       if (reducedMotionRef.current) {
         Animated.timing(translateX, {
-          toValue: -pageIndex * SCREEN_WIDTH,
+          toValue: -clampedPage * SCREEN_WIDTH,
           duration: 140,
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
@@ -75,7 +87,7 @@ export function MainPagerScreen(): React.JSX.Element {
       }
 
       Animated.spring(translateX, {
-        toValue: -pageIndex * SCREEN_WIDTH,
+        toValue: -clampedPage * SCREEN_WIDTH,
         velocity: velocity ?? 0,
         ...MotionTokens.spring.pager,
         useNativeDriver: true,
@@ -98,7 +110,7 @@ export function MainPagerScreen(): React.JSX.Element {
     const id = translateX.addListener(({ value }) => {
       currentTranslateXRef.current = value;
       if (!isDraggingRef.current) return;
-      const page = Math.min(Math.max(Math.round(-value / SCREEN_WIDTH), 0), 2);
+      const page = Math.min(Math.max(Math.round(-value / SCREEN_WIDTH), 0), MAX_PAGE_INDEX);
       if (page !== currentPageRef.current) {
         currentPageRef.current = page;
         setActivePageIndex(page);
@@ -136,7 +148,7 @@ export function MainPagerScreen(): React.JSX.Element {
         dragStartX.current = currentTranslateXRef.current;
         gestureStartPageRef.current = Math.min(
           Math.max(Math.round(-currentTranslateXRef.current / SCREEN_WIDTH), 0),
-          2
+          MAX_PAGE_INDEX
         );
         translateX.stopAnimation(stoppedValue => {
           dragStartX.current = stoppedValue;
@@ -146,12 +158,12 @@ export function MainPagerScreen(): React.JSX.Element {
         const base = dragStartX.current;
         let newOffset = base + gestureState.dx;
 
-        // Apply rubber-banding resistance if overscrolling outer bounds (Page 0 left or Page 2 right)
+        // Apply rubber-banding resistance if overscrolling outer bounds (Page 0 left or Page 3 right)
         if (newOffset > 0) {
           newOffset = newOffset * 0.32;
-        } else if (newOffset < -SCREEN_WIDTH * 2) {
-          const overscroll = newOffset - -SCREEN_WIDTH * 2;
-          newOffset = -SCREEN_WIDTH * 2 + overscroll * 0.32;
+        } else if (newOffset < -SCREEN_WIDTH * MAX_PAGE_INDEX) {
+          const overscroll = newOffset - -SCREEN_WIDTH * MAX_PAGE_INDEX;
+          newOffset = -SCREEN_WIDTH * MAX_PAGE_INDEX + overscroll * 0.32;
         }
 
         translateX.setValue(newOffset);
@@ -165,14 +177,14 @@ export function MainPagerScreen(): React.JSX.Element {
 
         let targetIndex = startPage;
         if (dx < -distThreshold || vx < -velThreshold) {
-          targetIndex = Math.min(startPage + 1, 2);
+          targetIndex = Math.min(startPage + 1, MAX_PAGE_INDEX);
         } else if (dx > distThreshold || vx > velThreshold) {
           targetIndex = Math.max(startPage - 1, 0);
         } else {
           // If released gently after slow drag past halfway, settle toward nearest neighbor of startPage
           const nearestPage = Math.min(
             Math.max(Math.round(-currentTranslateXRef.current / SCREEN_WIDTH), 0),
-            2
+            MAX_PAGE_INDEX
           );
           targetIndex = Math.min(Math.max(nearestPage, startPage - 1), startPage + 1);
         }
@@ -186,21 +198,21 @@ export function MainPagerScreen(): React.JSX.Element {
     })
   ).current;
 
-  // Interpolate continuous 0 -> 2 progress across the 3 pages (0=Home, 1=Stats, 2=Settings)
+  // Interpolate continuous 0 -> 3 progress across the 4 pages (0=Home, 1=Stats, 2=Water, 3=Settings)
   const pagerProgress = translateX.interpolate({
-    inputRange: [-SCREEN_WIDTH * 2, -SCREEN_WIDTH, 0],
-    outputRange: [2, 1, 0],
+    inputRange: [-SCREEN_WIDTH * 3, -SCREEN_WIDTH * 2, -SCREEN_WIDTH, 0],
+    outputRange: [3, 2, 1, 0],
     extrapolate: 'clamp',
   });
 
   return (
     <View style={[styles.rootContainer, { backgroundColor: theme.colors.background }]}>
-      {/* Horizontally paged viewports across 3 screens */}
+      {/* Horizontally paged viewports across 4 screens */}
       <Animated.View
         style={[
           styles.pagerRow,
           {
-            width: SCREEN_WIDTH * 3,
+            width: SCREEN_WIDTH * TOTAL_PAGES,
             transform: [{ translateX }],
           },
         ]}
@@ -223,21 +235,39 @@ export function MainPagerScreen(): React.JSX.Element {
           />
         </View>
 
-        {/* Page 2: Settings Screen */}
+        {/* Page 2: Dedicated Water Logger Screen */}
+        <View style={styles.pageViewport}>
+          <WaterLoggerScreen
+            hideDock={true}
+            isPageActive={activePageIndex === 2}
+            onNavigateHome={() => goToPage(0)}
+            onNavigateStats={() => goToPage(1)}
+            onNavigateSettings={() => goToPage(3)}
+          />
+        </View>
+
+        {/* Page 3: Settings Screen */}
         <View style={styles.pageViewport}>
           <SettingsScreen hideDock={true} />
         </View>
       </Animated.View>
 
-      {/* Shared Interactive Floating Bottom Navigation Dock with Squeeze Pill Animation across all 3 pages */}
+      {/* Shared Interactive Floating Bottom Navigation Dock with Squeeze Pill Animation across all 4 pages */}
       <FloatingDock
         activeTab={
-          activePageIndex === 0 ? 'home' : activePageIndex === 1 ? 'stats' : 'settings'
+          activePageIndex === 0
+            ? 'home'
+            : activePageIndex === 1
+            ? 'stats'
+            : activePageIndex === 2
+            ? 'water'
+            : 'settings'
         }
         pagerProgress={pagerProgress}
         onHomePress={() => goToPage(0)}
         onAnalyticsPress={() => goToPage(1)}
-        onProfilePress={() => goToPage(2)}
+        onWaterPress={() => goToPage(2)}
+        onProfilePress={() => goToPage(3)}
       />
     </View>
   );
