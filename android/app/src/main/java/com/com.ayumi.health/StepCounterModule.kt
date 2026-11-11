@@ -1,3 +1,8 @@
+/**
+ * StepCounterModule — React Native native module exposing Android's hardware `TYPE_STEP_COUNTER`
+ * sensor via SensorManager and delegating all reboot banking, day rollovers, and 30-day history
+ * persistence to StepPersistenceManager.
+ */
 package com.ayumi.health
 
 import android.content.Context
@@ -7,31 +12,20 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Handler
 import android.os.Looper
-import com.facebook.react.bridge.*
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import java.util.Calendar
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
-/**
- * StepCounterModule — a React Native native module that reads from Android's
- * hardware TYPE_STEP_COUNTER sensor via SensorManager.
- *
- * The hardware step counter is an always-on, ultra-low-power sensor
- * that counts steps since the last device reboot. We track a daily baseline
- * (steps at midnight) to report today's step count.
- *
- * Unlike Health Connect, this requires no user permissions and works on
- * any Android device with the TYPE_STEP_COUNTER sensor (most phones since Android 4.4).
- *
- * F-Droid compatible: uses only Android framework APIs, no external SDKs.
- */
 class StepCounterModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext), SensorEventListener {
 
     companion object {
         const val MODULE_NAME = "StepCounterModule"
         const val STEP_EVENT = "onStepCounterUpdate"
+        private const val FRESH_READ_TIMEOUT_MS = 400L
     }
 
     private val sensorManager: SensorManager by lazy {
@@ -42,59 +36,19 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
         sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
     }
 
-    private val prefs by lazy {
-        reactContext.getSharedPreferences("ayumi_step_prefs", Context.MODE_PRIVATE)
-    }
-
-    /** Total cumulative steps since last reboot at the start of today (midnight baseline) */
-    private var midnightBaseline: Long
-        get() = prefs.getLong("midnightBaseline", -1L)
-        set(value) {
-            prefs.edit().putLong("midnightBaseline", value).apply()
-        }
-
-    /** The total cumulative steps since last device reboot (raw sensor value) */
-    @Volatile private var totalStepsSinceReboot: Long = -1L
-
-    /** Timestamp (epoch ms) when the midnight baseline was last set */
-    private var baselineDate: Long
-        get() = prefs.getLong("baselineDate", -1L)
-        set(value) {
-            prefs.edit().putLong("baselineDate", value).apply()
-        }
-
-    /** The last recorded sensor step count, persisted across app restarts */
-    private var lastKnownTotalSteps: Long
-        get() = prefs.getLong("lastKnownTotalSteps", -1L)
-        set(value) {
-            prefs.edit().putLong("lastKnownTotalSteps", value).apply()
-        }
-
-    /** 
-     * Fallback to lastKnownTotalSteps if the sensor hasn't fired yet since reboot/restart 
-     */
-    private val currentTotalSteps: Long
-        get() = if (totalStepsSinceReboot >= 0L) totalStepsSinceReboot else lastKnownTotalSteps
+    @Volatile
+    private var totalStepsSinceReboot: Long = -1L
 
     override fun getName(): String = MODULE_NAME
 
-    /**
-     * Check if the TYPE_STEP_COUNTER sensor is available on this device.
-     * Returns a WritableMap: { available: Boolean, hasDailyBaseline: Boolean }
-     */
     @ReactMethod
     fun isAvailable(promise: Promise) {
         val map = Arguments.createMap()
         map.putBoolean("available", stepCounterSensor != null)
-        map.putBoolean("hasDailyBaseline", midnightBaseline >= 0L)
+        map.putBoolean("hasDailyBaseline", StepPersistenceManager.hasDailyBaseline(reactContext))
         promise.resolve(map)
     }
 
-    /**
-     * Start listening to the step counter sensor.
-     * Uses SENSOR_DELAY_NORMAL for battery efficiency — we don't need realtime updates.
-     * The sensor fires ~1-2 times/second when walking.
-     */
     @ReactMethod
     fun startListening(promise: Promise) {
         val sensor = stepCounterSensor
@@ -103,9 +57,9 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
             return
         }
 
-        // Pass main looper handler to guarantee event dispatch regardless of caller thread
         val handler = Handler(Looper.getMainLooper())
-        val registered = sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL, handler)
+        val registered =
+            sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL, handler)
         if (!registered) {
             promise.reject("SENSOR_ERROR", "Failed to register step counter listener")
             return
@@ -114,51 +68,13 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
         promise.resolve(true)
     }
 
-    /**
-     * Stop listening to the step counter sensor.
-     * Always call this when the component unmounts to prevent battery drain.
-     */
     @ReactMethod
     fun stopListening() {
         sensorManager.unregisterListener(this)
+        // Clear cached runtime reading when detaching so the next resume fetches fresh FIFO steps.
+        totalStepsSinceReboot = -1L
     }
 
-    /**
-     * Ensures we have a fresh reading from the hardware sensor.
-     * If the listener hasn't fired yet since app startup, registers a one-shot listener
-     * on the main looper and waits up to 400ms for the initial sensor event.
-     */
-    private fun ensureFreshSensorReading() {
-        if (totalStepsSinceReboot >= 0L) return
-        val sensor = stepCounterSensor ?: return
-
-        val latch = CountDownLatch(1)
-        val tempListener = object : SensorEventListener {
-            override fun onSensorChanged(event: SensorEvent) {
-                if (event.sensor.type == Sensor.TYPE_STEP_COUNTER) {
-                    val value = event.values[0].toLong()
-                    totalStepsSinceReboot = value
-                    lastKnownTotalSteps = value
-                    latch.countDown()
-                }
-            }
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-        }
-
-        val handler = Handler(Looper.getMainLooper())
-        sensorManager.registerListener(tempListener, sensor, SensorManager.SENSOR_DELAY_FASTEST, handler)
-        try {
-            latch.await(400, TimeUnit.MILLISECONDS)
-        } catch (_: InterruptedException) {
-        } finally {
-            sensorManager.unregisterListener(tempListener)
-        }
-    }
-
-    /**
-     * Get the current step count for today.
-     * Returns a WritableMap: { stepsToday: Int, available: Boolean }
-     */
     @ReactMethod
     fun getTodaySteps(promise: Promise) {
         val map = Arguments.createMap()
@@ -170,144 +86,42 @@ class StepCounterModule(private val reactContext: ReactApplicationContext) :
             return
         }
 
-        // Ensure we have a fresh live sensor reading before making baseline decisions
-        ensureFreshSensorReading()
-
-        // Eagerly check if the day has rolled over before returning steps
-        resetBaselineIfNewDay()
-
-        if (currentTotalSteps < 0L) {
-            map.putBoolean("available", false)
-            map.putInt("stepsToday", 0)
-            promise.resolve(map)
-            return
+        val liveOrFresh = if (totalStepsSinceReboot >= 0L) {
+            totalStepsSinceReboot
+        } else {
+            StepPersistenceManager.readStepSensorOnce(reactContext, FRESH_READ_TIMEOUT_MS)?.also {
+                totalStepsSinceReboot = it
+            }
         }
 
-        val stepsToday = calculateTodaySteps()
-        map.putBoolean("available", true)
-        map.putInt("stepsToday", stepsToday.toInt())
+        val (available, stepsToday) =
+            StepPersistenceManager.resolveTodaySteps(reactContext, liveOrFresh)
+
+        map.putBoolean("available", available)
+        map.putInt("stepsToday", stepsToday.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt())
         promise.resolve(map)
     }
 
-    /**
-     * Get the last 30 days of historical steps.
-     * Returns a JSON string of array [{date: "YYYY-MM-DD", steps: number}]
-     */
     @ReactMethod
     fun getHistoricalSteps(promise: Promise) {
-        val historyStr = prefs.getString("stepHistory", "[]")
-        promise.resolve(historyStr)
+        promise.resolve(StepPersistenceManager.getHistoricalStepsJson(reactContext))
     }
-
-    // ─── SensorEventListener ────────────────────────────────────────────────
 
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type != Sensor.TYPE_STEP_COUNTER) return
 
-        totalStepsSinceReboot = event.values[0].toLong()
-        lastKnownTotalSteps = totalStepsSinceReboot
-        
-        resetBaselineIfNewDay()
+        val rawSteps = event.values[0].toLong()
+        totalStepsSinceReboot = rawSteps
 
-        val stepsToday = calculateTodaySteps()
-
-        // Emit to JS only if we have a valid step count
-        if (stepsToday >= 0 && reactContext.hasActiveReactInstance()) {
+        val stepsToday = StepPersistenceManager.recordSensorSample(reactContext, rawSteps)
+        if (stepsToday >= 0L && reactContext.hasActiveReactInstance()) {
             reactContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                .emit(STEP_EVENT, stepsToday.toInt())
+                .emit(STEP_EVENT, stepsToday.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt())
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        // Not needed for step counter
-    }
-
-    // ─── Private helpers ────────────────────────────────────────────────────
-
-    /**
-     * If the date has changed since we last set the midnight baseline,
-     * reset it to the current total steps (so today's count starts from zero).
-     */
-    private fun resetBaselineIfNewDay() {
-        val todayMidnight = getMidnightEpochMs()
-        val currentSteps = currentTotalSteps
-        val prevDate = baselineDate
-
-        if (prevDate != todayMidnight && prevDate > 0L && currentSteps >= 0L) {
-            val prevBaseline = midnightBaseline
-            var stepsTaken = currentSteps - prevBaseline
-            if (stepsTaken < 0) {
-                // Device rebooted, step counter reset
-                stepsTaken = currentSteps
-            }
-            
-            // Push to history
-            val historyStr = prefs.getString("stepHistory", "[]")
-            try {
-                val jsonArray = org.json.JSONArray(historyStr)
-                val df = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-                val prevDateStr = df.format(java.util.Date(prevDate))
-
-                // Prevent duplicate entries for the same date
-                var dateFound = false
-                for (i in 0 until jsonArray.length()) {
-                    val obj = jsonArray.optJSONObject(i)
-                    if (obj != null && obj.optString("date") == prevDateStr) {
-                        dateFound = true
-                        break
-                    }
-                }
-
-                if (!dateFound) {
-                    val newObj = org.json.JSONObject()
-                    newObj.put("date", prevDateStr)
-                    newObj.put("steps", stepsTaken)
-                    jsonArray.put(newObj)
-                }
-                
-                // keep only last 30 days
-                val trimmedArray = org.json.JSONArray()
-                val startIndex = Math.max(0, jsonArray.length() - 30)
-                for (i in startIndex until jsonArray.length()) {
-                    trimmedArray.put(jsonArray.get(i))
-                }
-                prefs.edit().putString("stepHistory", trimmedArray.toString()).apply()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        if (prevDate != todayMidnight && currentSteps >= 0L) {
-            midnightBaseline = currentSteps
-            baselineDate = todayMidnight
-        }
-    }
-
-    /**
-     * Returns today's step count by subtracting the midnight baseline
-     * from the current cumulative total.
-     */
-    private fun calculateTodaySteps(): Long {
-        val currentSteps = currentTotalSteps
-        if (midnightBaseline >= 0L && currentSteps < midnightBaseline) {
-            // Device rebooted while baseline was non-zero
-            midnightBaseline = 0L
-        }
-        return if (midnightBaseline >= 0L && currentSteps >= midnightBaseline) {
-            currentSteps - midnightBaseline
-        } else {
-            0L
-        }
-    }
-
-    /** Returns epoch milliseconds for today at 00:00:00.000 */
-    private fun getMidnightEpochMs(): Long {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        return cal.timeInMillis
+        // Not needed for hardware step counter.
     }
 }

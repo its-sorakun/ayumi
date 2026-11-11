@@ -27,6 +27,6 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     loadReactNative(this)
-    StepWorkerHelper.scheduleNextMidnightWorker(this)
+    StepWorkerHelper.scheduleStepWorkers(this)
   }
 }
