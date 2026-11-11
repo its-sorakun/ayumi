@@ -52,7 +52,7 @@ import { StatsPeriodNavigator } from '../components/StatsPeriodNavigator';
 import { StatsChart, type ChartDataPoint } from '../components/StatsChart';
 import { StatsSummaryCards } from '../components/StatsSummaryCards';
 import { FloatingDock } from '../components/FloatingDock';
-import { MotionTokens } from '../theme/motion';
+import { MotionTokens, useReducedMotion } from '../theme/motion';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -105,6 +105,18 @@ export function extractWaterLogHour(
   return hour >= 0 && hour < 24 ? hour : null;
 }
 
+/** Maps period aggregation mode + range label to a consistent chart header subtitle. */
+export function formatChartSubtitle(periodType: StatPeriodType, rangeLabel: string): string {
+  switch (periodType) {
+    case 'daily':
+      return `Daily • ${rangeLabel}`;
+    case 'week':
+      return `Weekly • ${rangeLabel}`;
+    case 'month':
+      return `Monthly • ${rangeLabel}`;
+  }
+}
+
 /** Advances calendar month without JS Date day-of-month rollover (e.g. Mar 31 -> Feb 28). */
 function shiftMonthSafely(base: Date, deltaMonths: number): Date {
   const targetYear = base.getFullYear();
@@ -153,6 +165,7 @@ export function StatsScreen({
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
+  const reducedMotion = useReducedMotion();
 
   const { todaySummary, providerName } = useHealthData();
   const { totalWater, getLogsForDate } = useWaterTracker();
@@ -182,8 +195,17 @@ export function StatsScreen({
   // Crisp subtle horizontal nudge for metric switch (zero opacity wash-out)
   const contentSlideAnim = useRef(new Animated.Value(0)).current;
 
-  // Initial choreographed entrance
+  // Initial choreographed entrance (bypassed under OS reduced-motion setting)
   useEffect(() => {
+    if (reducedMotion) {
+      entranceHeader.setValue(1);
+      entranceMetrics.setValue(1);
+      entrancePeriods.setValue(1);
+      entranceChart.setValue(1);
+      entranceSummaries.setValue(1);
+      return;
+    }
+
     Animated.stagger(65, [
       Animated.timing(entranceHeader, { toValue: 1, duration: 340, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
       Animated.timing(entranceMetrics, { toValue: 1, duration: 360, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
@@ -191,7 +213,7 @@ export function StatsScreen({
       Animated.timing(entranceChart, { toValue: 1, duration: 400, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
       Animated.timing(entranceSummaries, { toValue: 1, duration: 380, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
     ]).start();
-  }, [entranceHeader, entranceMetrics, entrancePeriods, entranceChart, entranceSummaries]);
+  }, [reducedMotion, entranceHeader, entranceMetrics, entrancePeriods, entranceChart, entranceSummaries]);
 
   // Transition handler when switching metric
   const handleSelectMetric = useCallback((newMetric: StatMetricType) => {
@@ -202,10 +224,15 @@ export function StatsScreen({
     const direction = newIndex > currentIndex ? -1 : 1;
 
     contentSlideAnim.stopAnimation();
-    contentSlideAnim.setValue(direction);
     setSelectedMetric(newMetric);
     onSelectMetricProp?.(newMetric);
 
+    if (reducedMotion) {
+      contentSlideAnim.setValue(0);
+      return;
+    }
+
+    contentSlideAnim.setValue(direction);
     Animated.spring(contentSlideAnim, {
       toValue: 0,
       stiffness: 240,
@@ -213,7 +240,7 @@ export function StatsScreen({
       mass: 0.85,
       useNativeDriver: true,
     }).start();
-  }, [selectedMetric, contentSlideAnim, onSelectMetricProp]);
+  }, [selectedMetric, reducedMotion, contentSlideAnim, onSelectMetricProp]);
 
   // Update metric if passed via route params or props
   useEffect(() => {
@@ -484,7 +511,7 @@ export function StatsScreen({
 
   const chartSubtitle = useMemo(() => {
     const label = formatPeriodRangeLabel(committedPeriod, committedAnchor);
-    return committedPeriod === 'daily' ? `Hourly • ${label}` : `Daily • ${label}`;
+    return formatChartSubtitle(committedPeriod, label);
   }, [committedPeriod, committedAnchor, formatPeriodRangeLabel]);
 
   const { chartDataPoints, unavailableNotice, hourlyUnavailable } = useMemo(() => {
@@ -759,8 +786,8 @@ export function StatsScreen({
         contentContainerStyle={[
           styles.contentContainer,
           {
-            paddingTop: insets.top + 6,
-            paddingBottom: insets.bottom + 84,
+            paddingTop: Math.max(insets.top + 12, 24),
+            paddingBottom: insets.bottom + 92,
           },
         ]}
         showsVerticalScrollIndicator={false}>
@@ -892,7 +919,7 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     paddingHorizontal: 20,
-    marginBottom: 6,
+    marginBottom: 12,
   },
   screenTitleText: {
     fontSize: 32,
