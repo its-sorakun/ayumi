@@ -27,6 +27,8 @@ export type StatMetricType = 'steps' | 'distance' | 'water';
 interface StatsMetricSelectorProps {
   readonly selectedMetric: StatMetricType;
   readonly onSelectMetric: (metric: StatMetricType) => void;
+  readonly containerHeight?: number;
+  readonly marginTop?: number;
 }
 
 interface MetricItemConfig {
@@ -66,6 +68,8 @@ function applyBoundaryResistance(value: number, min: number, max: number): numbe
 export function StatsMetricSelector({
   selectedMetric,
   onSelectMetric,
+  containerHeight = CONTAINER_HEIGHT,
+  marginTop = 6,
 }: StatsMetricSelectorProps): React.JSX.Element {
   const theme = useTheme();
   const isDark = theme.dark;
@@ -434,7 +438,7 @@ export function StatsMetricSelector({
 
   return (
     <View
-      style={styles.container}
+      style={[styles.container, { height: containerHeight, marginTop }]}
       onLayout={onLayout}
       accessibilityRole="tablist"
       {...panResponder.panHandlers}>
@@ -447,6 +451,7 @@ export function StatsMetricSelector({
             style={[
               styles.unselectedSlot,
               {
+                height: containerHeight,
                 backgroundColor: isDark
                   ? theme.colors.elevation.level1
                   : theme.colors.surface,
@@ -466,6 +471,7 @@ export function StatsMetricSelector({
             styles.activeIndicator,
             {
               width: currentSlotWidth,
+              height: containerHeight,
               backgroundColor: theme.colors.primaryContainer,
               transform: [
                 { translateX },
@@ -489,7 +495,10 @@ export function StatsMetricSelector({
             const textColor = isSelected ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant;
 
             return (
-              <View key={metric.type} style={styles.cardButton} collapsable={false}>
+              <View
+                key={metric.type}
+                style={[styles.cardButton, { height: containerHeight }]}
+                collapsable={false}>
                 <View style={styles.iconWrapper}>
                   {metric.renderIcon(iconColor)}
                 </View>
