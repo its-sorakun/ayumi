@@ -28,6 +28,9 @@ import type {
   TimeRangeFilter,
   HistoricalStepData,
   HistoricalDistanceData,
+  HourlyStepData,
+  HourlyDistanceData,
+  HourlyBreakdownResult,
   ExerciseSessionData,
 } from '../types/health';
 import { StepCounter } from './native/StepCounterBridge';
@@ -234,28 +237,31 @@ export class SensorProvider implements HealthDataProvider {
     }
   }
 
-  async getHistoricalSteps(timeRange: 'week' | 'month' | 'year') {
+  private async loadAllRecordedDailySteps(): Promise<HistoricalStepData[]> {
     try {
       if (StepCounter && StepCounter.getHistoricalSteps) {
         const historyStr = await StepCounter.getHistoricalSteps();
         const history: HistoricalStepData[] = JSON.parse(historyStr) || [];
-        
-        // The native step history only records up to yesterday (done at midnight).
-        // We must manually append today's steps so the graph shows current progress.
+
+        // Native step history persists only completed past days; append today's live counter.
         const todaySummary = await this.getTodaySummary();
         const todayDateStr = formatLocalDateKey(todaySummary.date);
-        
-        // Remove today's date from history if it somehow exists (e.g., timezone weirdness)
-        const filteredHistory = history.filter(d => d.date !== todayDateStr);
-        
-        // Append today's live steps
-        filteredHistory.push({
+
+        const normalizedHistory = history
+          .filter(d => d.date !== todayDateStr)
+          .map(d => ({
+            date: d.date,
+            steps: d.steps,
+            hasRecord: true,
+          }));
+
+        normalizedHistory.push({
           date: todayDateStr,
-          steps: todaySummary.steps
+          steps: todaySummary.steps,
+          hasRecord: true,
         });
-        
-        const days = timeRange === 'week' ? 7 : timeRange === 'year' ? 365 : 30;
-        return filteredHistory.slice(-days);
+
+        return normalizedHistory;
       }
     } catch (e) {
       console.warn('Failed to parse historical steps', e);
@@ -263,12 +269,45 @@ export class SensorProvider implements HealthDataProvider {
     return [];
   }
 
+  async getHistoricalSteps(timeRange: 'week' | 'month' | 'year') {
+    const allSteps = await this.loadAllRecordedDailySteps();
+    const days = timeRange === 'week' ? 7 : timeRange === 'year' ? 365 : 30;
+    return allSteps.slice(-days);
+  }
+
   async getHistoricalDistance(timeRange: 'week' | 'month' | 'year'): Promise<HistoricalDistanceData[]> {
     const stepsHistory = await this.getHistoricalSteps(timeRange);
-    return stepsHistory.map((day: any) => ({
+    return stepsHistory.map(day => ({
       date: day.date,
-      distance: day.steps * 0.762, // Approximation: 1 step = 0.762m
+      distance: stepsToMeters(day.steps),
+      hasRecord: day.hasRecord,
     }));
+  }
+
+  async getHistoricalStepsRange(startDate: Date, endDate: Date): Promise<HistoricalStepData[]> {
+    const startKey = formatLocalDateKey(startDate);
+    const endKey = formatLocalDateKey(endDate);
+    const allSteps = await this.loadAllRecordedDailySteps();
+    return allSteps.filter(day => day.date >= startKey && day.date <= endKey);
+  }
+
+  async getHistoricalDistanceRange(startDate: Date, endDate: Date): Promise<HistoricalDistanceData[]> {
+    const stepsHistory = await this.getHistoricalStepsRange(startDate, endDate);
+    return stepsHistory.map(day => ({
+      date: day.date,
+      distance: stepsToMeters(day.steps),
+      hasRecord: day.hasRecord,
+    }));
+  }
+
+  async getHourlySteps(_date: Date): Promise<HourlyBreakdownResult<HourlyStepData>> {
+    // Hardware step counter persists daily midnight snapshots without hourly buckets.
+    return { supported: false, buckets: [] };
+  }
+
+  async getHourlyDistance(_date: Date): Promise<HourlyBreakdownResult<HourlyDistanceData>> {
+    // Distance is derived from steps; hourly breakdown requires Health Connect or hourly logs.
+    return { supported: false, buckets: [] };
   }
 
   async getExerciseSessions(_timeRange: 'week' | 'month' | 'year'): Promise<ExerciseSessionData[]> {
