@@ -20,6 +20,8 @@ interface StatsPeriodNavigatorProps {
   readonly onPrevious: () => void;
   readonly onNext: () => void;
   readonly transitionDirection?: 'prev' | 'next';
+  readonly height?: number;
+  readonly marginTop?: number;
 }
 
 export function StatsPeriodNavigator({
@@ -28,6 +30,8 @@ export function StatsPeriodNavigator({
   onPrevious,
   onNext,
   transitionDirection = 'next',
+  height = 36,
+  marginTop = 6,
 }: StatsPeriodNavigatorProps): React.JSX.Element {
   const theme = useTheme();
   const reducedMotion = useReducedMotion();
@@ -60,7 +64,7 @@ export function StatsPeriodNavigator({
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { height, marginTop }]}>
       <TouchableOpacity
         activeOpacity={0.65}
         onPress={onPrevious}
