@@ -9,7 +9,14 @@
  */
 
 import React from 'react';
-import { NativeModules, Platform, ToastAndroid, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  NativeModules,
+  Platform,
+  ToastAndroid,
+  View,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import type { MaterialYouPalette } from 'react-native-material-you-colors';
@@ -1494,6 +1501,131 @@ describe('Extended OxygenOS Multi-Color Palette & Iconography Isolation', () => 
         defaultWaterScreenTree!.unmount();
       });
       jest.useRealTimers();
+    }
+  });
+
+  it('drives pronounced bottom pill squeeze across both default and oxygen_coloros themes while honoring reduced motion', async () => {
+    expect(defaultThemeDefinition.motion.squish.stretchX).toBeGreaterThanOrEqual(1.4);
+    expect(defaultThemeDefinition.motion.squish.compressY).toBeLessThanOrEqual(0.6);
+    expect(oxygenColorOsThemeDefinition.motion.squish.stretchX).toBeGreaterThanOrEqual(1.4);
+    expect(oxygenColorOsThemeDefinition.motion.squish.compressY).toBeLessThanOrEqual(0.6);
+
+    const oosPaperTheme = createLightTheme(
+      oxygenColorOsThemeDefinition.mapPaletteToPaperColors(CUSTOM_WALLPAPER_PALETTE, false),
+    );
+    const defaultPaperTheme = createLightTheme(
+      defaultThemeDefinition.mapPaletteToPaperColors(CUSTOM_WALLPAPER_PALETTE, false),
+    );
+
+    const readPillScale = (
+      tree: ReactTestRenderer.ReactTestRenderer,
+      testID: string,
+    ): { scaleX: number; scaleY: number } => {
+      const pillNode = tree.root.findByProps({ testID });
+      const flatStyle = Object.assign({}, ...[pillNode.props.style].flat().filter(Boolean));
+      const transforms = flatStyle.transform as Array<Record<string, unknown>>;
+      const rawScaleX = transforms.find(t => 'scaleX' in t)?.scaleX as
+        | number
+        | { __getValue: () => number };
+      const rawScaleY = transforms.find(t => 'scaleY' in t)?.scaleY as
+        | number
+        | { __getValue: () => number };
+      return {
+        scaleX: typeof rawScaleX === 'number' ? rawScaleX : rawScaleX.__getValue(),
+        scaleY: typeof rawScaleY === 'number' ? rawScaleY : rawScaleY.__getValue(),
+      };
+    };
+
+    const reduceMotionSpy = jest
+      .spyOn(AccessibilityInfo, 'isReduceMotionEnabled')
+      .mockResolvedValue(false);
+
+    const pagerProgress = new Animated.Value(0);
+    let defaultDockTree: ReactTestRenderer.ReactTestRenderer | null = null;
+    let oosDockTree: ReactTestRenderer.ReactTestRenderer | null = null;
+
+    try {
+      await act(async () => {
+        defaultDockTree = ReactTestRenderer.create(
+          <PaperProvider theme={defaultPaperTheme}>
+            <AyumiThemeProvider themeId="default" paperTheme={defaultPaperTheme}>
+              <FloatingDock activeTab="home" pagerProgress={pagerProgress} />
+            </AyumiThemeProvider>
+          </PaperProvider>,
+        );
+        oosDockTree = ReactTestRenderer.create(
+          <PaperProvider theme={oosPaperTheme}>
+            <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={oosPaperTheme}>
+              <FloatingDock activeTab="home" pagerProgress={pagerProgress} />
+            </AyumiThemeProvider>
+          </PaperProvider>,
+        );
+      });
+
+      const dockLayout = { nativeEvent: { layout: { width: 340, height: 66 } } };
+      await act(async () => {
+        defaultDockTree!.root.find(n => typeof n.props?.onLayout === 'function').props.onLayout(dockLayout);
+        oosDockTree!.root.find(n => typeof n.props?.onLayout === 'function').props.onLayout(dockLayout);
+      });
+
+      expect(readPillScale(defaultDockTree!, 'default-dock-active-pill').scaleX).toBeCloseTo(1, 3);
+      expect(readPillScale(oosDockTree!, 'oxygen-dock-active-pill').scaleX).toBeCloseTo(1, 3);
+
+      await act(async () => {
+        pagerProgress.setValue(0.35);
+      });
+      const defShoulder = readPillScale(defaultDockTree!, 'default-dock-active-pill');
+      const oosShoulder = readPillScale(oosDockTree!, 'oxygen-dock-active-pill');
+      expect(defShoulder.scaleX).toBeGreaterThan(1.4);
+      expect(defShoulder.scaleY).toBeLessThan(0.62);
+      expect(oosShoulder.scaleX).toBeGreaterThan(1.38);
+      expect(oosShoulder.scaleY).toBeLessThan(0.63);
+
+      await act(async () => {
+        pagerProgress.setValue(0.5);
+      });
+      const defPeak = readPillScale(defaultDockTree!, 'default-dock-active-pill');
+      const oosPeak = readPillScale(oosDockTree!, 'oxygen-dock-active-pill');
+      expect(defPeak.scaleX).toBeCloseTo(defaultThemeDefinition.motion.squish.stretchX, 2);
+      expect(defPeak.scaleY).toBeCloseTo(defaultThemeDefinition.motion.squish.compressY, 2);
+      expect(oosPeak.scaleX).toBeCloseTo(oxygenColorOsThemeDefinition.motion.squish.stretchX, 2);
+      expect(oosPeak.scaleY).toBeCloseTo(oxygenColorOsThemeDefinition.motion.squish.compressY, 2);
+
+      await act(async () => {
+        defaultDockTree!.unmount();
+        oosDockTree!.unmount();
+      });
+
+      // Reduced motion keeps pill scale strictly locked at 1 even mid-swipe
+      reduceMotionSpy.mockResolvedValue(true);
+      await act(async () => {
+        defaultDockTree = ReactTestRenderer.create(
+          <PaperProvider theme={defaultPaperTheme}>
+            <AyumiThemeProvider themeId="default" paperTheme={defaultPaperTheme}>
+              <FloatingDock activeTab="home" pagerProgress={pagerProgress} />
+            </AyumiThemeProvider>
+          </PaperProvider>,
+        );
+        oosDockTree = ReactTestRenderer.create(
+          <PaperProvider theme={oosPaperTheme}>
+            <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={oosPaperTheme}>
+              <FloatingDock activeTab="home" pagerProgress={pagerProgress} />
+            </AyumiThemeProvider>
+          </PaperProvider>,
+        );
+      });
+      await act(async () => {
+        defaultDockTree!.root.find(n => typeof n.props?.onLayout === 'function').props.onLayout(dockLayout);
+        oosDockTree!.root.find(n => typeof n.props?.onLayout === 'function').props.onLayout(dockLayout);
+      });
+      expect(readPillScale(defaultDockTree!, 'default-dock-active-pill')).toEqual({ scaleX: 1, scaleY: 1 });
+      expect(readPillScale(oosDockTree!, 'oxygen-dock-active-pill')).toEqual({ scaleX: 1, scaleY: 1 });
+    } finally {
+      reduceMotionSpy.mockRestore();
+      await act(async () => {
+        defaultDockTree?.unmount();
+        oosDockTree?.unmount();
+      });
     }
   });
 });

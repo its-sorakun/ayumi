@@ -2,17 +2,15 @@
  * FloatingDock — an aesthetic Material 3 Expressive bottom navigation capsule.
  *
  * Implements a floating pill dock with:
- *  - 28dp corner radius and dynamic Material You surface styling
+ *  - Dynamic corner radius and adaptive surface styling (Default Material You & OxygenOS/ColorOS)
  *  - Mathematically symmetrical four-column layout (flex: 1 per slot: Home, Stats, Water, Settings)
  *  - Continuous sliding highlight pill indicator positioned behind active icons
- *  - Real-time finger-drag tracking and squash-and-stretch squeeze effect during page transitions
- *  - Squeeze deformation: stretches horizontally along travel axis (scaleX up to 1.24) and
- *    inversely compresses vertically (scaleY down to 0.84) to preserve physical volume
- *  - Spring settling physics when snapping into resting slot positions
- *  - Seamless adaptation between light and dark Material 3 themes
+ *  - Real-time finger-drag tracking and pronounced squash-and-stretch deformation during transitions
+ *  - Wide mid-flight squeeze plateau combined with tap launch boost, landing rebound squash, and spring recovery
+ *  - Accessible reduced-motion mode disabling squeeze/bounce in favor of linear translation
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -42,6 +40,54 @@ export interface FloatingDockProps {
   readonly onProfilePress?: () => void;
 }
 
+type DockTabId = 'home' | 'stats' | 'water' | 'settings';
+
+// Per-segment phase keypoints expand the mid-flight window where the capsule holds deep squeeze
+// while keeping resting slot edges crisp and free of horizontal dock-wall clipping.
+const PAGER_SEGMENT_PHASE_OFFSETS = [0, 0.14, 0.34, 0.5, 0.66, 0.86] as const;
+const PAGER_SEGMENT_TRANSLATE_RATIOS = [0, 0.08, 0.3, 0.5, 0.7, 0.92] as const;
+const PAGER_SEGMENT_SQUEEZE_WEIGHTS = [0, 0.52, 0.92, 1.0, 0.92, 0.52] as const;
+
+function buildSegmentedDockRanges(
+  slots: readonly [number, number, number, number],
+  stretchMax: number,
+  compressMin: number,
+): {
+  inputRange: number[];
+  translateOutputRange: number[];
+  scaleXOutputRange: number[];
+  scaleYOutputRange: number[];
+} {
+  const inputRange: number[] = [];
+  const translateOutputRange: number[] = [];
+  const scaleXOutputRange: number[] = [];
+  const scaleYOutputRange: number[] = [];
+
+  for (let seg = 0; seg < 3; seg += 1) {
+    const startX = slots[seg];
+    const deltaX = slots[seg + 1] - startX;
+    for (let i = 0; i < PAGER_SEGMENT_PHASE_OFFSETS.length; i += 1) {
+      const weight = PAGER_SEGMENT_SQUEEZE_WEIGHTS[i];
+      inputRange.push(seg + PAGER_SEGMENT_PHASE_OFFSETS[i]);
+      translateOutputRange.push(startX + deltaX * PAGER_SEGMENT_TRANSLATE_RATIOS[i]);
+      scaleXOutputRange.push(1 + (stretchMax - 1) * weight);
+      scaleYOutputRange.push(1 - (1 - compressMin) * weight);
+    }
+  }
+
+  inputRange.push(3);
+  translateOutputRange.push(slots[3]);
+  scaleXOutputRange.push(1);
+  scaleYOutputRange.push(1);
+
+  return {
+    inputRange,
+    translateOutputRange,
+    scaleXOutputRange,
+    scaleYOutputRange,
+  };
+}
+
 export function FloatingDock({
   activeTab = 'home',
   activeStatsMetric = 'steps',
@@ -69,9 +115,149 @@ export function FloatingDock({
       ? 3
       : 0;
 
-  // Animated values for standalone mode or settings navigation
+  // Animated values for standalone slot transitions and elastic tap bounce impulses
   const tabSlideAnim = useRef(new Animated.Value(activeTabIndex)).current;
   const tabSqueezeAnim = useRef(new Animated.Value(0)).current;
+  const tapScaleXAnim = useRef(new Animated.Value(1)).current;
+  const tapScaleYAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!reducedMotion) {
+      return;
+    }
+    tapScaleXAnim.stopAnimation();
+    tapScaleYAnim.stopAnimation();
+    tapScaleXAnim.setValue(1);
+    tapScaleYAnim.setValue(1);
+  }, [reducedMotion, tapScaleXAnim, tapScaleYAnim]);
+
+  // Trigger launch squeeze + arrival landing squash aligned with pager spring settling (~205ms)
+  const triggerTabSwitchElastic = useCallback(() => {
+    if (reducedMotion) {
+      return;
+    }
+    tapScaleXAnim.stopAnimation();
+    tapScaleYAnim.stopAnimation();
+    tapScaleXAnim.setValue(1);
+    tapScaleYAnim.setValue(1);
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(tapScaleXAnim, {
+          toValue: 1.12,
+          duration: 95,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(tapScaleYAnim, {
+          toValue: 0.84,
+          duration: 95,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(tapScaleXAnim, {
+          toValue: 0.84,
+          duration: 110,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(tapScaleYAnim, {
+          toValue: 1.14,
+          duration: 110,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.spring(tapScaleXAnim, {
+          toValue: 1,
+          stiffness: 185,
+          damping: 9.5,
+          mass: 0.82,
+          useNativeDriver: true,
+        }),
+        Animated.spring(tapScaleYAnim, {
+          toValue: 1,
+          stiffness: 185,
+          damping: 9.5,
+          mass: 0.82,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [reducedMotion, tapScaleXAnim, tapScaleYAnim]);
+
+  // Tactile jelly squish when tapping the already-active tab
+  const triggerActiveTapSquish = useCallback(() => {
+    if (reducedMotion) {
+      return;
+    }
+    tapScaleXAnim.stopAnimation();
+    tapScaleYAnim.stopAnimation();
+    tapScaleXAnim.setValue(1);
+    tapScaleYAnim.setValue(1);
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(tapScaleXAnim, {
+          toValue: 1.22,
+          duration: 65,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(tapScaleYAnim, {
+          toValue: 0.76,
+          duration: 65,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(tapScaleXAnim, {
+          toValue: 0.9,
+          duration: 65,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(tapScaleYAnim, {
+          toValue: 1.1,
+          duration: 65,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.spring(tapScaleXAnim, {
+          toValue: 1,
+          stiffness: 205,
+          damping: 10.5,
+          mass: 0.8,
+          useNativeDriver: true,
+        }),
+        Animated.spring(tapScaleYAnim, {
+          toValue: 1,
+          stiffness: 205,
+          damping: 10.5,
+          mass: 0.8,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [reducedMotion, tapScaleXAnim, tapScaleYAnim]);
+
+  const handleTabPress = useCallback(
+    (targetTab: DockTabId, callback?: () => void) => {
+      if (targetTab === activeTab) {
+        triggerActiveTapSquish();
+      } else if (pagerProgress) {
+        triggerTabSwitchElastic();
+      }
+      callback?.();
+    },
+    [activeTab, pagerProgress, triggerActiveTapSquish, triggerTabSwitchElastic],
+  );
 
   // Track tab index changes when pagerProgress is not actively controlling
   useEffect(() => {
@@ -86,17 +272,26 @@ export function FloatingDock({
       return;
     }
 
+    tabSqueezeAnim.stopAnimation();
     tabSqueezeAnim.setValue(0);
     Animated.sequence([
       Animated.timing(tabSqueezeAnim, {
         toValue: 1,
-        duration: motion.duration.short,
-        easing: Easing.out(Easing.quad),
+        duration: 110,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(tabSqueezeAnim, {
+        toValue: -0.24,
+        duration: 95,
+        easing: Easing.inOut(Easing.quad),
         useNativeDriver: true,
       }),
       Animated.spring(tabSqueezeAnim, {
         toValue: 0,
-        ...motion.spring.snappy,
+        stiffness: 185,
+        damping: 9.5,
+        mass: 0.82,
         useNativeDriver: true,
       }),
     ]).start();
@@ -127,21 +322,25 @@ export function FloatingDock({
   const slot3X = horizontalPad + 3 * slotWidth + (slotWidth - pillWidth) / 2;
 
   const stretchMax = motion.squish?.stretchX ?? MotionTokens.squish.stretchX;
-  const stretchMid = 1 + (stretchMax - 1) * 0.69;
   const compressMin = motion.squish?.compressY ?? MotionTokens.squish.compressY;
-  const compressMid = 1 - (1 - compressMin) * 0.59;
+
+  const segmentedRanges = useMemo(
+    () => buildSegmentedDockRanges([slot0X, slot1X, slot2X, slot3X], stretchMax, compressMin),
+    [slot0X, slot1X, slot2X, slot3X, stretchMax, compressMin],
+  );
 
   // Determine transform based on whether pagerProgress is actively driving transitions
   let indicatorTranslateX: number | Animated.AnimatedInterpolation<number> = slot0X;
-  let indicatorScaleX: number | Animated.AnimatedInterpolation<number> = 1;
-  let indicatorScaleY: number | Animated.AnimatedInterpolation<number> = 1;
+  let indicatorScaleX:
+    | number
+    | Animated.AnimatedInterpolation<number>
+    | Animated.AnimatedMultiplication<number> = 1;
+  let indicatorScaleY:
+    | number
+    | Animated.AnimatedInterpolation<number>
+    | Animated.AnimatedMultiplication<number> = 1;
 
   if (pagerProgress && containerWidth > 0) {
-    // Destination-anchored curve: pill clings near origin on launch, stretches mid-flight,
-    // and anchors cleanly onto destination slot before tail snaps into rest.
-    const d01 = slot1X - slot0X;
-    const d12 = slot2X - slot1X;
-    const d23 = slot3X - slot2X;
     indicatorTranslateX = reducedMotion
       ? pagerProgress.interpolate({
           inputRange: [0, 1, 2, 3],
@@ -149,51 +348,26 @@ export function FloatingDock({
           extrapolate: 'clamp',
         })
       : pagerProgress.interpolate({
-          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2, 2.2, 2.5, 2.8, 3],
-          outputRange: [
-            slot0X,
-            slot0X + d01 * 0.14,
-            slot0X + d01 * 0.5,
-            slot0X + d01 * 0.86,
-            slot1X,
-            slot1X + d12 * 0.14,
-            slot1X + d12 * 0.5,
-            slot1X + d12 * 0.86,
-            slot2X,
-            slot2X + d23 * 0.14,
-            slot2X + d23 * 0.5,
-            slot2X + d23 * 0.86,
-            slot3X,
-          ],
+          inputRange: segmentedRanges.inputRange,
+          outputRange: segmentedRanges.translateOutputRange,
           extrapolate: 'clamp',
         });
 
-    // Fluid pill squeeze deformation clipped cleanly inside trackClip (disabled for reduced motion)
-    indicatorScaleX = reducedMotion
-      ? 1
-      : pagerProgress.interpolate({
-          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2, 2.2, 2.5, 2.8, 3],
-          outputRange: [
-            1.0, stretchMid, stretchMax, stretchMid,
-            1.0, stretchMid, stretchMax, stretchMid,
-            1.0, stretchMid, stretchMax, stretchMid,
-            1.0,
-          ],
-          extrapolate: 'clamp',
-        });
+    if (!reducedMotion) {
+      const spatialScaleX = pagerProgress.interpolate({
+        inputRange: segmentedRanges.inputRange,
+        outputRange: segmentedRanges.scaleXOutputRange,
+        extrapolate: 'clamp',
+      });
+      const spatialScaleY = pagerProgress.interpolate({
+        inputRange: segmentedRanges.inputRange,
+        outputRange: segmentedRanges.scaleYOutputRange,
+        extrapolate: 'clamp',
+      });
 
-    indicatorScaleY = reducedMotion
-      ? 1
-      : pagerProgress.interpolate({
-          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2, 2.2, 2.5, 2.8, 3],
-          outputRange: [
-            1.0, compressMid, compressMin, compressMid,
-            1.0, compressMid, compressMin, compressMid,
-            1.0, compressMid, compressMin, compressMid,
-            1.0,
-          ],
-          extrapolate: 'clamp',
-        });
+      indicatorScaleX = Animated.multiply(spatialScaleX, tapScaleXAnim);
+      indicatorScaleY = Animated.multiply(spatialScaleY, tapScaleYAnim);
+    }
   } else if (containerWidth > 0) {
     // Discrete spring-driven translation across all four slots
     indicatorTranslateX = tabSlideAnim.interpolate({
@@ -201,18 +375,39 @@ export function FloatingDock({
       outputRange: [slot0X, slot1X, slot2X, slot3X],
     });
 
-    indicatorScaleX = tabSqueezeAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1.0, stretchMax],
-    });
+    if (!reducedMotion) {
+      const spatialScaleX = tabSqueezeAnim.interpolate({
+        inputRange: [-0.24, 0, 1],
+        outputRange: [0.86, 1.0, stretchMax],
+      });
+      const spatialScaleY = tabSqueezeAnim.interpolate({
+        inputRange: [-0.24, 0, 1],
+        outputRange: [1.12, 1.0, compressMin],
+      });
 
-    indicatorScaleY = tabSqueezeAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1.0, compressMin],
-    });
+      indicatorScaleX = Animated.multiply(spatialScaleX, tapScaleXAnim);
+      indicatorScaleY = Animated.multiply(spatialScaleY, tapScaleYAnim);
+    }
   }
 
   const bottomOffset = Math.max(insets.bottom + 8, 16);
+
+  const handleHomeTabPress = useCallback(
+    () => handleTabPress('home', onHomePress),
+    [handleTabPress, onHomePress],
+  );
+  const handleStatsTabPress = useCallback(
+    () => handleTabPress('stats', onAnalyticsPress),
+    [handleTabPress, onAnalyticsPress],
+  );
+  const handleWaterTabPress = useCallback(
+    () => handleTabPress('water', onWaterPress),
+    [handleTabPress, onWaterPress],
+  );
+  const handleSettingsTabPress = useCallback(
+    () => handleTabPress('settings', onProfilePress),
+    [handleTabPress, onProfilePress],
+  );
 
   if (navigation.variant === 'oem_labeled_pill') {
     return (
@@ -229,10 +424,10 @@ export function FloatingDock({
         pillHeight={pillHeight}
         metricAccents={metricAccents}
         onLayout={onLayout}
-        onHomePress={onHomePress}
-        onAnalyticsPress={onAnalyticsPress}
-        onWaterPress={onWaterPress}
-        onProfilePress={onProfilePress}
+        onHomePress={handleHomeTabPress}
+        onAnalyticsPress={handleStatsTabPress}
+        onWaterPress={handleWaterTabPress}
+        onProfilePress={handleSettingsTabPress}
       />
     );
   }
@@ -266,6 +461,7 @@ export function FloatingDock({
         {containerWidth > 0 && (
           <View style={[styles.pillTrackClip, { borderRadius: shapes.dockRadius }]} pointerEvents="none">
             <Animated.View
+              testID="default-dock-active-pill"
               style={[
                 styles.slidingIndicatorPill,
                 {
@@ -288,7 +484,7 @@ export function FloatingDock({
         {/* Slot 1: Home Tab */}
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={onHomePress}
+          onPress={handleHomeTabPress}
           style={styles.tabSlot}
           accessibilityRole="tab"
           accessibilityLabel="Home tab">
@@ -305,7 +501,7 @@ export function FloatingDock({
         {/* Slot 2: Analytics / Stats Tab */}
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={onAnalyticsPress}
+          onPress={handleStatsTabPress}
           style={styles.tabSlot}
           accessibilityRole="tab"
           accessibilityLabel="Stats tab">
@@ -322,7 +518,7 @@ export function FloatingDock({
         {/* Slot 3: Water Logger Tab */}
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={onWaterPress}
+          onPress={handleWaterTabPress}
           style={styles.tabSlot}
           accessibilityRole="tab"
           accessibilityLabel="Water tab">
@@ -340,7 +536,7 @@ export function FloatingDock({
         {/* Slot 4: Settings Tab */}
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={onProfilePress}
+          onPress={handleSettingsTabPress}
           style={styles.tabSlot}
           accessibilityRole="tab"
           accessibilityLabel="Settings tab">

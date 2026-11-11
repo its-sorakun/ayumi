@@ -227,8 +227,16 @@ export interface DockPresentationProps {
   readonly containerWidth: number;
   readonly bottomOffset: number;
   readonly indicatorTranslateX: number | Animated.AnimatedInterpolation<number>;
-  readonly indicatorScaleX: number | Animated.AnimatedInterpolation<number>;
-  readonly indicatorScaleY: number | Animated.AnimatedInterpolation<number>;
+  readonly indicatorScaleX:
+    | number
+    | Animated.Value
+    | Animated.AnimatedInterpolation<number>
+    | Animated.AnimatedMultiplication<number>;
+  readonly indicatorScaleY:
+    | number
+    | Animated.Value
+    | Animated.AnimatedInterpolation<number>
+    | Animated.AnimatedMultiplication<number>;
   readonly onLayout: (e: LayoutChangeEvent) => void;
   readonly onHomePress?: () => void;
   readonly onAnalyticsPress?: () => void;

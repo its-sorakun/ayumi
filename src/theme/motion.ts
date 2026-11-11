@@ -125,9 +125,9 @@ export const MotionTokens = {
     directionalRatio: 1.5,
   },
 
-  // Squish and stretch factors for fluid pill deformation
+  // Squish and stretch factors for pronounced fluid pill deformation during navigation transitions
   squish: {
-    stretchX: 1.14,
-    compressY: 0.91,
+    stretchX: 1.46,
+    compressY: 0.56,
   },
 } as const;

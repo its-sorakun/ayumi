@@ -92,8 +92,8 @@ export const OXYGEN_MOTION_PRESET: AyumiMotionPreset = {
   },
   gesture: MotionTokens.gesture,
   squish: {
-    stretchX: 1.12,
-    compressY: 0.92,
+    stretchX: 1.44,
+    compressY: 0.58,
   },
 };
 
