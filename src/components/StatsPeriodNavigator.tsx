@@ -12,7 +12,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { ChevronLeftIcon, ChevronRightIcon } from './AestheticIcons';
-import { MotionTokens } from '../theme/motion';
+import { useReducedMotion } from '../theme/motion';
 
 interface StatsPeriodNavigatorProps {
   readonly dateRangeText: string;
@@ -30,10 +30,16 @@ export function StatsPeriodNavigator({
   transitionDirection = 'next',
 }: StatsPeriodNavigatorProps): React.JSX.Element {
   const theme = useTheme();
+  const reducedMotion = useReducedMotion();
 
   const animValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (reducedMotion) {
+      animValue.setValue(0);
+      return;
+    }
+
     animValue.setValue(transitionDirection === 'next' ? 1 : -1);
     Animated.timing(animValue, {
       toValue: 0,
@@ -41,7 +47,7 @@ export function StatsPeriodNavigator({
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [dateRangeText, transitionDirection, animValue]);
+  }, [dateRangeText, transitionDirection, reducedMotion, animValue]);
 
   const translateX = animValue.interpolate({
     inputRange: [-1, 0, 1],
@@ -94,8 +100,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginHorizontal: 20,
-    marginTop: 6,
-    height: 36,
+    marginTop: 10,
+    height: 38,
   },
   navButton: {
     width: 36,
