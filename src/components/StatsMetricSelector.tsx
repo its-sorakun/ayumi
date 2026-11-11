@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
-import { useReducedMotion } from '../theme/motion';
+import { MotionTokens, useReducedMotion } from '../theme/motion';
 
 export type StatMetricType = 'steps' | 'distance' | 'water';
 
@@ -77,11 +77,13 @@ export function StatsMetricSelector({
   const slideAnim = useRef(new Animated.Value(activeIndex)).current;
   const stretchXAnim = useRef(new Animated.Value(1)).current;
   const compressYAnim = useRef(new Animated.Value(1)).current;
+  const leanXAnim = useRef(new Animated.Value(0)).current;
   const pressScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Live refs keep PanResponder closures synchronized without stale layout, accessibility, or selection state
   const containerWidthRef = useRef(0);
   const activeIndexRef = useRef(activeIndex);
+  const prevActiveIndexRef = useRef(activeIndex);
   const onSelectRef = useRef(onSelectMetric);
   const reducedMotionRef = useRef(reducedMotion);
   activeIndexRef.current = activeIndex;
@@ -96,30 +98,42 @@ export function StatsMetricSelector({
   const currentSlotWidth = containerWidth > 0 ? (containerWidth - GAP * 2) / 3 : 0;
 
   const settleDeformation = useCallback(() => {
+    const reduced = reducedMotionRef.current;
+    const settleStiffness = reduced ? 400 : MotionTokens.spring.metricCard.stiffness;
+    const settleDamping = reduced ? 38 : MotionTokens.spring.metricCard.damping;
     Animated.parallel([
       Animated.spring(stretchXAnim, {
         toValue: 1,
-        stiffness: reducedMotionRef.current ? 400 : 145,
-        damping: reducedMotionRef.current ? 38 : 13,
+        stiffness: settleStiffness,
+        damping: settleDamping,
         useNativeDriver: true,
       }),
       Animated.spring(compressYAnim, {
         toValue: 1,
-        stiffness: reducedMotionRef.current ? 400 : 145,
-        damping: reducedMotionRef.current ? 38 : 13,
+        stiffness: settleStiffness,
+        damping: settleDamping,
+        useNativeDriver: true,
+      }),
+      Animated.spring(leanXAnim, {
+        toValue: 0,
+        stiffness: settleStiffness,
+        damping: settleDamping,
         useNativeDriver: true,
       }),
       Animated.spring(pressScaleAnim, {
         toValue: 1,
         stiffness: 260,
-        damping: 20,
+        damping: 18,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [stretchXAnim, compressYAnim, pressScaleAnim]);
+  }, [stretchXAnim, compressYAnim, leanXAnim, pressScaleAnim]);
 
-  // Tap transition: prominent mid-flight stretch/compress squeeze with bouncy spring arrival.
+  // Cushioned tile tap leap: anticipation compress -> directional stretch -> impact cushion -> spring recovery.
   useEffect(() => {
+    const prevIdx = prevActiveIndexRef.current;
+    prevActiveIndexRef.current = activeIndex;
+
     if (skipNextEffectAnimRef.current) {
       skipNextEffectAnimRef.current = false;
       return;
@@ -128,6 +142,7 @@ export function StatsMetricSelector({
     if (reducedMotion) {
       stretchXAnim.setValue(1);
       compressYAnim.setValue(1);
+      leanXAnim.setValue(0);
       Animated.timing(slideAnim, {
         toValue: activeIndex,
         duration: 120,
@@ -137,46 +152,109 @@ export function StatsMetricSelector({
       return;
     }
 
+    const deltaSlots = activeIndex - prevIdx;
+    const dir = Math.sign(deltaSlots) || 1;
+    const jumpDistance = Math.abs(deltaSlots);
+    if (jumpDistance === 0) {
+      return;
+    }
+
+    const peakStretch = jumpDistance >= 2 ? 1.30 : 1.23;
+    const peakCompress = jumpDistance >= 2 ? 0.78 : 0.82;
+    const flightLean = -dir * (jumpDistance >= 2 ? 10 : 6);
+
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: activeIndex,
-        stiffness: 165,
-        damping: 16,
-        mass: 0.95,
+        ...MotionTokens.spring.metricCard,
         useNativeDriver: true,
       }),
       Animated.sequence([
+        // Phase 1: anticipation compression along horizontal travel axis
         Animated.parallel([
           Animated.timing(stretchXAnim, {
-            toValue: 1.16,
-            duration: 110,
+            toValue: 0.89,
+            duration: 55,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(compressYAnim, {
-            toValue: 0.87,
-            duration: 110,
+            toValue: 1.07,
+            duration: 55,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(leanXAnim, {
+            toValue: -dir * 3.5,
+            duration: 55,
+            useNativeDriver: true,
+          }),
+        ]),
+        // Phase 2: elongated travel stretch with trailing tail lag
+        Animated.parallel([
+          Animated.timing(stretchXAnim, {
+            toValue: peakStretch,
+            duration: 115,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(compressYAnim, {
+            toValue: peakCompress,
+            duration: 115,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(leanXAnim, {
+            toValue: flightLean,
+            duration: 115,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
         ]),
+        // Phase 3: brief landing squash cushion
+        Animated.parallel([
+          Animated.timing(stretchXAnim, {
+            toValue: 0.93,
+            duration: 75,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(compressYAnim, {
+            toValue: 1.05,
+            duration: 75,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(leanXAnim, {
+            toValue: dir * 2.5,
+            duration: 75,
+            useNativeDriver: true,
+          }),
+        ]),
+        // Phase 4: elastic spring shape recovery
         Animated.parallel([
           Animated.spring(stretchXAnim, {
             toValue: 1,
-            stiffness: 145,
-            damping: 13,
+            stiffness: 170,
+            damping: 12,
             useNativeDriver: true,
           }),
           Animated.spring(compressYAnim, {
             toValue: 1,
-            stiffness: 145,
+            stiffness: 170,
+            damping: 12,
+            useNativeDriver: true,
+          }),
+          Animated.spring(leanXAnim, {
+            toValue: 0,
+            stiffness: 170,
             damping: 13,
             useNativeDriver: true,
           }),
         ]),
       ]),
     ]).start();
-  }, [activeIndex, reducedMotion, slideAnim, stretchXAnim, compressYAnim]);
+  }, [activeIndex, reducedMotion, slideAnim, stretchXAnim, compressYAnim, leanXAnim]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -226,14 +304,17 @@ export function StatsMetricSelector({
         if (reducedMotionRef.current) {
           stretchXAnim.setValue(1);
           compressYAnim.setValue(1);
+          leanXAnim.setValue(0);
         } else {
-          // Squeeze intensity peaks smoothly across slot mid-points and high swipe velocity.
+          // Squeeze intensity and trailing lag respond dynamically to swipe velocity and direction.
           const wrappedFrac = Math.min(Math.max(clampedSlot, 0), 2) % 1;
-          const midBridge = Math.sin(Math.PI * wrappedFrac);
-          const velocityBoost = Math.min(Math.abs(vx) * 0.08, 0.09);
-          const travelFactor = Math.min(midBridge * 0.13 + velocityBoost, 0.19);
+          const midBridge = Math.sin(Math.PI * wrappedFrac) * 0.14;
+          const velocityBoost = Math.min(Math.abs(vx) * 0.14, 0.16);
+          const travelFactor = Math.min(midBridge + velocityBoost, 0.28);
+          const dragDir = vx !== 0 ? Math.sign(vx) : Math.sign(dx);
           stretchXAnim.setValue(1 + travelFactor);
-          compressYAnim.setValue(1 - travelFactor * 0.72);
+          compressYAnim.setValue(1 - travelFactor * 0.74);
+          leanXAnim.setValue(-dragDir * Math.min(Math.abs(vx) * 6 + travelFactor * 22, 12));
         }
       },
 
@@ -242,7 +323,7 @@ export function StatsMetricSelector({
         Animated.spring(pressScaleAnim, {
           toValue: 1,
           stiffness: 260,
-          damping: 20,
+          damping: 18,
           useNativeDriver: true,
         }).start();
 
@@ -254,12 +335,23 @@ export function StatsMetricSelector({
             );
             if (tappedSlot !== activeIndexRef.current) {
               onSelectRef.current(METRICS[tappedSlot].type);
+            } else if (!reducedMotionRef.current) {
+              // Subtle active-tile cushion bump confirms same-slot tap tactilely.
+              Animated.sequence([
+                Animated.parallel([
+                  Animated.timing(stretchXAnim, { toValue: 0.94, duration: 55, useNativeDriver: true }),
+                  Animated.timing(compressYAnim, { toValue: 1.05, duration: 55, useNativeDriver: true }),
+                ]),
+                Animated.parallel([
+                  Animated.spring(stretchXAnim, { toValue: 1, stiffness: 190, damping: 13, useNativeDriver: true }),
+                  Animated.spring(compressYAnim, { toValue: 1, stiffness: 190, damping: 13, useNativeDriver: true }),
+                ]),
+              ]).start();
             }
           } else {
             Animated.spring(slideAnim, {
               toValue: activeIndexRef.current,
-              stiffness: 165,
-              damping: 16,
+              ...MotionTokens.spring.metricCard,
               useNativeDriver: true,
             }).start();
             settleDeformation();
@@ -289,20 +381,26 @@ export function StatsMetricSelector({
           Animated.spring(slideAnim, {
             toValue: targetSlot,
             velocity: swipeVelocitySlots,
-            stiffness: reduced ? 320 : 160,
-            damping: reduced ? 34 : 16,
-            mass: 0.9,
+            stiffness: reduced ? 340 : MotionTokens.spring.metricCard.stiffness,
+            damping: reduced ? 34 : MotionTokens.spring.metricCard.damping,
+            mass: MotionTokens.spring.metricCard.mass,
             useNativeDriver: true,
           }),
           Animated.spring(stretchXAnim, {
             toValue: 1,
-            stiffness: reduced ? 380 : 145,
-            damping: reduced ? 38 : 13,
+            stiffness: reduced ? 380 : 170,
+            damping: reduced ? 38 : 12,
             useNativeDriver: true,
           }),
           Animated.spring(compressYAnim, {
             toValue: 1,
-            stiffness: reduced ? 380 : 145,
+            stiffness: reduced ? 380 : 170,
+            damping: reduced ? 38 : 12,
+            useNativeDriver: true,
+          }),
+          Animated.spring(leanXAnim, {
+            toValue: 0,
+            stiffness: reduced ? 380 : 170,
             damping: reduced ? 38 : 13,
             useNativeDriver: true,
           }),
@@ -313,8 +411,7 @@ export function StatsMetricSelector({
         isHorizontalDragRef.current = false;
         Animated.spring(slideAnim, {
           toValue: activeIndexRef.current,
-          stiffness: 165,
-          damping: 16,
+          ...MotionTokens.spring.metricCard,
           useNativeDriver: true,
         }).start();
         settleDeformation();
@@ -329,10 +426,11 @@ export function StatsMetricSelector({
   };
 
   const stepDistance = currentSlotWidth + GAP;
-  const translateX = slideAnim.interpolate({
+  const baseTranslateX = slideAnim.interpolate({
     inputRange: [0, 1, 2],
     outputRange: [0, stepDistance, stepDistance * 2],
   });
+  const translateX = Animated.add(baseTranslateX, leanXAnim);
 
   return (
     <View
@@ -419,7 +517,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: GAP,
     marginHorizontal: 20,
-    marginTop: 8,
+    marginTop: 6,
     height: CONTAINER_HEIGHT,
     position: 'relative',
   },
