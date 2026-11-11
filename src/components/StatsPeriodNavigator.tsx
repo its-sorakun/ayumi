@@ -100,8 +100,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginHorizontal: 20,
-    marginTop: 10,
-    height: 38,
+    marginTop: 6,
+    height: 36,
   },
   navButton: {
     width: 36,
