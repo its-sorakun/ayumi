@@ -6,8 +6,8 @@
  *  - Mathematically symmetrical three-column layout (flex: 1 per slot)
  *  - Continuous sliding highlight pill indicator positioned behind active icons
  *  - Real-time finger-drag tracking and squash-and-stretch squeeze effect during page transitions
- *  - Squeeze deformation: stretches horizontally along travel axis (scaleX up to 1.34) and
- *    inversely compresses vertically (scaleY down to 0.76) to preserve physical volume
+ *  - Squeeze deformation: stretches horizontally along travel axis (scaleX up to 1.24) and
+ *    inversely compresses vertically (scaleY down to 0.84) to preserve physical volume
  *  - Spring settling physics when snapping into resting slot positions
  *  - Seamless adaptation between light and dark Material 3 themes
  */
@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import { DockHomeIcon, DockChartIcon, SettingsGearIcon } from './AestheticIcons';
-import { MotionTokens } from '../theme/motion';
+import { MotionTokens, useReducedMotion } from '../theme/motion';
 
 export interface FloatingDockProps {
   readonly activeTab?: 'home' | 'stats' | 'settings';
@@ -41,6 +41,7 @@ export function FloatingDock({
   onProfilePress,
 }: FloatingDockProps): React.JSX.Element {
   const theme = useTheme();
+  const reducedMotion = useReducedMotion();
 
   // Container width measured on layout for accurate slot centering
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -54,18 +55,29 @@ export function FloatingDock({
 
   // Track tab index changes when pagerProgress is not actively controlling
   useEffect(() => {
+    if (reducedMotion) {
+      tabSqueezeAnim.setValue(0);
+      Animated.timing(tabSlideAnim, {
+        toValue: activeTabIndex,
+        duration: 120,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
     tabSqueezeAnim.setValue(0);
     Animated.sequence([
       Animated.timing(tabSqueezeAnim, {
         toValue: 1,
-        duration: 250,
+        duration: 180,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
       Animated.spring(tabSqueezeAnim, {
         toValue: 0,
-        damping: 17,
-        stiffness: 120,
+        damping: 15,
+        stiffness: 140,
         useNativeDriver: true,
       }),
     ]).start();
@@ -75,7 +87,7 @@ export function FloatingDock({
       ...MotionTokens.spring.snappy,
       useNativeDriver: true,
     }).start();
-  }, [activeTabIndex, tabSlideAnim, tabSqueezeAnim]);
+  }, [activeTabIndex, reducedMotion, tabSlideAnim, tabSqueezeAnim]);
 
   const onLayout = (e: LayoutChangeEvent) => {
     setContainerWidth(e.nativeEvent.layout.width);
@@ -105,18 +117,22 @@ export function FloatingDock({
       extrapolate: 'clamp',
     });
 
-    // Restrained Material 3 pill deformation during transit (grounded proportions, never over-flattened)
-    indicatorScaleX = pagerProgress.interpolate({
-      inputRange: [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-      outputRange: [1.0, 1.07, 1.12, 1.07, 1.0, 1.07, 1.12, 1.07, 1.0],
-      extrapolate: 'clamp',
-    });
+    // Fluid pill squeeze deformation clipped cleanly inside trackClip (disabled for reduced motion)
+    indicatorScaleX = reducedMotion
+      ? 1
+      : pagerProgress.interpolate({
+          inputRange: [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+          outputRange: [1.0, 1.14, 1.24, 1.14, 1.0, 1.14, 1.24, 1.14, 1.0],
+          extrapolate: 'clamp',
+        });
 
-    indicatorScaleY = pagerProgress.interpolate({
-      inputRange: [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-      outputRange: [1.0, 0.94, 0.91, 0.94, 1.0, 0.94, 0.91, 0.94, 1.0],
-      extrapolate: 'clamp',
-    });
+    indicatorScaleY = reducedMotion
+      ? 1
+      : pagerProgress.interpolate({
+          inputRange: [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+          outputRange: [1.0, 0.9, 0.84, 0.9, 1.0, 0.9, 0.84, 0.9, 1.0],
+          extrapolate: 'clamp',
+        });
   } else if (containerWidth > 0) {
     // Discrete spring-driven translation across all three slots
     indicatorTranslateX = tabSlideAnim.interpolate({
@@ -126,12 +142,12 @@ export function FloatingDock({
 
     indicatorScaleX = tabSqueezeAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [1.0, 1.32],
+      outputRange: [1.0, 1.24],
     });
 
     indicatorScaleY = tabSqueezeAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [1.0, 0.78],
+      outputRange: [1.0, 0.84],
     });
   }
 
