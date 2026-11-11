@@ -5,6 +5,7 @@
 export * from './DashboardScreen';
 export * from './MainPagerScreen';
 export * from './StatsScreen';
+export * from './WaterLoggerScreen';
 export * from './StepsDetailsScreen';
 export * from './DistanceDetailsScreen';
 export * from './WaterDetailsScreen';
