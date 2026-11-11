@@ -18,7 +18,7 @@ import {
   PanResponder,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
-import { useReducedMotion } from '../theme/motion';
+import { MotionTokens, useReducedMotion } from '../theme/motion';
 
 export type StatPeriodType = 'week' | 'daily' | 'month';
 
@@ -51,10 +51,12 @@ export function StatsPeriodSelector({
   const slideAnim = useRef(new Animated.Value(activeIndex)).current;
   const stretchXAnim = useRef(new Animated.Value(1)).current;
   const compressYAnim = useRef(new Animated.Value(1)).current;
+  const leanXAnim = useRef(new Animated.Value(0)).current;
   const pressScaleAnim = useRef(new Animated.Value(1)).current;
 
   const containerWidthRef = useRef(0);
   const activeIndexRef = useRef(activeIndex);
+  const prevActiveIndexRef = useRef(activeIndex);
   const onSelectRef = useRef(onSelectPeriod);
   const reducedMotionRef = useRef(reducedMotion);
   activeIndexRef.current = activeIndex;
@@ -70,17 +72,25 @@ export function StatsPeriodSelector({
 
   const resetCapsuleShape = useCallback(() => {
     const reduced = reducedMotionRef.current;
+    const settleStiffness = reduced ? 380 : MotionTokens.spring.periodCapsule.stiffness;
+    const settleDamping = reduced ? 36 : MotionTokens.spring.periodCapsule.damping;
     Animated.parallel([
       Animated.spring(stretchXAnim, {
         toValue: 1,
-        stiffness: reduced ? 380 : 185,
-        damping: reduced ? 36 : 14,
+        stiffness: settleStiffness,
+        damping: settleDamping,
         useNativeDriver: true,
       }),
       Animated.spring(compressYAnim, {
         toValue: 1,
-        stiffness: reduced ? 380 : 185,
-        damping: reduced ? 36 : 14,
+        stiffness: settleStiffness,
+        damping: settleDamping,
+        useNativeDriver: true,
+      }),
+      Animated.spring(leanXAnim, {
+        toValue: 0,
+        stiffness: settleStiffness,
+        damping: settleDamping,
         useNativeDriver: true,
       }),
       Animated.spring(pressScaleAnim, {
@@ -90,11 +100,14 @@ export function StatsPeriodSelector({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [stretchXAnim, compressYAnim, pressScaleAnim]);
+  }, [stretchXAnim, compressYAnim, leanXAnim, pressScaleAnim]);
 
-  // Distinct segmented capsule motion: crisp, viscous capsule glide with fast mid-flight
-  // squeeze rebound constrained cleanly inside the rounded pill track.
+  // Viscous liquid-capsule motion: streamlined compression and taut surge inside trackClip,
+  // deliberately crisper and less bouncy than the metric card leaps.
   useEffect(() => {
+    const prevIdx = prevActiveIndexRef.current;
+    prevActiveIndexRef.current = activeIndex;
+
     if (skipNextEffectAnimRef.current) {
       skipNextEffectAnimRef.current = false;
       return;
@@ -103,6 +116,7 @@ export function StatsPeriodSelector({
     if (reducedMotion) {
       stretchXAnim.setValue(1);
       compressYAnim.setValue(1);
+      leanXAnim.setValue(0);
       pressScaleAnim.setValue(1);
       Animated.timing(slideAnim, {
         toValue: activeIndex,
@@ -113,25 +127,53 @@ export function StatsPeriodSelector({
       return;
     }
 
+    const deltaSlots = activeIndex - prevIdx;
+    const dir = Math.sign(deltaSlots) || 1;
+    const jumpDistance = Math.abs(deltaSlots);
+    if (jumpDistance === 0) {
+      return;
+    }
+
+    const peakStretch = jumpDistance >= 2 ? 1.25 : 1.18;
+    const peakCompress = jumpDistance >= 2 ? 0.80 : 0.84;
+
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: activeIndex,
-        stiffness: 205,
-        damping: 16,
-        mass: 0.82,
+        ...MotionTokens.spring.periodCapsule,
         useNativeDriver: true,
       }),
       Animated.sequence([
         Animated.parallel([
           Animated.timing(stretchXAnim, {
-            toValue: 1.14,
-            duration: 90,
+            toValue: 0.92,
+            duration: 45,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(compressYAnim, {
-            toValue: 0.87,
-            duration: 90,
+            toValue: 1.03,
+            duration: 45,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(stretchXAnim, {
+            toValue: peakStretch,
+            duration: 85,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(compressYAnim, {
+            toValue: peakCompress,
+            duration: 85,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(leanXAnim, {
+            toValue: -dir * (jumpDistance >= 2 ? 7 : 4.5),
+            duration: 85,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
@@ -139,20 +181,26 @@ export function StatsPeriodSelector({
         Animated.parallel([
           Animated.spring(stretchXAnim, {
             toValue: 1,
-            stiffness: 185,
-            damping: 14,
+            stiffness: 240,
+            damping: 16,
             useNativeDriver: true,
           }),
           Animated.spring(compressYAnim, {
             toValue: 1,
-            stiffness: 185,
-            damping: 14,
+            stiffness: 240,
+            damping: 16,
+            useNativeDriver: true,
+          }),
+          Animated.spring(leanXAnim, {
+            toValue: 0,
+            stiffness: 240,
+            damping: 17,
             useNativeDriver: true,
           }),
         ]),
       ]),
     ]).start();
-  }, [activeIndex, reducedMotion, slideAnim, stretchXAnim, compressYAnim, pressScaleAnim]);
+  }, [activeIndex, reducedMotion, slideAnim, stretchXAnim, compressYAnim, leanXAnim, pressScaleAnim]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -202,13 +250,16 @@ export function StatsPeriodSelector({
         if (reducedMotionRef.current) {
           stretchXAnim.setValue(1);
           compressYAnim.setValue(1);
+          leanXAnim.setValue(0);
         } else {
           const wrappedFrac = clampedSlot % 1;
-          const midStretch = Math.sin(Math.PI * wrappedFrac);
-          const velocityBoost = Math.min(Math.abs(vx) * 0.08, 0.08);
-          const stretchFactor = Math.min(midStretch * 0.11 + velocityBoost, 0.18);
+          const midStretch = Math.sin(Math.PI * wrappedFrac) * 0.12;
+          const velocityBoost = Math.min(Math.abs(vx) * 0.11, 0.13);
+          const stretchFactor = Math.min(midStretch + velocityBoost, 0.24);
+          const dragDir = vx !== 0 ? Math.sign(vx) : Math.sign(dx);
           stretchXAnim.setValue(1 + stretchFactor);
-          compressYAnim.setValue(1 - stretchFactor * 0.72);
+          compressYAnim.setValue(1 - stretchFactor * 0.76);
+          leanXAnim.setValue(-dragDir * Math.min(Math.abs(vx) * 5 + stretchFactor * 16, 9));
         }
       },
 
@@ -226,8 +277,7 @@ export function StatsPeriodSelector({
           } else {
             Animated.spring(slideAnim, {
               toValue: activeIndexRef.current,
-              stiffness: 205,
-              damping: 16,
+              ...MotionTokens.spring.periodCapsule,
               useNativeDriver: true,
             }).start();
           }
@@ -256,21 +306,27 @@ export function StatsPeriodSelector({
           Animated.spring(slideAnim, {
             toValue: targetSlot,
             velocity: swipeVelocitySlots,
-            stiffness: reduced ? 360 : 205,
-            damping: reduced ? 34 : 16,
-            mass: 0.82,
+            stiffness: reduced ? 360 : MotionTokens.spring.periodCapsule.stiffness,
+            damping: reduced ? 34 : MotionTokens.spring.periodCapsule.damping,
+            mass: MotionTokens.spring.periodCapsule.mass,
             useNativeDriver: true,
           }),
           Animated.spring(stretchXAnim, {
             toValue: 1,
-            stiffness: reduced ? 380 : 185,
-            damping: reduced ? 36 : 14,
+            stiffness: reduced ? 380 : 240,
+            damping: reduced ? 36 : 16,
             useNativeDriver: true,
           }),
           Animated.spring(compressYAnim, {
             toValue: 1,
-            stiffness: reduced ? 380 : 185,
-            damping: reduced ? 36 : 14,
+            stiffness: reduced ? 380 : 240,
+            damping: reduced ? 36 : 16,
+            useNativeDriver: true,
+          }),
+          Animated.spring(leanXAnim, {
+            toValue: 0,
+            stiffness: reduced ? 380 : 240,
+            damping: reduced ? 36 : 17,
             useNativeDriver: true,
           }),
           Animated.spring(pressScaleAnim, {
@@ -286,8 +342,7 @@ export function StatsPeriodSelector({
         isHorizontalDragRef.current = false;
         Animated.spring(slideAnim, {
           toValue: activeIndexRef.current,
-          stiffness: 205,
-          damping: 16,
+          ...MotionTokens.spring.periodCapsule,
           useNativeDriver: true,
         }).start();
         resetCapsuleShape();
@@ -301,10 +356,11 @@ export function StatsPeriodSelector({
     setContainerWidth(w);
   };
 
-  const translateX = slideAnim.interpolate({
+  const baseTranslateX = slideAnim.interpolate({
     inputRange: [0, 1, 2],
     outputRange: [0, segmentWidth, segmentWidth * 2],
   });
+  const translateX = Animated.add(baseTranslateX, leanXAnim);
 
   return (
     <View
@@ -373,7 +429,7 @@ const styles = StyleSheet.create({
     height: CONTAINER_HEIGHT,
     borderRadius: CONTAINER_HEIGHT / 2,
     marginHorizontal: 20,
-    marginTop: 12,
+    marginTop: 8,
     padding: PADDING,
     position: 'relative',
     alignItems: 'center',
