@@ -18,6 +18,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
+  Easing,
   LayoutChangeEvent,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
@@ -26,7 +27,7 @@ import Svg, { Line } from 'react-native-svg';
 import type { StatMetricType } from './StatsMetricSelector';
 import type { StatPeriodType } from './StatsPeriodSelector';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
-import { MotionTokens } from '../theme/motion';
+import { MotionTokens, useReducedMotion } from '../theme/motion';
 
 export type ChartPointStatus = 'recorded' | 'missing' | 'future';
 
@@ -49,19 +50,51 @@ interface StatsChartProps {
   readonly unavailableNotice?: string | null;
 }
 
-const CHART_HEIGHT = 140;
+const CHART_HEIGHT = 184;
 const PLOT_TOP_PADDING = 8;
 const PLOT_BOTTOM_PADDING = 8;
 const PLOT_SPAN = CHART_HEIGHT - PLOT_TOP_PADDING - PLOT_BOTTOM_PADDING;
-const Y_AXIS_WIDTH = 38;
+const Y_AXIS_WIDTH = 48;
+
+/**
+ * Formats a Y-axis tick value consistently with the active metric's primary units
+ * (km/m for distance, L/ml for water, compact k/integer counts for steps).
+ * Pass `scaleMax` so non-zero ticks within the same chart share one coherent unit.
+ */
+export function formatMetricAxisTick(
+  value: number,
+  metric: StatMetricType,
+  scaleMax: number,
+): string {
+  if (value === 0) return '0';
+
+  if (metric === 'distance') {
+    if (scaleMax >= 1000) {
+      return `${Number((value / 1000).toFixed(2))} km`;
+    }
+    return `${Math.round(value)} m`;
+  }
+
+  if (metric === 'water') {
+    if (scaleMax >= 1000) {
+      return `${Number((value / 1000).toFixed(2))} L`;
+    }
+    return `${Math.round(value)} ml`;
+  }
+
+  if (value >= 1000) {
+    return `${Number((value / 1000).toFixed(2))}k`;
+  }
+  return `${Math.round(value)}`;
+}
 
 /**
  * Selects a clean upper axis bound divisible by 4 into round whole ticks.
- * Handles small hourly counts (e.g. 6 steps -> 0..8) as cleanly as multi-thousand daily totals.
+ * Handles small hourly counts (e.g. 6 steps -> 0..8) and Liter/km bounds cleanly.
  */
 export function computeNiceAxisMax(rawMax: number, metric: StatMetricType): number {
   if (rawMax <= 0) {
-    return metric === 'water' ? 1000 : 100;
+    return metric === 'water' ? 2000 : metric === 'distance' ? 1000 : 100;
   }
 
   const minStep = rawMax / 4;
@@ -98,6 +131,7 @@ export function StatsChart({
 }: StatsChartProps): React.JSX.Element {
   const theme = useTheme();
   const isDark = theme.dark;
+  const reducedMotion = useReducedMotion();
 
   const [containerWidth, setContainerWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -112,22 +146,30 @@ export function StatsChart({
     return `${metric}:${period}:${valuesSig}`;
   }, [metric, period, data]);
 
-  // Trigger restrained UI-thread baseline reveal when dataset or view genuinely changes
+  // Deliberate, legible baseline reveal (~820ms cubic glide with subtle left-to-right cascade)
   useEffect(() => {
     growthAnim.stopAnimation();
-    growthAnim.setValue(0);
-    Animated.timing(growthAnim, {
-      toValue: 1,
-      duration: 360,
-      easing: MotionTokens.easing.emphasizedDecel,
-      useNativeDriver: true,
-    }).start();
+    if (reducedMotion) {
+      growthAnim.setValue(1);
+    } else {
+      growthAnim.setValue(0);
+      Animated.timing(growthAnim, {
+        toValue: 1,
+        duration: 820,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }
     setSelectedIndex(null);
-  }, [datasetSignature, growthAnim]);
+  }, [datasetSignature, reducedMotion, growthAnim]);
 
   // Tooltip entrance animation
   useEffect(() => {
     if (selectedIndex !== null) {
+      if (reducedMotion) {
+        tooltipAnim.setValue(1);
+        return;
+      }
       tooltipAnim.setValue(0);
       Animated.spring(tooltipAnim, {
         toValue: 1,
@@ -135,7 +177,7 @@ export function StatsChart({
         useNativeDriver: true,
       }).start();
     }
-  }, [selectedIndex, tooltipAnim]);
+  }, [selectedIndex, reducedMotion, tooltipAnim]);
 
   const onLayout = (e: LayoutChangeEvent) => {
     setContainerWidth(e.nativeEvent.layout.width);
@@ -173,13 +215,7 @@ export function StatsChart({
 
   const yTicks = [maxValue, maxValue * 0.75, maxValue * 0.5, maxValue * 0.25, 0];
 
-  const formatTickLabel = (val: number) => {
-    if (val === 0) return '0';
-    if (val >= 1000) {
-      return `${Number((val / 1000).toFixed(2))}k`;
-    }
-    return `${Math.round(val)}`;
-  };
+  const formatTickLabel = (val: number) => formatMetricAxisTick(val, metric, maxValue);
 
   const chartPlotWidth = Math.max(containerWidth - Y_AXIS_WIDTH - 32, 100);
   const dataCount = Math.max(data.length, 1);
@@ -278,7 +314,7 @@ export function StatsChart({
                 ? 'No data'
                 : metric === 'distance'
                 ? selectedPoint.value >= 1000
-                  ? `${(selectedPoint.value / 1000).toFixed(2)} km`
+                  ? `${Number((selectedPoint.value / 1000).toFixed(2))} km`
                   : `${Math.round(selectedPoint.value)} m`
                 : metric === 'water'
                 ? selectedPoint.value >= 1000
@@ -299,6 +335,7 @@ export function StatsChart({
             return (
               <Text
                 key={i}
+                numberOfLines={1}
                 style={[
                   styles.axisLabelText,
                   styles.yAxisTickLabel,
@@ -351,9 +388,9 @@ export function StatsChart({
                   : 2;
                 const isSelected = selectedIndex === index;
 
-                // Subtle restrained baseline stagger (max ~28% window offset across dataset)
-                const startFrac = dataCount > 1 ? (index / (dataCount - 1)) * 0.28 : 0;
-                const endFrac = Math.min(startFrac + 0.72, 1.0);
+                // Controlled left-to-right cascade across 40% of the reveal window
+                const startFrac = dataCount > 1 ? (index / (dataCount - 1)) * 0.4 : 0;
+                const endFrac = Math.min(startFrac + 0.6, 1.0);
                 const barWave = growthAnim.interpolate({
                   inputRange: [startFrac, endFrac],
                   outputRange: [0.001, 1],
@@ -493,9 +530,10 @@ export function StatsChart({
 const styles = StyleSheet.create({
   card: {
     marginHorizontal: 20,
-    marginTop: 8,
+    marginTop: 10,
     borderRadius: 22,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
     elevation: 1,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
@@ -505,7 +543,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -571,7 +609,8 @@ const styles = StyleSheet.create({
   },
   yAxisTickLabel: {
     position: 'absolute',
-    right: 8,
+    right: 6,
+    width: Y_AXIS_WIDTH - 6,
     height: 14,
     lineHeight: 14,
     textAlign: 'right',
@@ -623,7 +662,7 @@ const styles = StyleSheet.create({
   xAxisRow: {
     height: 22,
     position: 'relative',
-    marginTop: 6,
+    marginTop: 8,
   },
   xAxisLabelWrapper: {
     position: 'absolute',
