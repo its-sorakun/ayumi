@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import Svg, { Path, Circle, Rect, G } from 'react-native-svg';
+import Svg, { Path, Circle, Rect } from 'react-native-svg';
 
 interface IconProps {
   readonly size?: number;
@@ -338,6 +338,166 @@ export function ChevronRightIcon({ size = 20, color = '#6B5782' }: IconProps): R
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d="M9 18l6-6-6-6"
+        stroke={color}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/** Water droplet icon for floating bottom dock */
+export function DockWaterIcon({
+  size = 22,
+  color = '#6B5782',
+  filled = false,
+}: IconProps & { readonly filled?: boolean }): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 3c-3.1 4.1-6.5 8.5-6.5 12.2A6.5 6.5 0 0018.5 15.2C18.5 11.5 15.1 7.1 12 3z"
+        fill={filled ? color : 'none'}
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {!filled && (
+        <Path
+          d="M9.5 15.2c0 1.4 1.1 2.5 2.5 2.5"
+          stroke={color}
+          strokeWidth={1.7}
+          strokeLinecap="round"
+        />
+      )}
+    </Svg>
+  );
+}
+
+/** 250 ml open cup/glass icon with water line */
+export function WaterCupIcon({ size = 22, color = '#006E60' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M6.5 4.5h11l-1.4 14a1.8 1.8 0 01-1.8 1.5H9.7a1.8 1.8 0 01-1.8-1.5l-1.4-14z"
+        stroke={color}
+        strokeWidth={1.9}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M7.6 10.5h8.8"
+        stroke={color}
+        strokeWidth={1.7}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+/** 500 ml medium bottle icon */
+export function WaterBottleSmallIcon({ size = 22, color = '#006E60' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M9.5 3h5v2.2l2 2.2v12.1a1.5 1.5 0 01-1.5 1.5H9a1.5 1.5 0 01-1.5-1.5V7.4l2-2.2V3z"
+        stroke={color}
+        strokeWidth={1.9}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path d="M8.5 11.5h7M8.5 16h7" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** 750 ml tall tumbler / shaker icon */
+export function WaterTumblerIcon({ size = 22, color = '#006E60' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M7 6.5h10l-1.3 13a1.6 1.6 0 01-1.6 1.5H9.9a1.6 1.6 0 01-1.6-1.5L7 6.5z"
+        stroke={color}
+        strokeWidth={1.9}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M6 6.5h12M9.5 4h5v2.5h-5V4z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path d="M8.5 12.5h7" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** 1.0 L large hydration bottle icon */
+export function WaterBottleLargeIcon({ size = 22, color = '#006E60' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M9.5 2.8h5v2l1.8 1.5a2 2 0 01.7 1.5v11.7a1.7 1.7 0 01-1.7 1.7H8.7A1.7 1.7 0 017 19.5V7.8a2 2 0 01.7-1.5l1.8-1.5v-2z"
+        stroke={color}
+        strokeWidth={1.9}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path d="M9.5 5h5M7.3 11.5h9.4M7.3 16h9.4" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** Pencil / edit icon */
+export function PencilEditIcon({ size = 18, color = '#6B5782' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M14.5 5.5l4 4L8 20H4v-4L14.5 5.5z"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/** Minimal trash delete icon */
+export function TrashDeleteIcon({ size = 18, color = '#BA1A1A' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4 7h16M9.5 4h5M7 7l1 12.5A1.5 1.5 0 009.5 21h5a1.5 1.5 0 001.5-1.5L17 7"
+        stroke={color}
+        strokeWidth={1.9}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/** Horizontal three-dot overflow icon */
+export function MoreDotsIcon({ size = 18, color = '#6B5782' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx={6} cy={12} r={1.7} fill={color} />
+      <Circle cx={12} cy={12} r={1.7} fill={color} />
+      <Circle cx={18} cy={12} r={1.7} fill={color} />
+    </Svg>
+  );
+}
+
+/** Close X icon for sheets */
+export function CloseXIcon({ size = 20, color = '#6B5782' }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M18 6L6 18M6 6l12 12"
         stroke={color}
         strokeWidth={2.2}
         strokeLinecap="round"
