@@ -3,7 +3,7 @@
  *
  * Implements a floating pill dock with:
  *  - 28dp corner radius and dynamic Material You surface styling
- *  - Mathematically symmetrical three-column layout (flex: 1 per slot)
+ *  - Mathematically symmetrical four-column layout (flex: 1 per slot: Home, Stats, Water, Settings)
  *  - Continuous sliding highlight pill indicator positioned behind active icons
  *  - Real-time finger-drag tracking and squash-and-stretch squeeze effect during page transitions
  *  - Squeeze deformation: stretches horizontally along travel axis (scaleX up to 1.24) and
@@ -23,14 +23,20 @@ import {
 } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DockHomeIcon, DockChartIcon, SettingsGearIcon } from './AestheticIcons';
+import {
+  DockHomeIcon,
+  DockChartIcon,
+  DockWaterIcon,
+  SettingsGearIcon,
+} from './AestheticIcons';
 import { MotionTokens, useReducedMotion } from '../theme/motion';
 
 export interface FloatingDockProps {
-  readonly activeTab?: 'home' | 'stats' | 'settings';
+  readonly activeTab?: 'home' | 'stats' | 'water' | 'settings';
   readonly pagerProgress?: Animated.AnimatedInterpolation<number> | Animated.Value;
   readonly onHomePress?: () => void;
   readonly onAnalyticsPress?: () => void;
+  readonly onWaterPress?: () => void;
   readonly onProfilePress?: () => void;
 }
 
@@ -39,6 +45,7 @@ export function FloatingDock({
   pagerProgress,
   onHomePress,
   onAnalyticsPress,
+  onWaterPress,
   onProfilePress,
 }: FloatingDockProps): React.JSX.Element {
   const theme = useTheme();
@@ -48,8 +55,15 @@ export function FloatingDock({
   // Container width measured on layout for accurate slot centering
   const [containerWidth, setContainerWidth] = useState<number>(0);
 
-  // Tab index: 0 = Home, 1 = Stats, 2 = Settings
-  const activeTabIndex = activeTab === 'stats' ? 1 : activeTab === 'settings' ? 2 : 0;
+  // Tab index: 0 = Home, 1 = Stats, 2 = Water, 3 = Settings
+  const activeTabIndex =
+    activeTab === 'stats'
+      ? 1
+      : activeTab === 'water'
+      ? 2
+      : activeTab === 'settings'
+      ? 3
+      : 0;
 
   // Animated values for standalone mode or settings navigation
   const tabSlideAnim = useRef(new Animated.Value(activeTabIndex)).current;
@@ -95,18 +109,19 @@ export function FloatingDock({
     setContainerWidth(e.nativeEvent.layout.width);
   };
 
-  // Dimensions of pill indicator
+  // Dimensions of pill indicator across four equal navigation slots
   const availableWidth = Math.max(containerWidth - 16, 0);
-  const slotWidth = availableWidth / 3;
-  const pillWidth = Math.min(Math.max(slotWidth - 8, 48), 64);
+  const slotWidth = availableWidth / 4;
+  const pillWidth = Math.min(Math.max(slotWidth - 8, 44), 60);
   const pillHeight = 38;
 
-  // Slot center offsets
+  // Slot center offsets (0=Home, 1=Stats, 2=Water, 3=Settings)
   const slot0X = 8 + (slotWidth - pillWidth) / 2;
   const slot1X = 8 + slotWidth + (slotWidth - pillWidth) / 2;
   const slot2X = 8 + 2 * slotWidth + (slotWidth - pillWidth) / 2;
+  const slot3X = 8 + 3 * slotWidth + (slotWidth - pillWidth) / 2;
 
-  // Determine transform based on whether pagerProgress is actively driving between Home and Stats
+  // Determine transform based on whether pagerProgress is actively driving transitions
   let indicatorTranslateX: any = slot0X;
   let indicatorScaleX: any = 1;
   let indicatorScaleY: any = 1;
@@ -116,14 +131,15 @@ export function FloatingDock({
     // and anchors cleanly onto destination slot before tail snaps into rest.
     const d01 = slot1X - slot0X;
     const d12 = slot2X - slot1X;
+    const d23 = slot3X - slot2X;
     indicatorTranslateX = reducedMotion
       ? pagerProgress.interpolate({
-          inputRange: [0, 1, 2],
-          outputRange: [slot0X, slot1X, slot2X],
+          inputRange: [0, 1, 2, 3],
+          outputRange: [slot0X, slot1X, slot2X, slot3X],
           extrapolate: 'clamp',
         })
       : pagerProgress.interpolate({
-          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2],
+          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2, 2.2, 2.5, 2.8, 3],
           outputRange: [
             slot0X,
             slot0X + d01 * 0.14,
@@ -134,6 +150,10 @@ export function FloatingDock({
             slot1X + d12 * 0.5,
             slot1X + d12 * 0.86,
             slot2X,
+            slot2X + d23 * 0.14,
+            slot2X + d23 * 0.5,
+            slot2X + d23 * 0.86,
+            slot3X,
           ],
           extrapolate: 'clamp',
         });
@@ -142,23 +162,33 @@ export function FloatingDock({
     indicatorScaleX = reducedMotion
       ? 1
       : pagerProgress.interpolate({
-          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2],
-          outputRange: [1.0, 1.18, 1.26, 1.18, 1.0, 1.18, 1.26, 1.18, 1.0],
+          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2, 2.2, 2.5, 2.8, 3],
+          outputRange: [
+            1.0, 1.18, 1.26, 1.18,
+            1.0, 1.18, 1.26, 1.18,
+            1.0, 1.18, 1.26, 1.18,
+            1.0,
+          ],
           extrapolate: 'clamp',
         });
 
     indicatorScaleY = reducedMotion
       ? 1
       : pagerProgress.interpolate({
-          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2],
-          outputRange: [1.0, 0.9, 0.83, 0.9, 1.0, 0.9, 0.83, 0.9, 1.0],
+          inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2, 2.2, 2.5, 2.8, 3],
+          outputRange: [
+            1.0, 0.9, 0.83, 0.9,
+            1.0, 0.9, 0.83, 0.9,
+            1.0, 0.9, 0.83, 0.9,
+            1.0,
+          ],
           extrapolate: 'clamp',
         });
   } else if (containerWidth > 0) {
-    // Discrete spring-driven translation across all three slots
+    // Discrete spring-driven translation across all four slots
     indicatorTranslateX = tabSlideAnim.interpolate({
-      inputRange: [0, 1, 2],
-      outputRange: [slot0X, slot1X, slot2X],
+      inputRange: [0, 1, 2, 3],
+      outputRange: [slot0X, slot1X, slot2X, slot3X],
     });
 
     indicatorScaleX = tabSqueezeAnim.interpolate({
@@ -171,6 +201,10 @@ export function FloatingDock({
       outputRange: [1.0, 0.84],
     });
   }
+
+  const dockBorderColor = theme.dark
+    ? 'rgba(255, 255, 255, 0.08)'
+    : theme.colors.outlineVariant;
 
   return (
     <View
@@ -185,7 +219,7 @@ export function FloatingDock({
           styles.dockContainer,
           {
             backgroundColor: theme.dark ? theme.colors.elevation.level2 : theme.colors.surface,
-            borderColor: theme.dark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.outlineVariant,
+            borderColor: dockBorderColor,
           },
         ]}>
         {/* Clipped Sliding Active Indicator Pill */}
@@ -243,7 +277,25 @@ export function FloatingDock({
           />
         </TouchableOpacity>
 
-        {/* Slot 3: Settings Tab */}
+        {/* Slot 3: Water Logger Tab */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={onWaterPress}
+          style={styles.tabSlot}
+          accessibilityRole="tab"
+          accessibilityLabel="Water tab">
+          <DockWaterIcon
+            size={20}
+            filled={activeTab === 'water'}
+            color={
+              activeTab === 'water'
+                ? theme.colors.onPrimaryContainer
+                : theme.colors.onSurfaceVariant
+            }
+          />
+        </TouchableOpacity>
+
+        {/* Slot 4: Settings Tab */}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={onProfilePress}
