@@ -14,6 +14,7 @@ import {
   getGrantedPermissions as hcGetGrantedPermissions,
   readRecords,
   aggregateRecord,
+  aggregateGroupByDuration,
   aggregateGroupByPeriod,
   ExerciseType,
 } from 'react-native-health-connect';
@@ -29,11 +30,26 @@ import type { HealthDataProvider } from './HealthDataProvider';
 import type {
   DailySummary,
   HealthRecord,
+  HistoricalStepData,
+  HistoricalDistanceData,
+  HourlyStepData,
+  HourlyDistanceData,
+  HourlyBreakdownResult,
   PermissionState,
   ProviderStatus,
   RecordType,
   TimeRangeFilter,
 } from '../types/health';
+import { formatLocalDateKey, startOfDay, endOfDay } from '../utils/index';
+
+function parsePeriodStartDateKey(rawStartTime: string): string {
+  // Health Connect period slices emit naive LocalDateTime strings without offset, while zoned
+  // instants include 'Z' or numeric UTC offsets; normalize zoned values into local YYYY-MM-DD.
+  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(rawStartTime)) {
+    return formatLocalDateKey(new Date(rawStartTime));
+  }
+  return rawStartTime.split('T')[0];
+}
 
 /**
  * Maps our generic RecordType to Health Connect's strongly typed record type strings.
@@ -258,18 +274,137 @@ export class HealthConnectProvider implements HealthDataProvider {
     }));
   }
 
-  async getHistoricalSteps(timeRange: 'week' | 'month' | 'year') {
+  private async aggregateDailyRange(
+    recordType: 'Steps' | 'Distance',
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Array<{ date: string; value: number; hasRecord: boolean }>> {
     await this.ensureInitialized();
-    const days = timeRange === 'week' ? 7 : timeRange === 'month' ? 30 : 365;
-    
+    const rangeStart = startOfDay(startDate);
     const now = new Date();
-    const startTime = new Date(now);
-    if (timeRange === 'year') {
-      startTime.setMonth(startTime.getMonth() - 11);
-      startTime.setDate(1);
-    } else {
-      startTime.setDate(startTime.getDate() - (days - 1));
+    const requestedEnd = endOfDay(endDate);
+    const clampedEnd = requestedEnd.getTime() > now.getTime() ? now : requestedEnd;
+    if (rangeStart.getTime() > clampedEnd.getTime()) {
+      return [];
     }
+
+    try {
+      const result = await aggregateGroupByPeriod({
+        recordType,
+        timeRangeFilter: {
+          operator: 'between',
+          startTime: rangeStart.toISOString(),
+          endTime: clampedEnd.toISOString(),
+        },
+        timeRangeSlicer: {
+          period: 'DAYS',
+          length: 1,
+        },
+      });
+
+      return result.map((r: any) => {
+        const value =
+          recordType === 'Steps'
+            ? r.result?.COUNT_TOTAL || 0
+            : r.result?.DISTANCE?.inMeters || 0;
+        const origins = r.result?.dataOrigins;
+        const hasRecord = value > 0 || (Array.isArray(origins) && origins.length > 0);
+        return {
+          date: parsePeriodStartDateKey(r.startTime),
+          value,
+          hasRecord,
+        };
+      });
+    } catch (e) {
+      console.warn(`Failed to aggregate ${recordType} range`, e);
+      return [];
+    }
+  }
+
+  private async aggregateHourlyDate(
+    recordType: 'Steps' | 'Distance',
+    date: Date,
+  ): Promise<{ supported: boolean; buckets: Array<{ hour: number; value: number; hasRecord: boolean }> }> {
+    await this.ensureInitialized();
+    const dayStart = startOfDay(date);
+    if (dayStart.getTime() > endOfDay(new Date()).getTime()) {
+      return { supported: true, buckets: [] };
+    }
+
+    // Query full [00:00, next 00:00) window so all 24 local hours align cleanly on hour boundaries.
+    const nextMidnight = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate() + 1,
+      0,
+      0,
+      0,
+      0,
+    );
+    const targetDateKey = formatLocalDateKey(date);
+
+    try {
+      const result = await aggregateGroupByDuration({
+        recordType,
+        timeRangeFilter: {
+          operator: 'between',
+          startTime: dayStart.toISOString(),
+          endTime: nextMidnight.toISOString(),
+        },
+        timeRangeSlicer: {
+          duration: 'HOURS',
+          length: 1,
+        },
+      });
+
+      const hourTotals = new Map<number, { value: number; hasRecord: boolean }>();
+      for (const r of result as any[]) {
+        const bucketStart = new Date(r.startTime);
+        if (formatLocalDateKey(bucketStart) !== targetDateKey) continue;
+        const hr = bucketStart.getHours();
+        const value =
+          recordType === 'Steps'
+            ? r.result?.COUNT_TOTAL || 0
+            : r.result?.DISTANCE?.inMeters || 0;
+        const origins = r.result?.dataOrigins;
+        const hasOrigin = value > 0 || (Array.isArray(origins) && origins.length > 0);
+        const existing = hourTotals.get(hr);
+        hourTotals.set(hr, {
+          value: (existing?.value || 0) + value,
+          hasRecord: Boolean(existing?.hasRecord || hasOrigin),
+        });
+      }
+
+      const buckets: Array<{ hour: number; value: number; hasRecord: boolean }> = [];
+      for (let h = 0; h < 24; h++) {
+        const entry = hourTotals.get(h);
+        buckets.push({
+          hour: h,
+          value: entry?.value || 0,
+          hasRecord: Boolean(entry?.hasRecord),
+        });
+      }
+
+      return { supported: true, buckets };
+    } catch (e) {
+      console.warn(`Failed to aggregate hourly ${recordType}`, e);
+      return { supported: false, buckets: [] };
+    }
+  }
+
+  async getHistoricalSteps(timeRange: 'week' | 'month' | 'year'): Promise<HistoricalStepData[]> {
+    await this.ensureInitialized();
+    const now = new Date();
+    if (timeRange !== 'year') {
+      const days = timeRange === 'week' ? 7 : 30;
+      const startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - (days - 1));
+      return this.getHistoricalStepsRange(startDate, now);
+    }
+
+    const startTime = new Date(now);
+    startTime.setMonth(startTime.getMonth() - 11);
+    startTime.setDate(1);
     startTime.setHours(0, 0, 0, 0);
 
     try {
@@ -281,33 +416,39 @@ export class HealthConnectProvider implements HealthDataProvider {
           endTime: now.toISOString(),
         },
         timeRangeSlicer: {
-          period: timeRange === 'year' ? 'MONTHS' : 'DAYS',
+          period: 'MONTHS',
           length: 1,
         },
       });
 
-      return result.map((r: any) => ({
-        date: r.startTime.split('T')[0],
-        steps: r.result?.COUNT_TOTAL || 0,
-      }));
+      return result.map((r: any) => {
+        const steps = r.result?.COUNT_TOTAL || 0;
+        const origins = r.result?.dataOrigins;
+        return {
+          date: parsePeriodStartDateKey(r.startTime),
+          steps,
+          hasRecord: steps > 0 || (Array.isArray(origins) && origins.length > 0),
+        };
+      });
     } catch (e) {
       console.warn('Failed to aggregate historical steps', e);
       return [];
     }
   }
 
-  async getHistoricalDistance(timeRange: 'week' | 'month' | 'year') {
+  async getHistoricalDistance(timeRange: 'week' | 'month' | 'year'): Promise<HistoricalDistanceData[]> {
     await this.ensureInitialized();
-    const days = timeRange === 'week' ? 7 : timeRange === 'month' ? 30 : 365;
-    
     const now = new Date();
-    const startTime = new Date(now);
-    if (timeRange === 'year') {
-      startTime.setMonth(startTime.getMonth() - 11);
-      startTime.setDate(1);
-    } else {
-      startTime.setDate(startTime.getDate() - (days - 1));
+    if (timeRange !== 'year') {
+      const days = timeRange === 'week' ? 7 : 30;
+      const startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - (days - 1));
+      return this.getHistoricalDistanceRange(startDate, now);
     }
+
+    const startTime = new Date(now);
+    startTime.setMonth(startTime.getMonth() - 11);
+    startTime.setDate(1);
     startTime.setHours(0, 0, 0, 0);
 
     try {
@@ -319,19 +460,50 @@ export class HealthConnectProvider implements HealthDataProvider {
           endTime: now.toISOString(),
         },
         timeRangeSlicer: {
-          period: timeRange === 'year' ? 'MONTHS' : 'DAYS',
+          period: 'MONTHS',
           length: 1,
         },
       });
 
-      return result.map((r: any) => ({
-        date: r.startTime.split('T')[0],
-        distance: r.result?.DISTANCE?.inMeters || 0,
-      }));
+      return result.map((r: any) => {
+        const distance = r.result?.DISTANCE?.inMeters || 0;
+        const origins = r.result?.dataOrigins;
+        return {
+          date: parsePeriodStartDateKey(r.startTime),
+          distance,
+          hasRecord: distance > 0 || (Array.isArray(origins) && origins.length > 0),
+        };
+      });
     } catch (e) {
       console.warn('Failed to aggregate historical distance', e);
       return [];
     }
+  }
+
+  async getHistoricalStepsRange(startDate: Date, endDate: Date): Promise<HistoricalStepData[]> {
+    const rows = await this.aggregateDailyRange('Steps', startDate, endDate);
+    return rows.map(r => ({ date: r.date, steps: r.value, hasRecord: r.hasRecord }));
+  }
+
+  async getHistoricalDistanceRange(startDate: Date, endDate: Date): Promise<HistoricalDistanceData[]> {
+    const rows = await this.aggregateDailyRange('Distance', startDate, endDate);
+    return rows.map(r => ({ date: r.date, distance: r.value, hasRecord: r.hasRecord }));
+  }
+
+  async getHourlySteps(date: Date): Promise<HourlyBreakdownResult<HourlyStepData>> {
+    const res = await this.aggregateHourlyDate('Steps', date);
+    return {
+      supported: res.supported,
+      buckets: res.buckets.map(b => ({ hour: b.hour, steps: b.value, hasRecord: b.hasRecord })),
+    };
+  }
+
+  async getHourlyDistance(date: Date): Promise<HourlyBreakdownResult<HourlyDistanceData>> {
+    const res = await this.aggregateHourlyDate('Distance', date);
+    return {
+      supported: res.supported,
+      buckets: res.buckets.map(b => ({ hour: b.hour, distance: b.value, hasRecord: b.hasRecord })),
+    };
   }
 
   async getExerciseSessions(timeRange: 'week' | 'month' | 'year') {
@@ -391,7 +563,7 @@ export class HealthConnectProvider implements HealthDataProvider {
               },
             });
             sessionSteps = (stepsAggr as any)?.COUNT_TOTAL || 0;
-          } catch (e) {
+          } catch {
             // Ignore step errors per session
           }
 
@@ -405,7 +577,7 @@ export class HealthConnectProvider implements HealthDataProvider {
               },
             });
             sessionDistance = (distanceAggr as any)?.DISTANCE?.inMeters || 0;
-          } catch (e) {
+          } catch {
             // Ignore distance errors per session
           }
           
@@ -414,7 +586,7 @@ export class HealthConnectProvider implements HealthDataProvider {
             durationMinutes,
             steps: sessionSteps,
             distance: sessionDistance,
-            date: record.startTime.split('T')[0],
+            date: formatLocalDateKey(new Date(record.startTime)),
             timeOfDay,
             startTime: start,
             endTime: end,
