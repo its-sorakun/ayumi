@@ -19,6 +19,7 @@ import {
   StyleSheet,
   Dimensions,
   Animated,
+  Easing,
   PanResponder,
 } from 'react-native';
 import { useTheme } from 'react-native-paper';
@@ -28,7 +29,7 @@ import { DashboardScreen } from './DashboardScreen';
 import { StatsScreen } from './StatsScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { FloatingDock } from '../components/FloatingDock';
-import { MotionTokens } from '../theme/motion';
+import { MotionTokens, useReducedMotion } from '../theme/motion';
 import type { StatMetricType } from '../components/StatsMetricSelector';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -36,6 +37,9 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export function MainPagerScreen(): React.JSX.Element {
   const theme = useTheme();
   const route = useRoute<any>();
+  const reducedMotion = useReducedMotion();
+  const reducedMotionRef = useRef(reducedMotion);
+  reducedMotionRef.current = reducedMotion;
 
   // Page index: 0 = Home, 1 = Stats, 2 = Settings
   const initialPage = route.params?.initialPage ?? (
@@ -52,11 +56,21 @@ export function MainPagerScreen(): React.JSX.Element {
   const gestureStartPageRef = useRef<number>(initialPage);
   const dragStartX = useRef<number>(-initialPage * SCREEN_WIDTH);
 
-  // Smooth spring navigation to a target page
+  // Smooth spring (or brisk linear slide under reduced motion) navigation to a target page
   const goToPage = useCallback(
     (pageIndex: number, velocity?: number) => {
       currentPageRef.current = pageIndex;
       setActivePageIndex(pageIndex);
+
+      if (reducedMotionRef.current) {
+        Animated.timing(translateX, {
+          toValue: -pageIndex * SCREEN_WIDTH,
+          duration: 140,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }).start();
+        return;
+      }
 
       Animated.spring(translateX, {
         toValue: -pageIndex * SCREEN_WIDTH,
