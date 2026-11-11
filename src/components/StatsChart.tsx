@@ -21,7 +21,7 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
-import Svg, { Circle, Defs, Line, LinearGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, Line, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { StatMetricType } from './StatsMetricSelector';
 import type { StatPeriodType } from './StatsPeriodSelector';
@@ -30,6 +30,7 @@ import { useReducedMotion } from '../theme/motion';
 import {
   colorWithOpacity,
   deriveGradientHighlightHex,
+  OxygenCardSurfaceGradient,
   OxygenDistanceIcon,
   OxygenFootstepsIcon,
   OxygenTargetIcon,
@@ -50,16 +51,12 @@ export interface ChartDataPoint {
   readonly status?: ChartPointStatus;
 }
 
-export interface StatsChartGoalSummary {
-  readonly goalText: string;
-  readonly percent: number;
-}
-
 export interface StatsChartPeriodStats {
   readonly averageText: string;
   readonly averageUnit: string;
   readonly highestText: string;
   readonly highestUnit: string;
+  readonly highestLabel?: string;
 }
 
 interface StatsChartProps {
@@ -73,7 +70,6 @@ interface StatsChartProps {
   readonly data: readonly ChartDataPoint[];
   readonly loading?: boolean;
   readonly unavailableNotice?: string | null;
-  readonly goalSummary?: StatsChartGoalSummary | null;
   readonly periodStats?: StatsChartPeriodStats | null;
   readonly fillCard?: boolean;
   readonly chartHeight?: number;
@@ -163,7 +159,6 @@ export function StatsChart({
   data,
   loading = false,
   unavailableNotice = null,
-  goalSummary = null,
   periodStats = null,
   fillCard = false,
   chartHeight = CHART_HEIGHT,
@@ -364,10 +359,7 @@ export function StatsChart({
   })();
 
   const oemWellBg = isDark ? theme.colors.elevation.level2 : theme.colors.background;
-  const oemMiniRingRadius = 11;
-  const oemMiniRingCirc = 2 * Math.PI * oemMiniRingRadius;
-  const oemGoalPct = goalSummary ? Math.min(Math.max(goalSummary.percent, 0), 100) : 0;
-  const oemMiniRingOffset = oemMiniRingCirc - (oemMiniRingCirc * oemGoalPct) / 100;
+  const statsCardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
 
   return (
     <View
@@ -380,14 +372,21 @@ export function StatsChart({
           borderRadius: surfaces.cardRadius,
           elevation: surfaces.cardElevation,
           shadowOpacity: surfaces.cardShadowOpacity,
-          backgroundColor: isDark
-            ? theme.colors.elevation.level1
-            : theme.colors.surface,
+          backgroundColor: statsCardBg,
           borderWidth: cardBorder.borderWidth,
           borderColor: cardBorder.borderColor,
         },
       ]}
       onLayout={onLayout}>
+      {isOemStatsCard ? (
+        <OxygenCardSurfaceGradient
+          accentHex={metricAccent.color}
+          surfaceHex={statsCardBg}
+          borderRadius={surfaces.cardRadius}
+          isDark={isDark}
+          testID="oxygen-stats-card-gradient"
+        />
+      ) : null}
       
       {/* Card Header: OxygenOS inline title + hero total vs Default split header */}
       {isOemStatsCard ? (
@@ -781,131 +780,59 @@ export function StatsChart({
       </View>
       </View>
 
-      {isOemStatsCard && (goalSummary != null || periodStats != null) && (
+      {isOemStatsCard && periodStats != null && (
         <View style={styles.oemInlineSummaryRow}>
-          {period === 'daily' && goalSummary != null ? (
-            <>
-              <View
-                testID="stats-inline-goal-tile"
-                style={[styles.oemSubTile, { backgroundColor: oemWellBg }]}>
-                <View
-                  style={[
-                    styles.oemSubIconBadge,
-                    { backgroundColor: colorWithOpacity(metricAccent.color, isDark ? 0.22 : 0.13) },
-                  ]}>
-                  <OxygenTargetIcon size={17} color={metricAccent.color} />
-                </View>
-                <View style={styles.oemSubTextCol}>
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.oemSubLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    Daily Goal
-                  </Text>
-                  <Text
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    style={[styles.oemSubValue, { color: theme.colors.onSurface }]}>
-                    {goalSummary.goalText}
-                  </Text>
-                </View>
-              </View>
+          <View style={[styles.oemSubTile, { backgroundColor: oemWellBg }]}>
+            <View
+              style={[
+                styles.oemSubIconBadge,
+                { backgroundColor: colorWithOpacity(metricAccent.color, isDark ? 0.22 : 0.13) },
+              ]}>
+              <OxygenTargetIcon size={17} color={metricAccent.color} />
+            </View>
+            <View style={styles.oemSubTextCol}>
+              <Text
+                numberOfLines={1}
+                style={[styles.oemSubLabel, { color: theme.colors.onSurfaceVariant }]}>
+                Average
+              </Text>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[styles.oemSubValue, { color: theme.colors.onSurface }]}>
+                {periodStats.averageText}{' '}
+                <Text style={[styles.oemSubUnit, { color: theme.colors.onSurfaceVariant }]}>
+                  {periodStats.averageUnit}
+                </Text>
+              </Text>
+            </View>
+          </View>
 
-              <View
-                testID="stats-inline-progress-tile"
-                style={[styles.oemSubTile, { backgroundColor: oemWellBg }]}>
-                <Svg width={30} height={30}>
-                  <Circle
-                    cx={15}
-                    cy={15}
-                    r={oemMiniRingRadius}
-                    stroke={colorWithOpacity(theme.colors.onSurface, isDark ? 0.14 : 0.08)}
-                    strokeWidth={3.8}
-                    fill="none"
-                  />
-                  {oemGoalPct > 0 && (
-                    <Circle
-                      cx={15}
-                      cy={15}
-                      r={oemMiniRingRadius}
-                      stroke={metricAccent.color}
-                      strokeWidth={3.8}
-                      fill="none"
-                      strokeDasharray={`${oemMiniRingCirc} ${oemMiniRingCirc}`}
-                      strokeDashoffset={oemMiniRingOffset}
-                      strokeLinecap="round"
-                      transform="rotate(-90, 15, 15)"
-                    />
-                  )}
-                </Svg>
-                <View style={styles.oemSubTextCol}>
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.oemSubLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    Progress
-                  </Text>
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.oemSubValue, { color: theme.colors.onSurface }]}>
-                    {oemGoalPct}%
-                  </Text>
-                </View>
-              </View>
-            </>
-          ) : periodStats != null ? (
-            <>
-              <View style={[styles.oemSubTile, { backgroundColor: oemWellBg }]}>
-                <View
-                  style={[
-                    styles.oemSubIconBadge,
-                    { backgroundColor: colorWithOpacity(metricAccent.color, isDark ? 0.22 : 0.13) },
-                  ]}>
-                  <OxygenTargetIcon size={17} color={metricAccent.color} />
-                </View>
-                <View style={styles.oemSubTextCol}>
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.oemSubLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    Average
-                  </Text>
-                  <Text
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    style={[styles.oemSubValue, { color: theme.colors.onSurface }]}>
-                    {periodStats.averageText}{' '}
-                    <Text style={[styles.oemSubUnit, { color: theme.colors.onSurfaceVariant }]}>
-                      {periodStats.averageUnit}
-                    </Text>
-                  </Text>
-                </View>
-              </View>
-
-              <View style={[styles.oemSubTile, { backgroundColor: oemWellBg }]}>
-                <View
-                  style={[
-                    styles.oemSubIconBadge,
-                    { backgroundColor: colorWithOpacity(metricAccent.color, isDark ? 0.22 : 0.13) },
-                  ]}>
-                  <OxygenTrophyIcon size={17} color={metricAccent.color} />
-                </View>
-                <View style={styles.oemSubTextCol}>
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.oemSubLabel, { color: theme.colors.onSurfaceVariant }]}>
-                    Highest
-                  </Text>
-                  <Text
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    style={[styles.oemSubValue, { color: theme.colors.onSurface }]}>
-                    {periodStats.highestText}{' '}
-                    <Text style={[styles.oemSubUnit, { color: theme.colors.onSurfaceVariant }]}>
-                      {periodStats.highestUnit}
-                    </Text>
-                  </Text>
-                </View>
-              </View>
-            </>
-          ) : null}
+          <View style={[styles.oemSubTile, { backgroundColor: oemWellBg }]}>
+            <View
+              style={[
+                styles.oemSubIconBadge,
+                { backgroundColor: colorWithOpacity(metricAccent.color, isDark ? 0.22 : 0.13) },
+              ]}>
+              <OxygenTrophyIcon size={17} color={metricAccent.color} />
+            </View>
+            <View style={styles.oemSubTextCol}>
+              <Text
+                numberOfLines={1}
+                style={[styles.oemSubLabel, { color: theme.colors.onSurfaceVariant }]}>
+                {periodStats.highestLabel ?? 'Highest'}
+              </Text>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[styles.oemSubValue, { color: theme.colors.onSurface }]}>
+                {periodStats.highestText}{' '}
+                <Text style={[styles.oemSubUnit, { color: theme.colors.onSurfaceVariant }]}>
+                  {periodStats.highestUnit}
+                </Text>
+              </Text>
+            </View>
+          </View>
         </View>
       )}
     </View>

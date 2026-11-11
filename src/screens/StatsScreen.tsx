@@ -36,13 +36,10 @@ import type {
   HourlyDistanceData,
 } from '../types/health';
 import {
-  calculateWaterGoal,
-  formatDistance,
   formatLocalDateKey,
   startOfDay,
   today,
 } from '../utils/index';
-import { useSettings } from '../contexts/SettingsContext';
 
 import {
   StatsMetricSelector,
@@ -56,7 +53,6 @@ import { StatsPeriodNavigator } from '../components/StatsPeriodNavigator';
 import {
   StatsChart,
   type ChartDataPoint,
-  type StatsChartGoalSummary,
   type StatsChartPeriodStats,
 } from '../components/StatsChart';
 import { StatsSummaryCards } from '../components/StatsSummaryCards';
@@ -276,7 +272,6 @@ export function StatsScreen({
   const route = useRoute<any>();
   const reducedMotion = useReducedMotion();
 
-  const { stepGoal, distanceGoal, gender, weight, height, age, customWaterGoal } = useSettings();
   const { todaySummary, providerName } = useHealthData();
   const { totalWater, getLogsForDate } = useWaterTracker();
 
@@ -938,50 +933,9 @@ export function StatsScreen({
   const numericSyncKey = `${committedPeriod}:${committedDataset?.anchorKey ?? 'none'}:${selectedMetric}:${hourlyUnavailable ? 'na' : 'ok'}`;
   const revealDuration = motion.chartReveal[committedPeriod].duration;
 
-  // Derived real daily goal progress and period average/highest for OxygenOS inline card tiles
-  const oemGoalSummary = useMemo<StatsChartGoalSummary | null>(() => {
-    if (!isOemStatsLayout || committedPeriod !== 'daily') {
-      return null;
-    }
-    const current = hourlyUnavailable || totalRaw == null ? 0 : totalRaw;
-    if (selectedMetric === 'steps') {
-      const pct = stepGoal > 0 ? Math.min(Math.round((current / stepGoal) * 100), 100) : 0;
-      return {
-        goalText: `${stepGoal.toLocaleString()} steps`,
-        percent: pct,
-      };
-    }
-    if (selectedMetric === 'distance') {
-      const pct = distanceGoal > 0 ? Math.min(Math.round((current / distanceGoal) * 100), 100) : 0;
-      return {
-        goalText: formatDistance(distanceGoal),
-        percent: pct,
-      };
-    }
-    const waterGoalMl = customWaterGoal || calculateWaterGoal(gender, weight, height, age);
-    const waterGoalParts = formatWaterSummary(waterGoalMl);
-    const pct = waterGoalMl > 0 ? Math.min(Math.round((current / waterGoalMl) * 100), 100) : 0;
-    return {
-      goalText: `${waterGoalParts.value} ${waterGoalParts.unit}`,
-      percent: pct,
-    };
-  }, [
-    isOemStatsLayout,
-    committedPeriod,
-    hourlyUnavailable,
-    totalRaw,
-    selectedMetric,
-    stepGoal,
-    distanceGoal,
-    gender,
-    weight,
-    height,
-    age,
-    customWaterGoal,
-  ]);
-
+  // Derived contextual Average and Highest stats matching Default logic across every period
   const oemPeriodStats = useMemo<StatsChartPeriodStats | null>(() => {
-    if (!isOemStatsLayout || committedPeriod === 'daily') {
+    if (!isOemStatsLayout) {
       return null;
     }
     return {
@@ -989,6 +943,7 @@ export function StatsScreen({
       averageUnit: averageUnitText,
       highestText,
       highestUnit: highestUnitText,
+      highestLabel: committedPeriod === 'daily' ? 'Highest (Hr)' : 'Highest (Day)',
     };
   }, [isOemStatsLayout, committedPeriod, averageText, averageUnitText, highestText, highestUnitText]);
 
@@ -1152,7 +1107,6 @@ export function StatsScreen({
                 data={chartDataPoints}
                 loading={loading}
                 unavailableNotice={unavailableNotice}
-                goalSummary={oemGoalSummary}
                 periodStats={oemPeriodStats}
                 fillCard={true}
                 marginTop={10}

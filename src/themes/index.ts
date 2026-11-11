@@ -33,14 +33,17 @@ export {
   OXYGEN_MOTION_PRESET,
 } from './oxygenColorOsTheme';
 export {
+  computeOxygenHomeLayout,
   deriveGradientHighlightHex,
   OxygenAmbientBackdrop,
+  OxygenCardSurfaceGradient,
   OxygenColorOsDockBar,
   OxygenMetricCard,
   OxygenStepHeroCard,
   OxygenWaterHomeCard,
   SettingsSectionGroup,
   ThemeOptionCard,
+  type OxygenHomeLayoutMetrics,
 } from './oxygenColorOsUI';
 export * from './oxygenIcons';
 

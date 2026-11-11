@@ -20,12 +20,24 @@ interface HeroStepGaugeProps {
   readonly steps: number;
   readonly goal: number;
   readonly onPress?: () => void;
+  readonly ringSize?: number;
+  readonly cardPaddingVertical?: number;
+  readonly marginTop?: number;
+  readonly marginBottom?: number;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GAUGE_SIZE = Math.min(SCREEN_WIDTH - 84, 226);
 
-export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): React.JSX.Element {
+export function HeroStepGauge({
+  steps,
+  goal,
+  onPress,
+  ringSize,
+  cardPaddingVertical,
+  marginTop,
+  marginBottom,
+}: HeroStepGaugeProps): React.JSX.Element {
   const theme = useTheme();
   const { progress, surfaces, typography, metricAccents, resolveCardBorder } = useAyumiTheme();
 
@@ -40,6 +52,10 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
         typography={typography}
         metricAccents={metricAccents}
         border={resolveCardBorder()}
+        ringSize={ringSize}
+        cardPaddingVertical={cardPaddingVertical}
+        marginTop={marginTop}
+        marginBottom={marginBottom}
       />
     );
   }

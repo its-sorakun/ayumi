@@ -12,7 +12,7 @@
  *  - `ThemeOptionCard`: live multi-accent preview theme selector card
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -41,6 +41,7 @@ import {
   OxygenFootstepsIcon,
 } from './oxygenIcons';
 import {
+  blendHexColors,
   colorWithOpacity,
   hexToOklch,
   oklchToHex,
@@ -74,6 +75,132 @@ export function deriveGradientHighlightHex(hexColor: string, isDark: boolean): s
   return oklchToHex({ L: targetL, C: targetC, h: targetHue });
 }
 
+export interface OxygenHomeLayoutMetrics {
+  readonly topPadding: number;
+  readonly headerBottomMargin: number;
+  readonly gridGap: number;
+  readonly heroPaddingVertical: number;
+  readonly heroRingSize: number;
+  readonly row1MinHeight: number;
+  readonly row2MinHeight: number;
+  readonly waterMinHeight: number;
+  readonly bottomPadding: number;
+}
+
+/**
+ * Computes responsive vertical Home spacing and card heights for OxygenOS so all
+ * modules fill the viewport cleanly above FloatingDock without wasted blank voids.
+ */
+export function computeOxygenHomeLayout(
+  viewportHeight: number,
+  topInset: number,
+  dockClearance: number,
+  fontScale: number = 1,
+): OxygenHomeLayoutMetrics {
+  const usableHeight = Math.max(0, viewportHeight - topInset - dockClearance);
+  const baseStackHeight = 582;
+  const rawSlack = usableHeight > baseStackHeight && fontScale < 1.25
+    ? Math.min(132, usableHeight - baseStackHeight)
+    : 0;
+
+  return {
+    topPadding: Math.max(topInset, 12) + Math.round(rawSlack * 0.03),
+    headerBottomMargin: 8 + Math.min(8, Math.round(rawSlack * 0.06)),
+    gridGap: 12 + Math.min(4, Math.floor(rawSlack * 0.03)),
+    heroPaddingVertical: 16 + Math.min(8, Math.round(rawSlack * 0.06)),
+    heroRingSize: 104 + Math.min(12, Math.round(rawSlack * 0.09)),
+    row1MinHeight: 106 + Math.round(rawSlack * 0.2),
+    row2MinHeight: 96 + Math.round(rawSlack * 0.16),
+    waterMinHeight: 102 + Math.round(rawSlack * 0.18),
+    bottomPadding: dockClearance + 10,
+  };
+}
+
+interface OxygenCardSurfaceGradientProps {
+  readonly accentHex: string;
+  readonly surfaceHex: string;
+  readonly borderRadius: number;
+  readonly isDark: boolean;
+  readonly testID?: string;
+}
+
+/**
+ * Renders an inner clipped multi-stop surface gradient inside OxygenOS cards so each
+ * card carries subtle luminous depth without sacrificing opaque Android shadow edges.
+ */
+export function OxygenCardSurfaceGradient({
+  accentHex,
+  surfaceHex,
+  borderRadius,
+  isDark,
+  testID = 'oxygen-card-surface-gradient',
+}: OxygenCardSurfaceGradientProps): React.JSX.Element {
+  const rawId = useId();
+  const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const linearId = `oemCardLin_${safeId}`;
+  const radialId = `oemCardRad_${safeId}`;
+
+  const midStop = blendHexColors(surfaceHex, accentHex, isDark ? 0.06 : 0.04);
+  const endStop = blendHexColors(surfaceHex, accentHex, isDark ? 0.14 : 0.095);
+
+  return (
+    <View
+      testID={testID}
+      pointerEvents="none"
+      style={[
+        StyleSheet.absoluteFill,
+        { borderRadius, overflow: 'hidden', zIndex: 0 },
+      ]}>
+      <Svg width="100%" height="100%">
+        <Defs>
+          <LinearGradient id={linearId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor={surfaceHex} stopOpacity={isDark ? 0 : 0.2} />
+            <Stop offset="52%" stopColor={midStop} stopOpacity={0.85} />
+            <Stop offset="100%" stopColor={endStop} stopOpacity={1} />
+          </LinearGradient>
+          <RadialGradient id={radialId} cx="14%" cy="12%" rx="68%" ry="64%">
+            <Stop offset="0%" stopColor={surfaceHex} stopOpacity={isDark ? 0.18 : 0.7} />
+            <Stop offset="100%" stopColor={surfaceHex} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${linearId})`} />
+        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${radialId})`} />
+      </Svg>
+    </View>
+  );
+}
+
+function OxygenBadgeGradientOverlay({
+  baseColor,
+  borderRadius,
+  isDark,
+}: {
+  readonly baseColor: string;
+  readonly borderRadius: number;
+  readonly isDark: boolean;
+}): React.JSX.Element {
+  const rawId = useId();
+  const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const gradId = `oemBadgeGrad_${safeId}`;
+  const highlightHex = deriveGradientHighlightHex(baseColor, isDark);
+
+  return (
+    <View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, { borderRadius, overflow: 'hidden' }]}>
+      <Svg width="100%" height="100%">
+        <Defs>
+          <LinearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor={highlightHex} />
+            <Stop offset="100%" stopColor={baseColor} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${gradId})`} />
+      </Svg>
+    </View>
+  );
+}
+
 interface OxygenAmbientBackdropProps {
   readonly enabled: boolean;
   readonly primaryHex: string;
@@ -98,32 +225,32 @@ export function OxygenAmbientBackdrop({
   }
 
   const resolvedSecondary = secondaryHex ?? deriveGradientHighlightHex(primaryHex, isDark);
-  const primaryPeakOpacity = isDark ? 0.25 : 0.36;
+  const primaryPeakOpacity = isDark ? 0.26 : 0.36;
   const primaryMidOpacity = isDark ? 0.11 : 0.16;
-  const secondaryPeakOpacity = isDark ? 0.18 : 0.26;
-  const secondaryMidOpacity = isDark ? 0.06 : 0.1;
+  const secondaryPeakOpacity = isDark ? 0.22 : 0.3;
+  const secondaryMidOpacity = isDark ? 0.08 : 0.13;
 
   return (
     <View testID={testID} style={styles.ambientBackdropLayer} pointerEvents="none">
       <Svg
         width="100%"
         height="100%"
-        viewBox="0 0 400 340"
+        viewBox="0 0 400 368"
         preserveAspectRatio="xMaxYMin slice">
         <Defs>
-          <RadialGradient id="oxygenAmbientPrimary" cx="86%" cy="15%" rx="64%" ry="58%">
+          <RadialGradient id="oxygenAmbientPrimary" cx="90%" cy="22%" rx="58%" ry="56%">
             <Stop offset="0%" stopColor={primaryHex} stopOpacity={primaryPeakOpacity} />
-            <Stop offset="46%" stopColor={primaryHex} stopOpacity={primaryMidOpacity} />
+            <Stop offset="48%" stopColor={primaryHex} stopOpacity={primaryMidOpacity} />
             <Stop offset="100%" stopColor={primaryHex} stopOpacity={0} />
           </RadialGradient>
-          <RadialGradient id="oxygenAmbientSecondary" cx="54%" cy="6%" rx="50%" ry="46%">
+          <RadialGradient id="oxygenAmbientSecondary" cx="62%" cy="8%" rx="56%" ry="46%">
             <Stop offset="0%" stopColor={resolvedSecondary} stopOpacity={secondaryPeakOpacity} />
             <Stop offset="50%" stopColor={resolvedSecondary} stopOpacity={secondaryMidOpacity} />
             <Stop offset="100%" stopColor={resolvedSecondary} stopOpacity={0} />
           </RadialGradient>
         </Defs>
-        <Rect x="0" y="0" width="400" height="340" fill="url(#oxygenAmbientSecondary)" />
-        <Rect x="0" y="0" width="400" height="340" fill="url(#oxygenAmbientPrimary)" />
+        <Rect x="0" y="0" width="400" height="368" fill="url(#oxygenAmbientPrimary)" />
+        <Rect x="0" y="0" width="400" height="368" fill="url(#oxygenAmbientSecondary)" />
       </Svg>
     </View>
   );
@@ -138,10 +265,13 @@ interface OxygenStepHeroCardProps {
   readonly typography: AyumiTypographyTokens;
   readonly metricAccents: MetricAccentRoles;
   readonly border: { readonly borderWidth: number; readonly borderColor: string };
+  readonly ringSize?: number;
+  readonly cardPaddingVertical?: number;
+  readonly marginTop?: number;
+  readonly marginBottom?: number;
 }
 
-const OEM_RING_SIZE = 102;
-const OEM_RING_CENTER = OEM_RING_SIZE / 2;
+const OEM_RING_SIZE = 108;
 
 /**
  * Modular OxygenOS / ColorOS Hero Steps card balancing a prominent tabular step figure
@@ -156,15 +286,23 @@ export function OxygenStepHeroCard({
   typography,
   metricAccents,
   border,
+  ringSize = OEM_RING_SIZE,
+  cardPaddingVertical = 17,
+  marginTop = 8,
+  marginBottom = 8,
 }: OxygenStepHeroCardProps): React.JSX.Element {
   const theme = useTheme();
   const isDark = theme.dark;
   const reducedMotion = useReducedMotion();
   const stepsAccent = metricAccents.steps;
   const stepsBadge = resolveMetricBadgeColors(stepsAccent, surfaces.badgeStyle);
+  const rawId = useId();
+  const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const ringGradId = `oxygenHeroRingGrad_${safeId}`;
 
+  const ringCenter = ringSize / 2;
   const strokeWidth = progress.heroStrokeWidth;
-  const radius = OEM_RING_CENTER - strokeWidth / 2 - 2;
+  const radius = ringCenter - strokeWidth / 2 - 2;
   const circumference = 2 * Math.PI * radius;
   const targetRatio = goal > 0 ? Math.min(Math.max(steps / goal, 0), 1) : 0;
 
@@ -198,6 +336,7 @@ export function OxygenStepHeroCard({
   const cardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
   const trackColor = colorWithOpacity(theme.colors.onSurface, isDark ? 0.12 : 0.075);
   const heroHighlightColor = deriveGradientHighlightHex(stepsAccent.color, isDark);
+  const tintedBorderColor = blendHexColors(cardBg, stepsAccent.color, isDark ? 0.2 : 0.12);
 
   return (
     <TouchableOpacity
@@ -208,22 +347,39 @@ export function OxygenStepHeroCard({
       style={[
         styles.heroCard,
         {
+          marginTop,
+          marginBottom,
+          paddingVertical: cardPaddingVertical,
           borderRadius: surfaces.fullWidthCardRadius,
           backgroundColor: cardBg,
           borderWidth: border.borderWidth,
-          borderColor: border.borderColor,
+          borderColor: border.borderWidth > 0 ? tintedBorderColor : border.borderColor,
           elevation: surfaces.cardElevation,
           shadowOpacity: surfaces.cardShadowOpacity,
         },
       ]}
       accessibilityRole="button"
       accessibilityLabel={`Steps today: ${steps.toLocaleString()} out of ${goal.toLocaleString()}, ${percent} percent`}>
+      <OxygenCardSurfaceGradient
+        accentHex={stepsAccent.color}
+        surfaceHex={cardBg}
+        borderRadius={surfaces.fullWidthCardRadius}
+        isDark={isDark}
+        testID="oxygen-hero-card-gradient"
+      />
       <View style={styles.heroRow}>
         <View style={styles.heroLeftCol}>
           <View style={styles.heroLabelRow}>
             <View
               testID="oxygen-hero-steps-badge"
               style={[styles.heroIconBadge, { backgroundColor: stepsBadge.bg }]}>
+              {surfaces.badgeStyle === 'solid' ? (
+                <OxygenBadgeGradientOverlay
+                  baseColor={stepsBadge.bg}
+                  borderRadius={11}
+                  isDark={isDark}
+                />
+              ) : null}
               <OxygenFootstepsIcon
                 size={17}
                 color={stepsBadge.fg}
@@ -253,17 +409,17 @@ export function OxygenStepHeroCard({
           </Text>
         </View>
 
-        <View style={styles.heroRingBox}>
-          <Svg width={OEM_RING_SIZE} height={OEM_RING_SIZE}>
+        <View style={[styles.heroRingBox, { width: ringSize, height: ringSize }]}>
+          <Svg width={ringSize} height={ringSize}>
             <Defs>
-              <LinearGradient id="oxygenHeroRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <LinearGradient id={ringGradId} x1="0%" y1="0%" x2="100%" y2="100%">
                 <Stop offset="0%" stopColor={heroHighlightColor} />
                 <Stop offset="100%" stopColor={stepsAccent.color} />
               </LinearGradient>
             </Defs>
             <Circle
-              cx={OEM_RING_CENTER}
-              cy={OEM_RING_CENTER}
+              cx={ringCenter}
+              cy={ringCenter}
               r={radius}
               stroke={trackColor}
               strokeWidth={strokeWidth}
@@ -271,16 +427,16 @@ export function OxygenStepHeroCard({
             />
             {displayRatio > 0 && (
               <Circle
-                cx={OEM_RING_CENTER}
-                cy={OEM_RING_CENTER}
+                cx={ringCenter}
+                cy={ringCenter}
                 r={radius}
-                stroke="url(#oxygenHeroRingGrad)"
+                stroke={`url(#${ringGradId})`}
                 strokeWidth={strokeWidth}
                 fill="none"
                 strokeDasharray={`${circumference} ${circumference}`}
                 strokeDashoffset={dashOffset}
                 strokeLinecap="round"
-                transform={`rotate(-90, ${OEM_RING_CENTER}, ${OEM_RING_CENTER})`}
+                transform={`rotate(-90, ${ringCenter}, ${ringCenter})`}
               />
             )}
           </Svg>
@@ -328,21 +484,34 @@ export function OxygenMetricCard({
   icon,
   accentColor,
   badgeBgColor,
+  surfaces,
   typography,
   progress,
   progressFillWidth = '0%',
   hasProgressBar = false,
 }: OxygenMetricCardProps): React.JSX.Element {
   const theme = useTheme();
+  const isDark = theme.dark;
+  const rawId = useId();
+  const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const barGradId = `oemMetricBar_${safeId}`;
+  const barHighlightColor = deriveGradientHighlightHex(accentColor, isDark);
   const trackBg = colorWithOpacity(
     theme.colors.onSurface,
-    theme.dark ? 0.12 : 0.08,
+    isDark ? 0.12 : 0.08,
   );
 
   return (
     <View testID="oxygen-metric-card-body" style={styles.metricCardContainer}>
       <View style={styles.metricHeaderRow}>
         <View style={[styles.metricBadge, { backgroundColor: badgeBgColor }]}>
+          {surfaces.badgeStyle === 'solid' && badgeBgColor.startsWith('#') ? (
+            <OxygenBadgeGradientOverlay
+              baseColor={badgeBgColor}
+              borderRadius={OXYGEN_ICON_SPEC.metricBadgeRadius}
+              isDark={isDark}
+            />
+          ) : null}
           {icon}
         </View>
         <Text
@@ -398,8 +567,17 @@ export function OxygenMetricCard({
                   width: progressFillWidth,
                   backgroundColor: accentColor,
                 },
-              ]}
-            />
+              ]}>
+              <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+                <Defs>
+                  <LinearGradient id={barGradId} x1="0%" y1="0%" x2="100%" y2="0%">
+                    <Stop offset="0%" stopColor={accentColor} />
+                    <Stop offset="100%" stopColor={barHighlightColor} />
+                  </LinearGradient>
+                </Defs>
+                <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${barGradId})`} />
+              </Svg>
+            </Animated.View>
           </View>
         ) : null}
       </View>
@@ -416,6 +594,8 @@ interface OxygenWaterHomeCardProps {
   readonly accentColor: string;
   readonly onAccentColor: string;
   readonly badgeBgColor: string;
+  readonly cardBgHex?: string;
+  readonly isSoftBadge?: boolean;
   readonly typography: AyumiTypographyTokens;
   readonly progress: AyumiProgressTokens;
   readonly progressFillWidth?: Animated.AnimatedInterpolation<string> | `${number}%` | number;
@@ -424,8 +604,8 @@ interface OxygenWaterHomeCardProps {
 }
 
 /**
- * Full-width OxygenOS / ColorOS Water summary body for Home with crisp Lucide droplet
- * squircle badge, cerulean `+ 250 ml` quick-add pill, and bottom hydration track.
+ * Full-width OxygenOS / ColorOS Water summary body for Home with frosted sky droplet
+ * badge, cerulean gradient `+ 250 ml` quick-add pill, and gradient bottom hydration track.
  */
 export function OxygenWaterHomeCard({
   title,
@@ -436,6 +616,8 @@ export function OxygenWaterHomeCard({
   accentColor,
   onAccentColor,
   badgeBgColor,
+  cardBgHex,
+  isSoftBadge = true,
   typography,
   progress,
   progressFillWidth = '0%',
@@ -443,17 +625,56 @@ export function OxygenWaterHomeCard({
   onActionPress,
 }: OxygenWaterHomeCardProps): React.JSX.Element {
   const theme = useTheme();
+  const isDark = theme.dark;
+  const rawId = useId();
+  const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const badgeGradId = `oemWaterBadge_${safeId}`;
+  const pillGradId = `oemWaterPill_${safeId}`;
+  const barGradId = `oemWaterBar_${safeId}`;
+
+  const surfaceBase = cardBgHex || (isDark ? theme.colors.elevation.level1 : theme.colors.surface);
+  const highlightHex = deriveGradientHighlightHex(accentColor, isDark);
+  const softTopHex = blendHexColors(surfaceBase, accentColor, isDark ? 0.14 : 0.08);
+  const softBottomHex = blendHexColors(surfaceBase, accentColor, isDark ? 0.28 : 0.2);
+  const softBorderHex = blendHexColors(surfaceBase, accentColor, isDark ? 0.42 : 0.3);
+  const pillSheenHex = blendHexColors(accentColor, highlightHex, 0.35);
   const trackBg = colorWithOpacity(
     accentColor,
-    theme.dark ? 0.2 : 0.14,
+    isDark ? 0.2 : 0.14,
   );
 
   return (
-    <View testID="oxygen-water-home-card-body">
+    <View testID="oxygen-water-home-card-body" style={styles.waterCardBody}>
       <View style={styles.waterTopRow}>
         <View style={styles.waterInfoCol}>
           <View style={styles.waterLabelRow}>
-            <View style={[styles.metricBadge, { backgroundColor: badgeBgColor }]}>
+            <View
+              style={[
+                styles.metricBadge,
+                {
+                  backgroundColor: isSoftBadge ? softBottomHex : badgeBgColor,
+                  borderWidth: isSoftBadge ? 1 : 0,
+                  borderColor: isSoftBadge ? softBorderHex : 'transparent',
+                },
+              ]}>
+              {isSoftBadge ? (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    StyleSheet.absoluteFill,
+                    { borderRadius: OXYGEN_ICON_SPEC.metricBadgeRadius, overflow: 'hidden' },
+                  ]}>
+                  <Svg width="100%" height="100%">
+                    <Defs>
+                      <LinearGradient id={badgeGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+                        <Stop offset="0%" stopColor={softTopHex} />
+                        <Stop offset="100%" stopColor={softBottomHex} />
+                      </LinearGradient>
+                    </Defs>
+                    <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${badgeGradId})`} />
+                  </Svg>
+                </View>
+              ) : null}
               {icon}
             </View>
             <Text style={[styles.metricTitle, { color: theme.colors.onSurfaceVariant }]}>
@@ -494,11 +715,20 @@ export function OxygenWaterHomeCard({
         {onActionPress ? (
           <TouchableOpacity
             testID="water-quick-add-btn"
-            style={[styles.waterActionPill, { backgroundColor: accentColor }]}
+            style={[styles.waterActionPill, { backgroundColor: accentColor, overflow: 'hidden' }]}
             onPress={onActionPress}
             activeOpacity={0.82}
             accessibilityRole="button"
             accessibilityLabel={actionLabel}>
+            <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+              <Defs>
+                <LinearGradient id={pillGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <Stop offset="0%" stopColor={pillSheenHex} />
+                  <Stop offset="100%" stopColor={accentColor} />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${pillGradId})`} />
+            </Svg>
             <Text style={[styles.waterActionPillText, { color: onAccentColor }]}>
               {actionLabel}
             </Text>
@@ -522,8 +752,17 @@ export function OxygenWaterHomeCard({
               width: progressFillWidth,
               backgroundColor: accentColor,
             },
-          ]}
-        />
+          ]}>
+          <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Defs>
+              <LinearGradient id={barGradId} x1="0%" y1="0%" x2="100%" y2="0%">
+                <Stop offset="0%" stopColor={accentColor} />
+                <Stop offset="100%" stopColor={highlightHex} />
+              </LinearGradient>
+            </Defs>
+            <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${barGradId})`} />
+          </Svg>
+        </Animated.View>
       </View>
     </View>
   );
@@ -929,7 +1168,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 340,
+    height: 368,
     overflow: 'hidden',
     zIndex: 0,
   },
@@ -938,7 +1177,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 8,
     paddingHorizontal: 18,
-    paddingVertical: 15,
+    paddingVertical: 17,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 8,
   },
@@ -955,36 +1194,34 @@ const styles = StyleSheet.create({
   heroLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 5,
+    gap: 9,
+    marginBottom: 6,
   },
   heroIconBadge: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
   heroLabelText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     letterSpacing: -0.2,
   },
   heroValueText: {
-    fontSize: 38,
-    lineHeight: 42,
+    fontSize: 40,
+    lineHeight: 44,
     fontWeight: '800',
     letterSpacing: -1.1,
     fontVariant: ['tabular-nums'],
   },
   heroGoalText: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '500',
     marginTop: 2,
   },
   heroRingBox: {
-    width: OEM_RING_SIZE,
-    height: OEM_RING_SIZE,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
@@ -995,15 +1232,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heroPercentText: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '800',
     letterSpacing: -0.4,
     fontVariant: ['tabular-nums'],
   },
   metricCardContainer: {
     flex: 1,
-    justifyContent: 'flex-start',
-    minHeight: 72,
+    justifyContent: 'space-between',
+    minHeight: 74,
   },
   metricHeaderRow: {
     flexDirection: 'row',
@@ -1012,9 +1249,9 @@ const styles = StyleSheet.create({
     minHeight: 34,
   },
   metricBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: OXYGEN_ICON_SPEC.metricBadgeRadius,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -1027,7 +1264,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
   metricFooterBlock: {
-    marginTop: 12,
+    marginTop: 10,
   },
   metricValue: {
     fontWeight: '800',
@@ -1035,7 +1272,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   metricUnit: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '600',
   },
   metricSubtitle: {
@@ -1050,12 +1287,17 @@ const styles = StyleSheet.create({
   metricProgressSpacing: {
     marginTop: 7,
   },
+  waterCardBody: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
   waterProgressSpacing: {
-    marginTop: 10,
+    marginTop: 11,
   },
   linearFill: {
     height: '100%',
     borderRadius: 99,
+    overflow: 'hidden',
   },
   waterTopRow: {
     flexDirection: 'row',

@@ -513,7 +513,7 @@ export const oxygenColorOsThemeDefinition: AyumiThemeDefinition = {
     screenSubtitleSize: 13.5,
     sectionTitleSize: 17,
     sectionTitleWeight: '800',
-    bentoValueSize: 23,
+    bentoValueSize: 25,
     statValueWeight: '800',
   },
   navigation: {
@@ -523,10 +523,10 @@ export const oxygenColorOsThemeDefinition: AyumiThemeDefinition = {
     pillMaxWidth: 86,
   },
   progress: {
-    heroStrokeWidth: 11,
+    heroStrokeWidth: 11.5,
     waterStrokeWidth: 10,
     showWaterTipKnob: false,
-    linearTrackHeight: 5,
+    linearTrackHeight: 6,
   },
   motion: OXYGEN_MOTION_PRESET,
   mapPaletteToPaperColors: mapOxygenColorOsPaletteToColors,

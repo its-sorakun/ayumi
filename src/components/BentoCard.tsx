@@ -14,6 +14,8 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import {
+  blendHexColors,
+  OxygenCardSurfaceGradient,
   OxygenMetricCard,
   OxygenWaterHomeCard,
   useAyumiTheme,
@@ -72,14 +74,20 @@ export function BentoCard({
     ? (isDark ? theme.colors.elevation.level1 : theme.colors.surface)
     : cardBgColor;
   const activeProgressColor = progressBarColor || theme.colors.primary;
+  const isHeaderInlineLayout = surfaces.bentoLayout === 'header_inline';
   const themeBorder = resolveCardBorder();
   const resolvedBorder =
     fullWidth && !surfaces.outlineLightCards
       ? { borderWidth: 0, borderColor: 'transparent' }
+      : isHeaderInlineLayout && themeBorder.borderWidth > 0
+      ? {
+          borderWidth: themeBorder.borderWidth,
+          borderColor: blendHexColors(resolvedBg, activeProgressColor, isDark ? 0.2 : 0.12),
+        }
       : themeBorder;
 
-  const isHeaderInlineLayout = surfaces.bentoLayout === 'header_inline';
   const normalizedTitle = isHeaderInlineLayout ? title.replace(/\s+/g, ' ').trim() : title;
+  const resolvedRadius = fullWidth ? surfaces.fullWidthCardRadius : surfaces.cardRadius;
 
   return (
     <TouchableOpacity
@@ -89,9 +97,9 @@ export function BentoCard({
       style={[
         styles.card,
         {
-          borderRadius: fullWidth ? surfaces.fullWidthCardRadius : surfaces.cardRadius,
+          borderRadius: resolvedRadius,
           paddingHorizontal: isHeaderInlineLayout ? 15 : fullWidth ? 16 : 13,
-          paddingVertical: isHeaderInlineLayout ? 12 : 14,
+          paddingVertical: isHeaderInlineLayout ? 14 : 14,
           backgroundColor: resolvedBg,
           borderWidth: resolvedBorder.borderWidth,
           borderColor: resolvedBorder.borderColor,
@@ -99,7 +107,7 @@ export function BentoCard({
           shadowOpacity: surfaces.cardShadowOpacity,
           flex: fullWidth ? 0 : 1,
           width: fullWidth ? '100%' : undefined,
-          minHeight: isHeaderInlineLayout ? (fullWidth ? 90 : 94) : (fullWidth ? 98 : 108),
+          minHeight: isHeaderInlineLayout ? (fullWidth ? 96 : 96) : (fullWidth ? 98 : 108),
           justifyContent: isHeaderInlineLayout ? 'flex-start' : 'center',
         },
         style,
@@ -107,38 +115,49 @@ export function BentoCard({
       accessibilityRole={isInteractive ? 'button' : 'text'}
       accessibilityLabel={`${normalizedTitle}: ${value}${unit ? ` ${unit}` : ''}${subtitle ? `, ${subtitle}` : ''}`}>
       {isHeaderInlineLayout ? (
-        fullWidth ? (
-          <OxygenWaterHomeCard
-            title={normalizedTitle}
-            value={value}
-            unit={unit}
-            subtitle={subtitle}
-            icon={icon}
-            accentColor={activeProgressColor}
-            onAccentColor={actionTextColor || theme.colors.onPrimary}
-            badgeBgColor={iconBgColor || theme.colors.surfaceVariant}
-            typography={typography}
-            progress={progressTokens}
-            progressFillWidth={`${Math.min(Math.max((progress ?? 0) * 100, 0), 100)}%`}
-            actionLabel={actionLabel || '+ 250 ml'}
-            onActionPress={onActionPress}
+        <>
+          <OxygenCardSurfaceGradient
+            accentHex={activeProgressColor}
+            surfaceHex={resolvedBg}
+            borderRadius={resolvedRadius}
+            isDark={isDark}
+            testID="oxygen-bento-card-gradient"
           />
-        ) : (
-          <OxygenMetricCard
-            title={normalizedTitle}
-            value={value}
-            unit={unit}
-            subtitle={subtitle}
-            icon={icon}
-            accentColor={activeProgressColor}
-            badgeBgColor={iconBgColor || theme.colors.surfaceVariant}
-            surfaces={surfaces}
-            typography={typography}
-            progress={progressTokens}
-            hasProgressBar={progress != null}
-            progressFillWidth={`${Math.min(Math.max((progress ?? 0) * 100, 0), 100)}%`}
-          />
-        )
+          {fullWidth ? (
+            <OxygenWaterHomeCard
+              title={normalizedTitle}
+              value={value}
+              unit={unit}
+              subtitle={subtitle}
+              icon={icon}
+              accentColor={activeProgressColor}
+              onAccentColor={actionTextColor || theme.colors.onPrimary}
+              badgeBgColor={iconBgColor || theme.colors.surfaceVariant}
+              cardBgHex={resolvedBg}
+              isSoftBadge
+              typography={typography}
+              progress={progressTokens}
+              progressFillWidth={`${Math.min(Math.max((progress ?? 0) * 100, 0), 100)}%`}
+              actionLabel={actionLabel || '+ 250 ml'}
+              onActionPress={onActionPress}
+            />
+          ) : (
+            <OxygenMetricCard
+              title={normalizedTitle}
+              value={value}
+              unit={unit}
+              subtitle={subtitle}
+              icon={icon}
+              accentColor={activeProgressColor}
+              badgeBgColor={iconBgColor || theme.colors.surfaceVariant}
+              surfaces={surfaces}
+              typography={typography}
+              progress={progressTokens}
+              hasProgressBar={progress != null}
+              progressFillWidth={`${Math.min(Math.max((progress ?? 0) * 100, 0), 100)}%`}
+            />
+          )}
+        </>
       ) : (
         <View style={[styles.contentRow, { gap: fullWidth ? 12 : 9 }]}>
           {/* Left: Icon inside clean circular bubble */}

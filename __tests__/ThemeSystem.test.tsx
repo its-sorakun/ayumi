@@ -1142,6 +1142,15 @@ describe('Extended OxygenOS Multi-Color Palette & Iconography Isolation', () => 
         <PaperProvider theme={oosPaperTheme}>
           <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={oosPaperTheme}>
             <HeroStepGauge steps={4820} goal={8000} />
+            <BentoCard
+              title="Distance"
+              value="1.4"
+              unit="km"
+              progress={0.35}
+              progressBarColor="#1D5FD6"
+              icon={<View testID="oos-bento-icon" />}
+              cardBgColor={oosPaperTheme.colors.surface}
+            />
           </AyumiThemeProvider>
         </PaperProvider>,
       );
@@ -1165,10 +1174,23 @@ describe('Extended OxygenOS Multi-Color Palette & Iconography Isolation', () => 
       oosHeroTree!.root.findAllByProps({ testID: 'oxygen-hero-steps-badge' }).length,
     ).toBeGreaterThanOrEqual(1);
     expect(
+      oosHeroTree!.root
+        .findAllByProps({ testID: 'oxygen-hero-card-gradient' })
+        .filter(node => typeof node.type === 'string').length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      oosHeroTree!.root
+        .findAllByProps({ testID: 'oxygen-bento-card-gradient' })
+        .filter(node => typeof node.type === 'string').length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
       defaultHeroAndBentoTree!.root.findAllByProps({ testID: 'oxygen-hero-steps-badge' }),
     ).toHaveLength(0);
     expect(
       defaultHeroAndBentoTree!.root.findAllByProps({ testID: 'oxygen-metric-card-body' }),
+    ).toHaveLength(0);
+    expect(
+      defaultHeroAndBentoTree!.root.findAllByType('LinearGradient' as React.ElementType),
     ).toHaveLength(0);
 
     await act(async () => {
@@ -1308,7 +1330,13 @@ describe('Extended OxygenOS Multi-Color Palette & Iconography Isolation', () => 
               totalValueText="3,105"
               unitText="steps"
               data={sampleHourly}
-              goalSummary={{ goalText: '6,000 steps', percent: 52 }}
+              periodStats={{
+                averageText: '1,553',
+                averageUnit: 'steps/hr',
+                highestText: '1,905',
+                highestUnit: 'steps',
+                highestLabel: 'Highest (Hr)',
+              }}
               fillCard
             />
           </AyumiThemeProvider>
@@ -1342,14 +1370,23 @@ describe('Extended OxygenOS Multi-Color Palette & Iconography Isolation', () => 
 
     const oosStatsTexts = collectAllText(oosStatsUiTree!.root);
     expect(oosStatsTexts).toContain('Day');
-    expect(oosStatsTexts).toContain('Daily Goal');
-    expect(oosStatsTexts).toContain('Progress');
-    expect(oosStatsTexts).toContain('6,000 steps');
-    expect(oosStatsTexts).toContain('52%');
+    expect(oosStatsTexts).toContain('Average');
+    expect(oosStatsTexts).toContain('Highest (Hr)');
+    expect(oosStatsTexts.some(text => text.includes('1,553'))).toBe(true);
+    expect(oosStatsTexts).toContain('steps/hr');
+    expect(oosStatsTexts.some(text => text.includes('1,905'))).toBe(true);
+    expect(oosStatsTexts).not.toContain('Daily Goal');
+    expect(oosStatsTexts).not.toContain('Progress');
     expect(oosStatsTexts).not.toContain('This Week');
     expect(oosStatsTexts.some(text => text.includes('vs. yesterday'))).toBe(false);
     expect(
       oosStatsUiTree!.root.findAllByProps({ testID: 'stats-comparison-badge' }),
+    ).toHaveLength(0);
+    expect(
+      oosStatsUiTree!.root.findAllByProps({ testID: 'stats-inline-goal-tile' }),
+    ).toHaveLength(0);
+    expect(
+      oosStatsUiTree!.root.findAllByProps({ testID: 'stats-inline-progress-tile' }),
     ).toHaveLength(0);
 
     const defaultStatsTexts = collectAllText(defaultStatsUiTree!.root);

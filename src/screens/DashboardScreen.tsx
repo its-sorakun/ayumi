@@ -13,6 +13,7 @@
 
 import React, { useCallback, useMemo, useRef } from 'react';
 import {
+  PixelRatio,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -21,7 +22,7 @@ import {
 import { Text, useTheme } from 'react-native-paper';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../types';
 import {
@@ -39,6 +40,7 @@ import { useHealthData, useWaterTracker } from '../hooks';
 import { useSettings } from '../contexts/SettingsContext';
 import {
   colorWithOpacity,
+  computeOxygenHomeLayout,
   deriveHarmonicGlowSecondaryHex,
   OxygenActiveTimeIcon,
   OxygenAmbientBackdrop,
@@ -77,8 +79,9 @@ export function DashboardScreen({
   onNavigateToStats,
 }: DashboardScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
-  const { colors, isDark, surfaces, typography, metricAccents } = useAyumiTheme();
-  const useSoftOemBadges = surfaces.bentoLayout === 'header_inline';
+  const { colors, isDark, surfaces, shapes, typography, metricAccents } = useAyumiTheme();
+  const isOemHomeLayout = surfaces.bentoLayout === 'header_inline';
+  const useSoftOemBadges = isOemHomeLayout;
   const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
   const isSolidBadges = surfaces.badgeStyle === 'solid';
   const defaultCardBg = theme.dark ? theme.colors.elevation.level1 : theme.colors.surface;
@@ -92,6 +95,12 @@ export function DashboardScreen({
       ? colorWithOpacity(accentColor, theme.dark ? 0.2 : 0.11)
       : fallbackContainer;
   const insets = useSafeAreaInsets();
+  const safeFrame = useSafeAreaFrame();
+  const fontScale = PixelRatio.getFontScale();
+  const oemDockClearance = Math.max(insets.bottom + 8, 16) + shapes.dockHeight;
+  const oemHomeLayout = isOemHomeLayout
+    ? computeOxygenHomeLayout(safeFrame.height, insets.top, oemDockClearance, fontScale)
+    : null;
   const scrollViewRef = useRef<ScrollView>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -240,10 +249,15 @@ export function DashboardScreen({
         style={styles.container}
         contentContainerStyle={[
           styles.contentContainer,
-          {
-            paddingTop: Math.max(insets.top, 16),
-            paddingBottom: insets.bottom + 88,
-          },
+          oemHomeLayout
+            ? {
+                paddingTop: oemHomeLayout.topPadding,
+                paddingBottom: oemHomeLayout.bottomPadding,
+              }
+            : {
+                paddingTop: Math.max(insets.top, 16),
+                paddingBottom: insets.bottom + 88,
+              },
         ]}
         bounces={false}
         showsVerticalScrollIndicator={false}
@@ -258,7 +272,11 @@ export function DashboardScreen({
         accessibilityLabel="Ayumi Dashboard">
 
         {/* Minimalist Top Header: Greeting & Status Chip */}
-        <View style={styles.topBarRow}>
+        <View
+          style={[
+            styles.topBarRow,
+            oemHomeLayout && { marginBottom: oemHomeLayout.headerBottomMargin },
+          ]}>
           <Text
             style={[
               styles.greetingTitleText,
@@ -298,18 +316,27 @@ export function DashboardScreen({
         <HeroStepGauge
           steps={formattedValues?.steps ?? 0}
           goal={stepGoal}
+          ringSize={oemHomeLayout?.heroRingSize}
+          cardPaddingVertical={oemHomeLayout?.heroPaddingVertical}
+          marginTop={oemHomeLayout ? 0 : undefined}
+          marginBottom={oemHomeLayout?.gridGap}
           onPress={() => navigateToStatsMetric('steps')}
         />
 
         {/* Bento Grid Metrics */}
         {formattedValues != null && (
-          <View style={styles.bentoGrid}>
+          <View
+            style={[
+              styles.bentoGrid,
+              oemHomeLayout && { gap: oemHomeLayout.gridGap, marginTop: 0 },
+            ]}>
             {/* Row 1: Active Calories & Distance (theme-driven multi-accent icon bubbles) */}
-            <View style={styles.bentoRow}>
+            <View style={[styles.bentoRow, oemHomeLayout && { gap: oemHomeLayout.gridGap }]}>
               <BentoCard
                 title={'Active\nCalories'}
                 value={calValue}
                 unit={calUnit}
+                style={oemHomeLayout ? { minHeight: oemHomeLayout.row1MinHeight } : undefined}
                 icon={
                   isOxygenIcons ? (
                     <OxygenCaloriesIcon size={17} color={caloriesBadge.fg} filled={isSolidBadges} />
@@ -332,6 +359,7 @@ export function DashboardScreen({
                 value={distValue}
                 unit={distUnit}
                 subtitle={`Goal: ${formatDistance(distanceGoal)}`}
+                style={oemHomeLayout ? { minHeight: oemHomeLayout.row1MinHeight } : undefined}
                 icon={
                   isOxygenIcons ? (
                     <OxygenDistanceIcon size={17} color={distanceBadge.fg} filled={isSolidBadges} />
@@ -355,12 +383,13 @@ export function DashboardScreen({
             </View>
 
             {/* Row 2: Total Calories & Active Time (theme-driven multi-accent icon bubbles) */}
-            <View style={styles.bentoRow}>
+            <View style={[styles.bentoRow, oemHomeLayout && { gap: oemHomeLayout.gridGap }]}>
               <BentoCard
                 title={'Total\nCalories'}
                 value={totalCalValue}
                 unit={totalCalUnit}
                 subtitle={formattedValues.totalCalories === 'Setup' ? 'Tap to configure' : undefined}
+                style={oemHomeLayout ? { minHeight: oemHomeLayout.row2MinHeight } : undefined}
                 icon={
                   isOxygenIcons ? (
                     <OxygenTotalCaloriesIcon
@@ -391,6 +420,7 @@ export function DashboardScreen({
                 title="Active Time"
                 value={activeTimeValue}
                 unit={activeTimeUnit}
+                style={oemHomeLayout ? { minHeight: oemHomeLayout.row2MinHeight } : undefined}
                 icon={
                   isOxygenIcons ? (
                     <OxygenActiveTimeIcon size={17} color={activeTimeBadge.fg} filled={isSolidBadges} />
@@ -417,6 +447,7 @@ export function DashboardScreen({
                 value={`${totalWater}`}
                 unit="ml"
                 subtitle={`Goal: ${formattedValues.waterGoalText}`}
+                style={oemHomeLayout ? { minHeight: oemHomeLayout.waterMinHeight } : undefined}
                 icon={
                   isOxygenIcons ? (
                     <OxygenWaterIcon
