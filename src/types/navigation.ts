@@ -5,6 +5,7 @@
 export type RootStackParamList = {
   Dashboard: { initialPage?: number; metric?: 'steps' | 'distance' | 'water' } | undefined;
   Stats: { initialPage?: number; metric?: 'steps' | 'distance' | 'water' } | undefined;
+  Water: { initialPage?: number } | undefined;
   StepsDetails: undefined;
   DistanceDetails: undefined;
   WaterDetails: undefined;
