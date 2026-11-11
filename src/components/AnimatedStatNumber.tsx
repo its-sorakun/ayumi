@@ -16,7 +16,8 @@ import {
   type StyleProp,
   type TextStyle,
 } from 'react-native';
-import { MotionTokens, useReducedMotion } from '../theme/motion';
+import { useReducedMotion } from '../theme/motion';
+import { useAyumiTheme } from '../themes';
 
 export type StatNumberScaleUnit = 'raw' | 'kilo';
 
@@ -66,12 +67,14 @@ export function AnimatedStatNumber({
   unitKey,
   scaleUnit,
   syncKey = '',
-  duration = MotionTokens.chartReveal.week.duration,
+  duration,
   style,
   numberOfLines = 1,
   adjustsFontSizeToFit = false,
 }: AnimatedStatNumberProps): React.JSX.Element {
   const reducedMotion = useReducedMotion();
+  const { motion } = useAyumiTheme();
+  const resolvedDuration = duration ?? motion.chartReveal.week.duration;
 
   const initialText =
     value === null
@@ -144,8 +147,8 @@ export function AnimatedStatNumber({
 
     const animation = Animated.timing(anim, {
       toValue: value,
-      duration,
-      easing: MotionTokens.easing.dataReveal,
+      duration: resolvedDuration,
+      easing: motion.easing.dataReveal,
       useNativeDriver: false,
     });
 
@@ -162,7 +165,7 @@ export function AnimatedStatNumber({
       anim.removeListener(listenerId);
       animation.stop();
     };
-  }, [value, fallbackText, unitKey, scaleUnit, syncKey, duration, reducedMotion]);
+  }, [value, fallbackText, unitKey, scaleUnit, syncKey, resolvedDuration, reducedMotion, motion]);
 
   return (
     <RNText

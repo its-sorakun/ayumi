@@ -103,17 +103,17 @@ export function createLightTheme(
   dynamicColors?: Partial<typeof BASELINE_LIGHT_COLORS>,
 ): MD3Theme {
   return {
-    ...MD3LightTheme,
+    ...(MD3LightTheme ?? { dark: false, roundness: 4, version: 3 }),
     colors: {
-      ...MD3LightTheme.colors,
+      ...(MD3LightTheme?.colors ?? {}),
       ...BASELINE_LIGHT_COLORS,
       ...dynamicColors,
       elevation: {
         ...BASELINE_LIGHT_COLORS.elevation,
         ...dynamicColors?.elevation,
       },
-    },
-  };
+    } as MD3Theme['colors'],
+  } as MD3Theme;
 }
 
 /** Creates the dark theme, optionally merging dynamic Material You colors */
@@ -121,15 +121,15 @@ export function createDarkTheme(
   dynamicColors?: Partial<typeof BASELINE_DARK_COLORS>,
 ): MD3Theme {
   return {
-    ...MD3DarkTheme,
+    ...(MD3DarkTheme ?? { dark: true, roundness: 4, version: 3 }),
     colors: {
-      ...MD3DarkTheme.colors,
+      ...(MD3DarkTheme?.colors ?? {}),
       ...BASELINE_DARK_COLORS,
       ...dynamicColors,
       elevation: {
         ...BASELINE_DARK_COLORS.elevation,
         ...dynamicColors?.elevation,
       },
-    },
-  };
+    } as MD3Theme['colors'],
+  } as MD3Theme;
 }

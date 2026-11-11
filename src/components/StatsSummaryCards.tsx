@@ -15,6 +15,7 @@ import { Text, useTheme } from 'react-native-paper';
 import { TargetBullseyeIcon, TrophyIcon } from './AestheticIcons';
 import { AnimatedStatNumber, type StatNumberScaleUnit } from './AnimatedStatNumber';
 import type { StatMetricType } from './StatsMetricSelector';
+import { useAyumiTheme } from '../themes';
 
 interface StatsSummaryCardsProps {
   readonly metric?: StatMetricType;
@@ -54,11 +55,18 @@ export function StatsSummaryCards({
   contentRowMarginBottom = 6,
 }: StatsSummaryCardsProps): React.JSX.Element {
   const theme = useTheme();
+  const { surfaces, typography, metricAccents, resolveCardBorder } = useAyumiTheme();
   const isDark = theme.dark;
 
+  const metricAccent =
+    metric === 'distance'
+      ? metricAccents.distance
+      : metric === 'water'
+        ? metricAccents.water
+        : metricAccents.steps;
+
   const cardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
-  const borderColor = isDark ? 'rgba(255, 255, 255, 0.06)' : 'transparent';
-  const borderWidth = isDark ? 1 : 0;
+  const { borderColor, borderWidth } = resolveCardBorder();
 
   return (
     <View style={[styles.container, { marginTop, marginBottom }]}>
@@ -68,14 +76,17 @@ export function StatsSummaryCards({
           styles.card,
           {
             paddingVertical: cardPaddingVertical,
+            borderRadius: surfaces.summaryCardRadius,
+            elevation: surfaces.cardElevation,
+            shadowOpacity: surfaces.cardShadowOpacity,
             backgroundColor: cardBg,
             borderColor,
             borderWidth,
           },
         ]}>
         <View style={[styles.contentRow, { marginBottom: contentRowMarginBottom }]}>
-          <View style={[styles.iconBubble, { backgroundColor: theme.colors.primaryContainer }]}>
-            <TargetBullseyeIcon size={18} color={theme.colors.primary} />
+          <View style={[styles.iconBubble, { backgroundColor: metricAccent.container }]}>
+            <TargetBullseyeIcon size={18} color={metricAccent.color} />
           </View>
           <Text style={[styles.cardLabel, { color: theme.colors.onSurfaceVariant }]}>
             Average
@@ -90,13 +101,19 @@ export function StatsSummaryCards({
             scaleUnit={averageScaleUnit}
             syncKey={syncKey}
             duration={duration}
-            style={[styles.valueText, { color: theme.colors.onSurface }]}
+            style={[
+              styles.valueText,
+              { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+            ]}
             numberOfLines={1}
             adjustsFontSizeToFit
           />
         ) : (
           <Text
-            style={[styles.valueText, { color: theme.colors.onSurface }]}
+            style={[
+              styles.valueText,
+              { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+            ]}
             numberOfLines={1}
             adjustsFontSizeToFit>
             {averageValue}
@@ -113,14 +130,17 @@ export function StatsSummaryCards({
           styles.card,
           {
             paddingVertical: cardPaddingVertical,
+            borderRadius: surfaces.summaryCardRadius,
+            elevation: surfaces.cardElevation,
+            shadowOpacity: surfaces.cardShadowOpacity,
             backgroundColor: cardBg,
             borderColor,
             borderWidth,
           },
         ]}>
         <View style={[styles.contentRow, { marginBottom: contentRowMarginBottom }]}>
-          <View style={[styles.iconBubble, { backgroundColor: theme.colors.primaryContainer }]}>
-            <TrophyIcon size={18} color={theme.colors.primary} />
+          <View style={[styles.iconBubble, { backgroundColor: metricAccent.container }]}>
+            <TrophyIcon size={18} color={metricAccent.color} />
           </View>
           <Text style={[styles.cardLabel, { color: theme.colors.onSurfaceVariant }]}>
             {highestLabel}
@@ -135,13 +155,19 @@ export function StatsSummaryCards({
             scaleUnit={highestScaleUnit}
             syncKey={syncKey}
             duration={duration}
-            style={[styles.valueText, { color: theme.colors.onSurface }]}
+            style={[
+              styles.valueText,
+              { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+            ]}
             numberOfLines={1}
             adjustsFontSizeToFit
           />
         ) : (
           <Text
-            style={[styles.valueText, { color: theme.colors.onSurface }]}
+            style={[
+              styles.valueText,
+              { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+            ]}
             numberOfLines={1}
             adjustsFontSizeToFit>
             {highestValue}

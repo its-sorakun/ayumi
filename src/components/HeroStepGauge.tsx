@@ -14,6 +14,7 @@ import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import Svg, { Circle } from 'react-native-svg';
 import { SneakerIcon } from './AestheticIcons';
+import { useAyumiTheme } from '../themes';
 
 interface HeroStepGaugeProps {
   readonly steps: number;
@@ -23,13 +24,14 @@ interface HeroStepGaugeProps {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GAUGE_SIZE = Math.min(SCREEN_WIDTH - 84, 226);
-const STROKE_WIDTH = 14;
 
 export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): React.JSX.Element {
   const theme = useTheme();
+  const { progress, typography, metricAccents } = useAyumiTheme();
 
+  const strokeWidth = progress.heroStrokeWidth;
   const center = GAUGE_SIZE / 2;
-  const radius = center - STROKE_WIDTH / 2 - 2;
+  const radius = center - strokeWidth / 2 - 2;
   const circumference = 2 * Math.PI * radius;
 
   // Clamped ratio between 0 and 1
@@ -53,7 +55,7 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
             cy={center}
             r={radius}
             stroke={theme.dark ? theme.colors.elevation.level2 : theme.colors.surfaceVariant}
-            strokeWidth={STROKE_WIDTH}
+            strokeWidth={strokeWidth}
             strokeOpacity={theme.dark ? 0.9 : 0.4}
             fill="none"
           />
@@ -64,8 +66,8 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
               cx={center}
               cy={center}
               r={radius}
-              stroke={theme.colors.primary}
-              strokeWidth={STROKE_WIDTH}
+              stroke={metricAccents.steps.color}
+              strokeWidth={strokeWidth}
               fill="none"
               strokeDasharray={`${circumference} ${circumference}`}
               strokeDashoffset={strokeDashoffset}
@@ -78,13 +80,16 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
         {/* Centered Content with balanced vertical breathing room */}
         <View style={styles.centerContent}>
           {/* Sneaker Icon inside soft primaryContainer pill */}
-          <View style={[styles.iconPill, { backgroundColor: theme.colors.primaryContainer }]}>
-            <SneakerIcon size={22} color={theme.colors.primary} />
+          <View style={[styles.iconPill, { backgroundColor: metricAccents.steps.container }]}>
+            <SneakerIcon size={22} color={metricAccents.steps.color} />
           </View>
 
           {/* Large Step Count */}
           <Text
-            style={[styles.stepValueText, { color: theme.colors.onSurface }]}
+            style={[
+              styles.stepValueText,
+              { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+            ]}
             numberOfLines={1}
             adjustsFontSizeToFit>
             {steps.toLocaleString()}
@@ -96,8 +101,8 @@ export function HeroStepGauge({ steps, goal, onPress }: HeroStepGaugeProps): Rea
           </Text>
 
           {/* Expressive Goal Pill Tag */}
-          <View style={[styles.goalPill, { backgroundColor: theme.colors.primaryContainer }]}>
-            <Text style={[styles.goalPillText, { color: theme.colors.onPrimaryContainer }]}>
+          <View style={[styles.goalPill, { backgroundColor: metricAccents.steps.container }]}>
+            <Text style={[styles.goalPillText, { color: metricAccents.steps.onContainer }]}>
               {progressPercent}% • Goal {goal.toLocaleString()}
             </Text>
           </View>

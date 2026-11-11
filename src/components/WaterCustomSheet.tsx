@@ -25,7 +25,8 @@ import {
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MotionTokens, useReducedMotion } from '../theme/motion';
+import { useReducedMotion } from '../theme/motion';
+import { useAyumiTheme } from '../themes';
 import { CloseXIcon } from './AestheticIcons';
 
 export type WaterInputUnit = 'L' | 'ml';
@@ -128,6 +129,8 @@ export function WaterCustomSheet({
   onConfirm,
 }: WaterCustomSheetProps): React.JSX.Element {
   const theme = useTheme();
+  const { motion, shapes, metricAccents } = useAyumiTheme();
+  const waterAccent = metricAccents.water;
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
 
@@ -165,7 +168,7 @@ export function WaterCustomSheet({
         }),
         Animated.spring(sheetTranslateY, {
           toValue: 0,
-          ...MotionTokens.spring.pager,
+          ...motion.spring.pager,
           useNativeDriver: true,
         }),
       ]).start();
@@ -185,13 +188,13 @@ export function WaterCustomSheet({
       Animated.timing(backdropAnim, {
         toValue: 0,
         duration: 180,
-        easing: MotionTokens.easing.accelerate,
+        easing: motion.easing.accelerate,
         useNativeDriver: true,
       }),
       Animated.timing(sheetTranslateY, {
         toValue: 300,
         duration: 200,
-        easing: MotionTokens.easing.accelerate,
+        easing: motion.easing.accelerate,
         useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
@@ -207,6 +210,7 @@ export function WaterCustomSheet({
     reducedMotion,
     backdropAnim,
     sheetTranslateY,
+    motion,
   ]);
 
   if (!rendered) {
@@ -270,6 +274,8 @@ export function WaterCustomSheet({
             styles.sheetContainer,
             theme.dark && styles.sheetDarkBorder,
             {
+              borderTopLeftRadius: shapes.bottomSheetRadius,
+              borderTopRightRadius: shapes.bottomSheetRadius,
               backgroundColor: theme.dark
                 ? theme.colors.elevation.level2
                 : theme.colors.surface,
@@ -349,7 +355,7 @@ export function WaterCustomSheet({
                     style={[
                       styles.unitOptionPill,
                       isSelected && {
-                        backgroundColor: theme.colors.primary,
+                        backgroundColor: waterAccent.color,
                       },
                     ]}
                     accessibilityRole="tab"
@@ -359,7 +365,7 @@ export function WaterCustomSheet({
                         styles.unitOptionText,
                         {
                           color: isSelected
-                            ? theme.colors.onPrimary
+                            ? waterAccent.onColor
                             : theme.colors.onSurfaceVariant,
                         },
                       ]}>
@@ -385,9 +391,10 @@ export function WaterCustomSheet({
             style={[
               styles.confirmButton,
               {
+                borderRadius: shapes.buttonPillRadius,
                 backgroundColor:
                   parsed.amountMl !== null
-                    ? theme.colors.primary
+                    ? waterAccent.color
                     : theme.colors.surfaceDisabled,
               },
             ]}
@@ -399,7 +406,7 @@ export function WaterCustomSheet({
                 {
                   color:
                     parsed.amountMl !== null
-                      ? theme.colors.onPrimary
+                      ? waterAccent.onColor
                       : theme.colors.onSurfaceDisabled,
                 },
               ]}>
@@ -422,11 +429,12 @@ export function WaterCustomSheet({
                   style={[
                     styles.draftChip,
                     {
+                      borderRadius: shapes.chipRadius,
                       backgroundColor: isSelected
-                        ? theme.colors.primaryContainer
+                        ? waterAccent.container
                         : theme.colors.elevation.level1,
                       borderColor: isSelected
-                        ? theme.colors.primary
+                        ? waterAccent.color
                         : theme.colors.outlineVariant,
                     },
                   ]}
@@ -436,7 +444,7 @@ export function WaterCustomSheet({
                       styles.draftChipText,
                       {
                         color: isSelected
-                          ? theme.colors.onPrimaryContainer
+                          ? waterAccent.onContainer
                           : theme.colors.onSurfaceVariant,
                       },
                     ]}>

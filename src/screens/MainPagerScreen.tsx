@@ -31,7 +31,8 @@ import { StatsScreen } from './StatsScreen';
 import { WaterLoggerScreen } from './WaterLoggerScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { FloatingDock } from '../components/FloatingDock';
-import { MotionTokens, useReducedMotion } from '../theme/motion';
+import { useReducedMotion } from '../theme/motion';
+import { useAyumiTheme } from '../themes';
 import type { StatMetricType } from '../components/StatsMetricSelector';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -40,10 +41,13 @@ const MAX_PAGE_INDEX = TOTAL_PAGES - 1;
 
 export function MainPagerScreen(): React.JSX.Element {
   const theme = useTheme();
+  const { motion } = useAyumiTheme();
   const route = useRoute<any>();
   const reducedMotion = useReducedMotion();
   const reducedMotionRef = useRef(reducedMotion);
   reducedMotionRef.current = reducedMotion;
+  const motionRef = useRef(motion);
+  motionRef.current = motion;
 
   // Page index: 0 = Home, 1 = Stats, 2 = Settings
   const rawInitialPage = route.params?.initialPage ?? (
@@ -89,7 +93,7 @@ export function MainPagerScreen(): React.JSX.Element {
       Animated.spring(translateX, {
         toValue: -clampedPage * SCREEN_WIDTH,
         velocity: velocity ?? 0,
-        ...MotionTokens.spring.pager,
+        ...motionRef.current.spring.pager,
         useNativeDriver: true,
       }).start();
     },
@@ -137,9 +141,9 @@ export function MainPagerScreen(): React.JSX.Element {
         // Only claim gesture when user has clear horizontal intent exceeding touch slop
         const isHorizontal =
           Math.abs(gestureState.dx) >
-          Math.abs(gestureState.dy) * MotionTokens.gesture.directionalRatio;
+          Math.abs(gestureState.dy) * motionRef.current.gesture.directionalRatio;
         const isPastSlop =
-          Math.abs(gestureState.dx) > MotionTokens.gesture.horizontalTouchSlop;
+          Math.abs(gestureState.dx) > motionRef.current.gesture.horizontalTouchSlop;
         return isHorizontal && isPastSlop;
       },
       onPanResponderGrant: () => {
@@ -172,8 +176,8 @@ export function MainPagerScreen(): React.JSX.Element {
         const { dx, vx } = gestureState;
         const startPage = gestureStartPageRef.current;
         const distThreshold =
-          SCREEN_WIDTH * MotionTokens.gesture.pageDistanceThresholdRatio;
-        const velThreshold = MotionTokens.gesture.pageVelocityThreshold;
+          SCREEN_WIDTH * motionRef.current.gesture.pageDistanceThresholdRatio;
+        const velThreshold = motionRef.current.gesture.pageVelocityThreshold;
 
         let targetIndex = startPage;
         if (dx < -distThreshold || vx < -velThreshold) {

@@ -54,7 +54,8 @@ import { StatsChart, type ChartDataPoint } from '../components/StatsChart';
 import { StatsSummaryCards } from '../components/StatsSummaryCards';
 import type { StatNumberScaleUnit } from '../components/AnimatedStatNumber';
 import { FloatingDock } from '../components/FloatingDock';
-import { MotionTokens, useReducedMotion } from '../theme/motion';
+import { useReducedMotion } from '../theme/motion';
+import { useAyumiTheme } from '../themes';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -249,6 +250,7 @@ export function StatsScreen({
   isPageActive = true,
 }: StatsScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
+  const { motion, shapes, typography, metricAccents } = useAyumiTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
@@ -299,13 +301,13 @@ export function StatsScreen({
     }
 
     Animated.stagger(65, [
-      Animated.timing(entranceHeader, { toValue: 1, duration: 340, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
-      Animated.timing(entranceMetrics, { toValue: 1, duration: 360, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
-      Animated.timing(entrancePeriods, { toValue: 1, duration: 360, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
-      Animated.timing(entranceChart, { toValue: 1, duration: 400, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
-      Animated.timing(entranceSummaries, { toValue: 1, duration: 380, easing: MotionTokens.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entranceHeader, { toValue: 1, duration: 340, easing: motion.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entranceMetrics, { toValue: 1, duration: 360, easing: motion.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entrancePeriods, { toValue: 1, duration: 360, easing: motion.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entranceChart, { toValue: 1, duration: 400, easing: motion.easing.emphasizedDecel, useNativeDriver: true }),
+      Animated.timing(entranceSummaries, { toValue: 1, duration: 380, easing: motion.easing.emphasizedDecel, useNativeDriver: true }),
     ]).start();
-  }, [reducedMotion, entranceHeader, entranceMetrics, entrancePeriods, entranceChart, entranceSummaries]);
+  }, [reducedMotion, entranceHeader, entranceMetrics, entrancePeriods, entranceChart, entranceSummaries, motion]);
 
   // Transition handler when switching metric
   const handleSelectMetric = useCallback((newMetric: StatMetricType) => {
@@ -897,8 +899,15 @@ export function StatsScreen({
       };
     }, [chartDataPoints, committedPeriod, selectedMetric, hourlyUnavailable]);
 
+  const activeMetricAccent =
+    selectedMetric === 'distance'
+      ? metricAccents.distance
+      : selectedMetric === 'water'
+        ? metricAccents.water
+        : metricAccents.steps;
+
   const numericSyncKey = `${committedPeriod}:${committedDataset?.anchorKey ?? 'none'}:${selectedMetric}:${hourlyUnavailable ? 'na' : 'ok'}`;
-  const revealDuration = MotionTokens.chartReveal[committedPeriod].duration;
+  const revealDuration = motion.chartReveal[committedPeriod].duration;
 
   const currentFontScale = PixelRatio.getFontScale();
   const baseBodyHeight =
@@ -907,8 +916,8 @@ export function StatsScreen({
       : 0;
   const baselineContentHeight = baseBodyHeight > 0 ? baseBodyHeight + insets.top : 0;
 
-  // Dock sits insets.bottom + 8..16 from bottom edge with 58dp height; keep 12dp visual clearance above it
-  const dockTopOffset = Math.max(insets.bottom + 8, 16) + 58;
+  // Reserve exact dock clearance across both Default and labeled OEM dock heights
+  const dockTopOffset = Math.max(insets.bottom + 8, 16) + shapes.dockHeight;
   const dockReserve = dockTopOffset + 2;
   const scrollPaddingBottom = dockTopOffset + 6;
   const requiresScroll =
@@ -980,10 +989,26 @@ export function StatsScreen({
               ],
             },
           ]}>
-          <Text style={[styles.screenTitleText, { color: theme.colors.onSurface }]}>
+          <Text
+            style={[
+              styles.screenTitleText,
+              {
+                color: theme.colors.onSurface,
+                fontSize: typography.screenTitleSize,
+                fontWeight: typography.screenTitleWeight,
+                letterSpacing: typography.screenTitleTracking,
+              },
+            ]}>
             Stats
           </Text>
-          <Text style={[styles.screenSubtitleText, { color: theme.colors.onSurfaceVariant }]}>
+          <Text
+            style={[
+              styles.screenSubtitleText,
+              {
+                color: theme.colors.onSurfaceVariant,
+                fontSize: typography.screenSubtitleSize,
+              },
+            ]}>
             Track and analyze your activity
           </Text>
         </Animated.View>
@@ -1025,6 +1050,8 @@ export function StatsScreen({
           <StatsPeriodSelector
             selectedPeriod={selectedPeriod}
             onSelectPeriod={setSelectedPeriod}
+            accentColor={activeMetricAccent.color}
+            onAccentColor={activeMetricAccent.onColor}
             containerHeight={adaptiveLayout.periodHeight}
             marginTop={adaptiveLayout.periodMarginTop}
           />
@@ -1096,6 +1123,7 @@ export function StatsScreen({
           activeTab="stats"
           onHomePress={() => navigation.navigate('Dashboard')}
           onAnalyticsPress={() => {}}
+          onWaterPress={() => navigation.navigate('Water')}
           onProfilePress={() => navigation.navigate('Settings')}
         />
       )}

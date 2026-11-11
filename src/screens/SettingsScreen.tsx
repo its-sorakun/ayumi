@@ -11,10 +11,25 @@
  */
 
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, useTheme, RadioButton, List, Divider, TextInput } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, ToastAndroid, Platform } from 'react-native';
+import {
+  Text,
+  useTheme,
+  RadioButton,
+  List,
+  Divider,
+  TextInput,
+  Snackbar,
+} from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '../contexts/SettingsContext';
+import {
+  AYUMI_THEME_OPTIONS,
+  AyumiThemeId,
+  SettingsSectionGroup,
+  ThemeOptionCard,
+  useAyumiTheme,
+} from '../themes';
 
 export interface SettingsScreenProps {
   readonly hideDock?: boolean;
@@ -23,12 +38,35 @@ export interface SettingsScreenProps {
 export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { 
-    theme: currentTheme, provider: currentProvider, stepGoal, distanceGoal, 
+  const { themeId: activeSessionThemeId, surfaces, typography } = useAyumiTheme();
+  const {
+    theme: currentTheme, visualTheme, provider: currentProvider, stepGoal, distanceGoal,
     gender, weight, height, age, customWaterGoal,
-    setTheme, setProvider, setStepGoal, setDistanceGoal,
+    setTheme, setVisualTheme, setProvider, setStepGoal, setDistanceGoal,
     setGender, setWeight, setHeight, setAge, setCustomWaterGoal
   } = useSettings();
+
+  const [restartBannerVisible, setRestartBannerVisible] = useState(false);
+
+  const handleSelectVisualTheme = async (nextThemeId: AyumiThemeId) => {
+    if (nextThemeId === visualTheme) {
+      return;
+    }
+
+    await setVisualTheme(nextThemeId);
+
+    if (nextThemeId !== activeSessionThemeId) {
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(
+          'Restart Ayumi to apply the new theme.',
+          ToastAndroid.SHORT,
+        );
+      }
+      setRestartBannerVisible(true);
+    } else {
+      setRestartBannerVisible(false);
+    }
+  };
 
   const [stepInput, setStepInput] = useState(stepGoal.toString());
   const [distanceInput, setDistanceInput] = useState(distanceGoal.toString());
@@ -84,217 +122,290 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
   };
 
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: theme.colors.background }]} 
-      contentContainerStyle={{
-        paddingTop: insets.top + 6,
-        paddingBottom: insets.bottom + (hideDock ? 96 : 140),
-      }}
-      automaticallyAdjustKeyboardInsets
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Top Header: Settings Title & Subtitle matching Stats style */}
-      <View style={styles.headerRow}>
-        <Text style={[styles.screenTitleText, { color: theme.colors.onSurface }]}>
-          Settings
-        </Text>
-        <Text style={[styles.screenSubtitleText, { color: theme.colors.onSurfaceVariant }]}>
-          Preferences, goals and hardware configuration
-        </Text>
-      </View>
+    <View style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        contentContainerStyle={{
+          paddingTop: insets.top + 6,
+          paddingBottom: insets.bottom + (hideDock ? 96 : 140),
+        }}
+        automaticallyAdjustKeyboardInsets
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Top Header: Settings Title & Subtitle matching active theme typography */}
+        <View style={styles.headerRow}>
+          <Text
+            style={[
+              styles.screenTitleText,
+              {
+                color: theme.colors.onSurface,
+                fontSize: typography.screenTitleSize,
+                fontWeight: typography.screenTitleWeight,
+                letterSpacing: typography.screenTitleTracking,
+              },
+            ]}
+          >
+            Settings
+          </Text>
+          <Text
+            style={[
+              styles.screenSubtitleText,
+              {
+                color: theme.colors.onSurfaceVariant,
+                fontSize: typography.screenSubtitleSize,
+              },
+            ]}
+          >
+            Preferences, goals and hardware configuration
+          </Text>
+        </View>
 
-      <List.Section>
-        <List.Subheader>Appearance</List.Subheader>
-        <RadioButton.Group onValueChange={value => setTheme(value as any)} value={currentTheme}>
-          <List.Item
-            title="System Auto"
-            description="Follow device theme"
-            left={props => <List.Icon {...props} icon={() => <Text>⚙️</Text>} />}
-            right={props => <RadioButton {...props} value="auto" />}
-            onPress={() => setTheme('auto')}
-          />
-          <List.Item
-            title="Light Mode"
-            left={props => <List.Icon {...props} icon={() => <Text>☀️</Text>} />}
-            right={props => <RadioButton {...props} value="light" />}
-            onPress={() => setTheme('light')}
-          />
-          <List.Item
-            title="Dark Mode"
-            left={props => <List.Icon {...props} icon={() => <Text>🌙</Text>} />}
-            right={props => <RadioButton {...props} value="dark" />}
-            onPress={() => setTheme('dark')}
-          />
-        </RadioButton.Group>
-      </List.Section>
+        <SettingsSectionGroup grouped={surfaces.groupedSettingsCards} surfaces={surfaces}>
+          <List.Section style={surfaces.groupedSettingsCards ? styles.groupedListSection : undefined}>
+            <List.Subheader>Appearance</List.Subheader>
+            <RadioButton.Group onValueChange={value => setTheme(value as any)} value={currentTheme}>
+              <List.Item
+                title="System Auto"
+                description="Follow device theme"
+                left={props => <List.Icon {...props} icon={() => <Text>⚙️</Text>} />}
+                right={props => <RadioButton {...props} value="auto" />}
+                onPress={() => setTheme('auto')}
+              />
+              <List.Item
+                title="Light Mode"
+                left={props => <List.Icon {...props} icon={() => <Text>☀️</Text>} />}
+                right={props => <RadioButton {...props} value="light" />}
+                onPress={() => setTheme('light')}
+              />
+              <List.Item
+                title="Dark Mode"
+                left={props => <List.Icon {...props} icon={() => <Text>🌙</Text>} />}
+                right={props => <RadioButton {...props} value="dark" />}
+                onPress={() => setTheme('dark')}
+              />
+            </RadioButton.Group>
+          </List.Section>
+        </SettingsSectionGroup>
 
-      <Divider style={styles.divider} />
+        {!surfaces.groupedSettingsCards && <Divider style={styles.divider} />}
 
-      <List.Section>
-        <List.Subheader>Data Source</List.Subheader>
-        <RadioButton.Group onValueChange={value => setProvider(value as any)} value={currentProvider}>
-          <List.Item
-            title="Google Health Connect"
-            description="Syncs history with other fitness apps (Recommended)"
-            descriptionNumberOfLines={2}
-            left={props => <List.Icon {...props} icon={() => <Text>🔄</Text>} />}
-            right={props => <RadioButton {...props} value="health_connect" />}
-            onPress={() => setProvider('health_connect')}
-          />
-          <List.Item
-            title="Device Sensor Only"
-            description="Bypass Health Connect. 100% private, tracks via hardware chip."
-            descriptionNumberOfLines={2}
-            left={props => <List.Icon {...props} icon={() => <Text>📱</Text>} />}
-            right={props => <RadioButton {...props} value="device_sensor" />}
-            onPress={() => setProvider('device_sensor')}
-          />
-        </RadioButton.Group>
-      </List.Section>
-
-      <Divider style={styles.divider} />
-
-      <List.Section>
-        <List.Subheader>Physical Stats (Optional)</List.Subheader>
-        <Text style={{ marginHorizontal: 16, marginBottom: 8, color: theme.colors.onSurfaceVariant, fontSize: 12 }}>
-          Setting these enables accurate Basal Metabolic Rate (BMR) calculation for Total Calories.
-        </Text>
-        <List.Item
-          title="Biological Sex"
-          description="Used for BMR formula"
-          left={props => <List.Icon {...props} icon={() => <Text>🚻</Text>} />}
-          right={() => (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <RadioButton.Group onValueChange={value => setGender(value as any)} value={gender || ''}>
-                <View style={{ flexDirection: 'row' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
-                    <Text>Male</Text>
-                    <RadioButton value="male" />
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text>Female</Text>
-                    <RadioButton value="female" />
-                  </View>
-                </View>
-              </RadioButton.Group>
+        <SettingsSectionGroup grouped={surfaces.groupedSettingsCards} surfaces={surfaces}>
+          <List.Section style={surfaces.groupedSettingsCards ? styles.groupedListSection : undefined}>
+            <List.Subheader>Theme</List.Subheader>
+            <View style={styles.themeOptionsColumn}>
+              {AYUMI_THEME_OPTIONS.map(option => {
+                const isSelected = visualTheme === option.id;
+                const pendingRestart = isSelected && option.id !== activeSessionThemeId;
+                return (
+                  <ThemeOptionCard
+                    key={option.id}
+                    option={option}
+                    isSelected={isSelected}
+                    isActiveSession={option.id === activeSessionThemeId}
+                    pendingRestart={pendingRestart}
+                    onSelect={handleSelectVisualTheme}
+                  />
+                );
+              })}
             </View>
-          )}
-        />
-        <List.Item
-          title="Weight (kg)"
-          left={props => <List.Icon {...props} icon={() => <Text>⚖️</Text>} />}
-          right={() => (
-            <TextInput
-              mode="outlined"
-              keyboardType="numeric"
-              value={weightInput}
-              onChangeText={setWeightInput}
-              onBlur={handleSaveWeight}
-              style={styles.input}
-              dense
-              placeholder="e.g. 70"
-            />
-          )}
-        />
-        <List.Item
-          title="Height (cm)"
-          left={props => <List.Icon {...props} icon={() => <Text>📏</Text>} />}
-          right={() => (
-            <TextInput
-              mode="outlined"
-              keyboardType="numeric"
-              value={heightInput}
-              onChangeText={setHeightInput}
-              onBlur={handleSaveHeight}
-              style={styles.input}
-              dense
-              placeholder="e.g. 175"
-            />
-          )}
-        />
-        <List.Item
-          title="Age (years)"
-          left={props => <List.Icon {...props} icon={() => <Text>🎂</Text>} />}
-          right={() => (
-            <TextInput
-              mode="outlined"
-              keyboardType="numeric"
-              value={ageInput}
-              onChangeText={setAgeInput}
-              onBlur={handleSaveAge}
-              style={styles.input}
-              dense
-              placeholder="e.g. 25"
-            />
-          )}
-        />
-      </List.Section>
+            {visualTheme !== activeSessionThemeId && (
+              <Text style={[styles.pendingHintText, { color: theme.colors.primary }]}>
+                Restart Ayumi to apply the selected theme.
+              </Text>
+            )}
+          </List.Section>
+        </SettingsSectionGroup>
 
-      <Divider style={styles.divider} />
+        {!surfaces.groupedSettingsCards && <Divider style={styles.divider} />}
 
-      <List.Section>
-        <List.Subheader>Goals</List.Subheader>
-        <List.Item
-          title="Daily Steps"
-          description="Your target step count"
-          left={props => <List.Icon {...props} icon={() => <Text>👟</Text>} />}
-          right={() => (
-            <TextInput
-              mode="outlined"
-              keyboardType="numeric"
-              value={stepInput}
-              onChangeText={setStepInput}
-              onBlur={handleSaveStepGoal}
-              style={styles.input}
-              dense
+        <SettingsSectionGroup grouped={surfaces.groupedSettingsCards} surfaces={surfaces}>
+          <List.Section style={surfaces.groupedSettingsCards ? styles.groupedListSection : undefined}>
+            <List.Subheader>Data Source</List.Subheader>
+            <RadioButton.Group onValueChange={value => setProvider(value as any)} value={currentProvider}>
+              <List.Item
+                title="Google Health Connect"
+                description="Syncs history with other fitness apps (Recommended)"
+                descriptionNumberOfLines={2}
+                left={props => <List.Icon {...props} icon={() => <Text>🔄</Text>} />}
+                right={props => <RadioButton {...props} value="health_connect" />}
+                onPress={() => setProvider('health_connect')}
+              />
+              <List.Item
+                title="Device Sensor Only"
+                description="Bypass Health Connect. 100% private, tracks via hardware chip."
+                descriptionNumberOfLines={2}
+                left={props => <List.Icon {...props} icon={() => <Text>📱</Text>} />}
+                right={props => <RadioButton {...props} value="device_sensor" />}
+                onPress={() => setProvider('device_sensor')}
+              />
+            </RadioButton.Group>
+          </List.Section>
+        </SettingsSectionGroup>
+
+        {!surfaces.groupedSettingsCards && <Divider style={styles.divider} />}
+
+        <SettingsSectionGroup grouped={surfaces.groupedSettingsCards} surfaces={surfaces}>
+          <List.Section style={surfaces.groupedSettingsCards ? styles.groupedListSection : undefined}>
+            <List.Subheader>Physical Stats (Optional)</List.Subheader>
+            <Text style={{ marginHorizontal: 16, marginBottom: 8, color: theme.colors.onSurfaceVariant, fontSize: 12 }}>
+              Setting these enables accurate Basal Metabolic Rate (BMR) calculation for Total Calories.
+            </Text>
+            <List.Item
+              title="Biological Sex"
+              description="Used for BMR formula"
+              left={props => <List.Icon {...props} icon={() => <Text>🚻</Text>} />}
+              right={() => (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <RadioButton.Group onValueChange={value => setGender(value as any)} value={gender || ''}>
+                    <View style={{ flexDirection: 'row' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
+                        <Text>Male</Text>
+                        <RadioButton value="male" />
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text>Female</Text>
+                        <RadioButton value="female" />
+                      </View>
+                    </View>
+                  </RadioButton.Group>
+                </View>
+              )}
             />
-          )}
-        />
-        <List.Item
-          title="Daily Distance (m)"
-          description="Target distance in meters"
-          left={props => <List.Icon {...props} icon={() => <Text>📏</Text>} />}
-          right={() => (
-            <TextInput
-              mode="outlined"
-              keyboardType="numeric"
-              value={distanceInput}
-              onChangeText={setDistanceInput}
-              onBlur={handleSaveDistanceGoal}
-              style={styles.input}
-              dense
+            <List.Item
+              title="Weight (kg)"
+              left={props => <List.Icon {...props} icon={() => <Text>⚖️</Text>} />}
+              right={() => (
+                <TextInput
+                  mode="outlined"
+                  keyboardType="numeric"
+                  value={weightInput}
+                  onChangeText={setWeightInput}
+                  onBlur={handleSaveWeight}
+                  style={styles.input}
+                  dense
+                  placeholder="e.g. 70"
+                />
+              )}
             />
-          )}
-        />
-        <List.Item
-          title="Custom Water Goal (ml)"
-          description="Leave blank for auto-recommendation"
-          left={props => <List.Icon {...props} icon={() => <Text>💧</Text>} />}
-          right={() => (
-            <TextInput
-              mode="outlined"
-              keyboardType="numeric"
-              value={waterInput}
-              onChangeText={setWaterInput}
-              onBlur={handleSaveWaterGoal}
-              style={styles.input}
-              dense
-              placeholder="e.g. 2500"
+            <List.Item
+              title="Height (cm)"
+              left={props => <List.Icon {...props} icon={() => <Text>📏</Text>} />}
+              right={() => (
+                <TextInput
+                  mode="outlined"
+                  keyboardType="numeric"
+                  value={heightInput}
+                  onChangeText={setHeightInput}
+                  onBlur={handleSaveHeight}
+                  style={styles.input}
+                  dense
+                  placeholder="e.g. 175"
+                />
+              )}
             />
-          )}
-        />
-      </List.Section>
-    </ScrollView>
+            <List.Item
+              title="Age (years)"
+              left={props => <List.Icon {...props} icon={() => <Text>🎂</Text>} />}
+              right={() => (
+                <TextInput
+                  mode="outlined"
+                  keyboardType="numeric"
+                  value={ageInput}
+                  onChangeText={setAgeInput}
+                  onBlur={handleSaveAge}
+                  style={styles.input}
+                  dense
+                  placeholder="e.g. 25"
+                />
+              )}
+            />
+          </List.Section>
+        </SettingsSectionGroup>
+
+        {!surfaces.groupedSettingsCards && <Divider style={styles.divider} />}
+
+        <SettingsSectionGroup grouped={surfaces.groupedSettingsCards} surfaces={surfaces}>
+          <List.Section style={surfaces.groupedSettingsCards ? styles.groupedListSection : undefined}>
+            <List.Subheader>Goals</List.Subheader>
+            <List.Item
+              title="Daily Steps"
+              description="Your target step count"
+              left={props => <List.Icon {...props} icon={() => <Text>👟</Text>} />}
+              right={() => (
+                <TextInput
+                  mode="outlined"
+                  keyboardType="numeric"
+                  value={stepInput}
+                  onChangeText={setStepInput}
+                  onBlur={handleSaveStepGoal}
+                  style={styles.input}
+                  dense
+                />
+              )}
+            />
+            <List.Item
+              title="Daily Distance (m)"
+              description="Target distance in meters"
+              left={props => <List.Icon {...props} icon={() => <Text>📏</Text>} />}
+              right={() => (
+                <TextInput
+                  mode="outlined"
+                  keyboardType="numeric"
+                  value={distanceInput}
+                  onChangeText={setDistanceInput}
+                  onBlur={handleSaveDistanceGoal}
+                  style={styles.input}
+                  dense
+                />
+              )}
+            />
+            <List.Item
+              title="Custom Water Goal (ml)"
+              description="Leave blank for auto-recommendation"
+              left={props => <List.Icon {...props} icon={() => <Text>💧</Text>} />}
+              right={() => (
+                <TextInput
+                  mode="outlined"
+                  keyboardType="numeric"
+                  value={waterInput}
+                  onChangeText={setWaterInput}
+                  onBlur={handleSaveWaterGoal}
+                  style={styles.input}
+                  dense
+                  placeholder="e.g. 2500"
+                />
+              )}
+            />
+          </List.Section>
+        </SettingsSectionGroup>
+      </ScrollView>
+
+      <Snackbar
+        visible={restartBannerVisible}
+        onDismiss={() => setRestartBannerVisible(false)}
+        duration={3600}
+        wrapperStyle={{ bottom: Math.max(insets.bottom + (hideDock ? 18 : 88), 24) }}
+        action={{
+          label: 'OK',
+          onPress: () => setRestartBannerVisible(false),
+        }}
+      >
+        Restart Ayumi to apply the new theme.
+      </Snackbar>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screenWrapper: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },
   headerRow: {
     paddingHorizontal: 20,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   screenTitleText: {
     fontSize: 32,
@@ -305,6 +416,20 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '500',
     marginTop: 2,
+  },
+  groupedListSection: {
+    marginVertical: 2,
+  },
+  themeOptionsColumn: {
+    paddingHorizontal: 14,
+    paddingBottom: 6,
+  },
+  pendingHintText: {
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingTop: 2,
+    paddingBottom: 10,
   },
   divider: {
     marginVertical: 8,

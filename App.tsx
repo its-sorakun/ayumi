@@ -2,18 +2,18 @@
  * App.tsx — Root component for Ayumi.
  *
  * Wires together:
- * 1. Material You dynamic theme via react-native-material-you-colors ThemeProvider
- * 2. React Native Paper PaperProvider (receiving Material You colors)
+ * 1. Material You dynamic multi-accent palette via react-native-material-you-colors
+ * 2. Session-locked visual theme provider (`src/themes`) + React Native Paper PaperProvider
  * 3. SafeAreaProvider
  * 4. App navigation
  *
- * The library's palette arrays have 13 shades per tonal family, indexed as:
- *   [0, 10, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
- * We map these indices to Material Design 3 color tokens.
+ * Visual theme selection (`default` vs `oxygen_coloros`) locks once persistent settings finish
+ * loading at startup so switching themes in Settings prompts an app restart without partially
+ * re-theming active screens mid-session.
  */
 
 import React from 'react';
-import { StatusBar } from 'react-native';
+import { StatusBar, View, useColorScheme } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import MaterialYou from 'react-native-material-you-colors';
@@ -22,6 +22,13 @@ import type { MaterialYouPalette } from 'react-native-material-you-colors';
 import { AppNavigator } from './src/navigation';
 import { createLightTheme, createDarkTheme } from './src/theme';
 import { SettingsProvider, useSettings } from './src/contexts/SettingsContext';
+import {
+  AYUMI_BASELINE_SEED,
+  AyumiThemeId,
+  AyumiThemeProvider,
+  DEFAULT_VISUAL_THEME_ID,
+  getAyumiThemeDefinition,
+} from './src/themes';
 
 /**
  * Palette shade indices (the library uses 13-element arrays):
@@ -115,12 +122,12 @@ function mapPaletteToTheme(palette: MaterialYouPalette) {
   };
 }
 
-/** Ayumi's brand color — used as the fallback seed when Material You is not available */
-const AYUMI_SEED_COLOR = '#006E60'; // The teal from our baseline theme
+/** Ayumi baseline brand seed — fallback when Material You palette is unavailable. */
+const AYUMI_SEED_COLOR = AYUMI_BASELINE_SEED;
 
 /**
  * Create the Material You theme context using the library's createThemeContext API.
- * This gives us a ThemeProvider and a useMaterialYouTheme hook.
+ * Exposes `palette` (5 Monet tonal arrays) and light/dark scheme switching.
  */
 const { ThemeProvider, useMaterialYouTheme } = MaterialYou.createThemeContext(mapPaletteToTheme);
 
@@ -128,54 +135,82 @@ const { ThemeProvider, useMaterialYouTheme } = MaterialYou.createThemeContext(ma
 export { useMaterialYouTheme };
 
 /**
- * Inner app component that consumes the Material You theme
- * and passes it into React Native Paper's PaperProvider.
+ * Inner app component that waits for persisted settings, locks the visual theme for
+ * the current process session, maps the Android multi-accent Monet palette through the
+ * active theme definition, and provides both Paper + Ayumi theme contexts.
  */
 function AppContent(): React.JSX.Element {
   const materialYouTheme = useMaterialYouTheme();
-  const { theme: userTheme } = useSettings();
+  const systemColorScheme = useColorScheme();
+  const { theme: userTheme, visualTheme, isLoading } = useSettings();
+
+  // Lock the visual theme once async settings finish loading so mid-session changes
+  // persist cleanly and ask for a restart without half-styled active screens.
+  const sessionThemeIdRef = React.useRef<AyumiThemeId | null>(null);
+  if (!isLoading && sessionThemeIdRef.current === null) {
+    sessionThemeIdRef.current = visualTheme;
+  }
+  const sessionThemeId: AyumiThemeId =
+    sessionThemeIdRef.current ?? DEFAULT_VISUAL_THEME_ID;
 
   React.useEffect(() => {
     materialYouTheme.setColorScheme(userTheme);
   }, [userTheme, materialYouTheme]);
 
-  // Build Paper theme from the active Material You colors
-  const paperTheme = materialYouTheme.background === materialYouTheme.onSurface
-    // Fallback: shouldn't happen, but defensive
-    ? createLightTheme()
-    : isColorDark(materialYouTheme.background)
-      ? createDarkTheme(materialYouTheme)
-      : createLightTheme(materialYouTheme);
+  const isDark =
+    userTheme === 'dark'
+      ? true
+      : userTheme === 'light'
+        ? false
+        : systemColorScheme === 'dark';
 
-  const isDark = isColorDark(materialYouTheme.background);
+  const definition = getAyumiThemeDefinition(sessionThemeId);
+
+  const paperTheme = React.useMemo(() => {
+    const paletteColors = materialYouTheme.palette
+      ? definition.mapPaletteToPaperColors(materialYouTheme.palette, isDark)
+      : undefined;
+    const base = isDark
+      ? createDarkTheme(paletteColors as any)
+      : createLightTheme(paletteColors as any);
+
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        ...(paletteColors ?? {}),
+        elevation: {
+          ...base.colors.elevation,
+          ...(paletteColors?.elevation ?? {}),
+        },
+      },
+    };
+  }, [definition, materialYouTheme.palette, isDark]);
+
+  // Brief hold until AsyncStorage resolves prevents locking a non-default launch to Default.
+  if (isLoading) {
+    const fallbackBg = paperTheme.colors.background;
+    return (
+      <View style={{ flex: 1, backgroundColor: fallbackBg }}>
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={fallbackBg}
+        />
+      </View>
+    );
+  }
 
   return (
     <PaperProvider theme={paperTheme}>
-      <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={materialYouTheme.surface}
-      />
-      <AppNavigator />
+      <AyumiThemeProvider themeId={sessionThemeId} paperTheme={paperTheme}>
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={paperTheme.colors.background}
+        />
+        <AppNavigator />
+      </AyumiThemeProvider>
     </PaperProvider>
   );
-}
-
-/**
- * Simple heuristic to determine if a hex color is "dark".
- * Uses relative luminance calculation.
- */
-function isColorDark(hexColor: string): boolean {
-  try {
-    const hex = hexColor.replace('#', '');
-    const r = parseInt(hex.substring(0, 2), 16) / 255;
-    const g = parseInt(hex.substring(2, 4), 16) / 255;
-    const b = parseInt(hex.substring(4, 6), 16) / 255;
-    // Relative luminance formula (ITU-R BT.709)
-    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    return luminance < 0.5;
-  } catch {
-    return false;
-  }
 }
 
 /**

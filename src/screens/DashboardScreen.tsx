@@ -37,6 +37,7 @@ import {
 } from '../components';
 import { useHealthData, useWaterTracker } from '../hooks';
 import { useSettings } from '../contexts/SettingsContext';
+import { colorWithOpacity, useAyumiTheme } from '../themes';
 import {
   formatDistance,
   formatCalories,
@@ -65,6 +66,7 @@ export function DashboardScreen({
   onNavigateToStats,
 }: DashboardScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
+  const { typography, metricAccents } = useAyumiTheme();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -226,7 +228,16 @@ export function DashboardScreen({
 
         {/* Minimalist Top Header: Greeting & Status Chip */}
         <View style={styles.topBarRow}>
-          <Text style={[styles.greetingTitleText, { color: theme.colors.onSurface }]}>
+          <Text
+            style={[
+              styles.greetingTitleText,
+              {
+                color: theme.colors.onSurface,
+                fontSize: typography.screenTitleSize,
+                fontWeight: typography.screenTitleWeight,
+                letterSpacing: typography.screenTitleTracking,
+              },
+            ]}>
             {getGreeting()}
           </Text>
           <View style={styles.dateBadgeRow}>
@@ -237,13 +248,13 @@ export function DashboardScreen({
               <View
                 style={[
                   styles.providerBadge,
-                  { backgroundColor: theme.colors.primaryContainer },
+                  { backgroundColor: metricAccents.steps.container },
                 ]}>
-                <View style={[styles.liveDot, { backgroundColor: theme.colors.primary }]} />
+                <View style={[styles.liveDot, { backgroundColor: metricAccents.steps.color }]} />
                 <Text
                   style={[
                     styles.providerBadgeText,
-                    { color: theme.colors.onPrimaryContainer },
+                    { color: metricAccents.steps.onContainer },
                   ]}>
                   {providerName}
                 </Text>
@@ -262,14 +273,14 @@ export function DashboardScreen({
         {/* Bento Grid Metrics */}
         {formattedValues != null && (
           <View style={styles.bentoGrid}>
-            {/* Row 1: Active Calories & Distance (neutral surface with primary dynamic icon bubbles) */}
+            {/* Row 1: Active Calories & Distance (theme-driven multi-accent icon bubbles) */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title={'Active\nCalories'}
                 value={calValue}
                 unit={calUnit}
-                icon={<FlameIcon size={22} color={theme.colors.primary} />}
-                iconBgColor={theme.colors.primaryContainer}
+                icon={<FlameIcon size={22} color={metricAccents.calories.color} />}
+                iconBgColor={metricAccents.calories.container}
                 cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
@@ -279,27 +290,27 @@ export function DashboardScreen({
                 value={distValue}
                 unit={distUnit}
                 subtitle={`Goal: ${formatDistance(distanceGoal)}`}
-                icon={<RouteMapIcon size={22} color={theme.colors.primary} />}
-                iconBgColor={theme.colors.primaryContainer}
+                icon={<RouteMapIcon size={22} color={metricAccents.distance.color} />}
+                iconBgColor={metricAccents.distance.container}
                 cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
                 subtitleColor={theme.colors.onSurfaceVariant}
                 progress={formattedValues.distanceProgress}
-                progressBarColor={theme.colors.primary}
+                progressBarColor={metricAccents.distance.color}
                 onPress={() => navigateToStatsMetric('distance')}
               />
             </View>
 
-            {/* Row 2: Total Calories & Active Time (neutral surface with primary dynamic icon bubbles) */}
+            {/* Row 2: Total Calories & Active Time (theme-driven multi-accent icon bubbles) */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title={'Total\nCalories'}
                 value={totalCalValue}
                 unit={totalCalUnit}
                 subtitle={formattedValues.totalCalories === 'Setup' ? 'Tap to configure' : undefined}
-                icon={<BoltIcon size={22} color={theme.colors.primary} />}
-                iconBgColor={theme.colors.primaryContainer}
+                icon={<BoltIcon size={22} color={metricAccents.calories.color} />}
+                iconBgColor={metricAccents.calories.container}
                 cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
@@ -310,31 +321,33 @@ export function DashboardScreen({
                 title="Active Time"
                 value={activeTimeValue}
                 unit={activeTimeUnit}
-                icon={<StopwatchIcon size={22} color={theme.colors.primary} />}
-                iconBgColor={theme.colors.primaryContainer}
+                icon={<StopwatchIcon size={22} color={metricAccents.activeTime.color} />}
+                iconBgColor={metricAccents.activeTime.container}
                 cardBgColor={theme.dark ? theme.colors.elevation.level1 : theme.colors.surface}
                 titleColor={theme.colors.onSurfaceVariant}
                 valueColor={theme.colors.onSurface}
               />
             </View>
 
-            {/* Row 3 (Full Width): Water Hydration Card in primaryContainer */}
+            {/* Row 3 (Full Width): Water Hydration Card */}
             <View style={styles.bentoRow}>
               <BentoCard
                 title="Water"
                 value={`${totalWater}`}
                 unit="ml"
                 subtitle={`Goal: ${formattedValues.waterGoalText}`}
-                icon={<DropletIcon size={22} color={theme.colors.primary} />}
-                iconBgColor={theme.dark ? 'rgba(255, 255, 255, 0.12)' : theme.colors.surface}
-                cardBgColor={theme.colors.primaryContainer}
-                titleColor={theme.colors.onPrimaryContainer}
-                valueColor={theme.colors.onPrimaryContainer}
-                subtitleColor={theme.colors.onPrimaryContainer}
+                icon={<DropletIcon size={22} color={metricAccents.water.color} />}
+                iconBgColor={theme.dark ? colorWithOpacity(theme.colors.onSurface, 0.12) : theme.colors.surface}
+                cardBgColor={metricAccents.water.container}
+                titleColor={metricAccents.water.onContainer}
+                valueColor={metricAccents.water.onContainer}
+                subtitleColor={metricAccents.water.onContainer}
                 fullWidth={true}
                 progress={formattedValues.waterProgress}
-                progressBarColor={theme.colors.primary}
+                progressBarColor={metricAccents.water.color}
                 actionLabel="+ 250 ml"
+                actionBgColor={metricAccents.water.color}
+                actionTextColor={metricAccents.water.onColor}
                 onActionPress={() => addWater(250)}
                 onPress={() => navigateToStatsMetric('water')}
               />
@@ -349,6 +362,7 @@ export function DashboardScreen({
           activeTab="home"
           onHomePress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
           onAnalyticsPress={() => navigateToStatsMetric('steps')}
+          onWaterPress={() => navigation.navigate('Water')}
           onProfilePress={() => navigation.navigate('Settings')}
         />
       )}

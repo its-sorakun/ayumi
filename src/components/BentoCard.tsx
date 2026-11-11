@@ -13,6 +13,7 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
+import { useAyumiTheme } from '../themes';
 
 interface BentoCardProps {
   readonly title: string;
@@ -29,6 +30,8 @@ interface BentoCardProps {
   readonly progressBarColor?: string;
   readonly fullWidth?: boolean;
   readonly actionLabel?: string;
+  readonly actionBgColor?: string;
+  readonly actionTextColor?: string;
   readonly onActionPress?: () => void;
   readonly onPress?: () => void;
   readonly style?: ViewStyle;
@@ -49,11 +52,14 @@ export function BentoCard({
   progressBarColor,
   fullWidth = false,
   actionLabel,
+  actionBgColor,
+  actionTextColor,
   onActionPress,
   onPress,
   style,
 }: BentoCardProps): React.JSX.Element {
   const theme = useTheme();
+  const { surfaces, shapes, typography, progress: progressTokens, resolveCardBorder } = useAyumiTheme();
   const isInteractive = typeof onPress === 'function';
   const isDark = theme.dark;
 
@@ -62,6 +68,11 @@ export function BentoCard({
     ? (isDark ? theme.colors.elevation.level1 : theme.colors.surface)
     : cardBgColor;
   const activeProgressColor = progressBarColor || theme.colors.primary;
+  const themeBorder = resolveCardBorder();
+  const resolvedBorder =
+    fullWidth && !surfaces.outlineLightCards
+      ? { borderWidth: 0, borderColor: 'transparent' }
+      : themeBorder;
 
   return (
     <TouchableOpacity
@@ -71,11 +82,13 @@ export function BentoCard({
       style={[
         styles.card,
         {
-          borderRadius: fullWidth ? 28 : 24,
+          borderRadius: fullWidth ? surfaces.fullWidthCardRadius : surfaces.cardRadius,
           paddingHorizontal: fullWidth ? 16 : 13,
           backgroundColor: resolvedBg,
-          borderWidth: isDark && !fullWidth ? 1 : 0,
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+          borderWidth: resolvedBorder.borderWidth,
+          borderColor: resolvedBorder.borderColor,
+          elevation: surfaces.cardElevation,
+          shadowOpacity: surfaces.cardShadowOpacity,
           flex: fullWidth ? 0 : 1,
           width: fullWidth ? '100%' : undefined,
           minHeight: fullWidth ? 98 : 108,
@@ -115,7 +128,11 @@ export function BentoCard({
           <Text
             style={[
               styles.valueText,
-              { color: valueColor || theme.colors.onSurface },
+              {
+                color: valueColor || theme.colors.onSurface,
+                fontSize: typography.bentoValueSize,
+                fontWeight: typography.statValueWeight,
+              },
             ]}
             numberOfLines={1}
             adjustsFontSizeToFit
@@ -151,10 +168,20 @@ export function BentoCard({
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={onActionPress}
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            style={[
+              styles.actionButton,
+              {
+                backgroundColor: actionBgColor || theme.colors.primary,
+                borderRadius: shapes.buttonPillRadius,
+              },
+            ]}
             accessibilityRole="button"
             accessibilityLabel={actionLabel}>
-            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimary }]}>
+            <Text
+              style={[
+                styles.actionButtonText,
+                { color: actionTextColor || theme.colors.onPrimary },
+              ]}>
               {actionLabel}
             </Text>
           </TouchableOpacity>
@@ -167,6 +194,8 @@ export function BentoCard({
           style={[
             styles.progressTrack,
             {
+              height: progressTokens.linearTrackHeight,
+              borderRadius: progressTokens.linearTrackHeight / 2,
               backgroundColor: fullWidth
                 ? (isDark ? 'rgba(255, 255, 255, 0.15)' : theme.colors.surface)
                 : (isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.surfaceVariant),
@@ -177,6 +206,7 @@ export function BentoCard({
             style={[
               styles.progressFill,
               {
+                borderRadius: progressTokens.linearTrackHeight / 2,
                 backgroundColor: activeProgressColor,
                 width: `${Math.min(Math.max(progress * 100, 0), 100)}%`,
               },

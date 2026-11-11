@@ -20,7 +20,8 @@ import {
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
-import { MotionTokens, useReducedMotion } from '../theme/motion';
+import { useReducedMotion } from '../theme/motion';
+import { useAyumiTheme } from '../themes';
 
 export type StatMetricType = 'steps' | 'distance' | 'water';
 
@@ -74,6 +75,14 @@ export function StatsMetricSelector({
   const theme = useTheme();
   const isDark = theme.dark;
   const reducedMotion = useReducedMotion();
+  const { motion, surfaces, shapes, metricAccents, resolveCardBorder } = useAyumiTheme();
+  const activeMetricAccent =
+    selectedMetric === 'distance'
+      ? metricAccents.distance
+      : selectedMetric === 'water'
+        ? metricAccents.water
+        : metricAccents.steps;
+  const cardBorder = resolveCardBorder();
 
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -90,9 +99,11 @@ export function StatsMetricSelector({
   const prevActiveIndexRef = useRef(activeIndex);
   const onSelectRef = useRef(onSelectMetric);
   const reducedMotionRef = useRef(reducedMotion);
+  const motionRef = useRef(motion);
   activeIndexRef.current = activeIndex;
   onSelectRef.current = onSelectMetric;
   reducedMotionRef.current = reducedMotion;
+  motionRef.current = motion;
 
   const pressLocalXRef = useRef(0);
   const dragStartSlotRef = useRef(activeIndex);
@@ -103,8 +114,9 @@ export function StatsMetricSelector({
 
   const settleDeformation = useCallback(() => {
     const reduced = reducedMotionRef.current;
-    const settleStiffness = reduced ? 400 : MotionTokens.spring.metricCard.stiffness;
-    const settleDamping = reduced ? 38 : MotionTokens.spring.metricCard.damping;
+    const springSpec = motionRef.current.spring.metricCard;
+    const settleStiffness = reduced ? 400 : springSpec.stiffness;
+    const settleDamping = reduced ? 38 : springSpec.damping;
     Animated.parallel([
       Animated.spring(stretchXAnim, {
         toValue: 1,
@@ -170,7 +182,7 @@ export function StatsMetricSelector({
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: activeIndex,
-        ...MotionTokens.spring.metricCard,
+        ...motion.spring.metricCard,
         useNativeDriver: true,
       }),
       Animated.sequence([
@@ -258,7 +270,15 @@ export function StatsMetricSelector({
         ]),
       ]),
     ]).start();
-  }, [activeIndex, reducedMotion, slideAnim, stretchXAnim, compressYAnim, leanXAnim]);
+  }, [
+    activeIndex,
+    reducedMotion,
+    slideAnim,
+    stretchXAnim,
+    compressYAnim,
+    leanXAnim,
+    motion.spring.metricCard,
+  ]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -355,7 +375,7 @@ export function StatsMetricSelector({
           } else {
             Animated.spring(slideAnim, {
               toValue: activeIndexRef.current,
-              ...MotionTokens.spring.metricCard,
+              ...motionRef.current.spring.metricCard,
               useNativeDriver: true,
             }).start();
             settleDeformation();
@@ -381,13 +401,14 @@ export function StatsMetricSelector({
         }
 
         const reduced = reducedMotionRef.current;
+        const metricSpring = motionRef.current.spring.metricCard;
         Animated.parallel([
           Animated.spring(slideAnim, {
             toValue: targetSlot,
             velocity: swipeVelocitySlots,
-            stiffness: reduced ? 340 : MotionTokens.spring.metricCard.stiffness,
-            damping: reduced ? 34 : MotionTokens.spring.metricCard.damping,
-            mass: MotionTokens.spring.metricCard.mass,
+            stiffness: reduced ? 340 : metricSpring.stiffness,
+            damping: reduced ? 34 : metricSpring.damping,
+            mass: metricSpring.mass,
             useNativeDriver: true,
           }),
           Animated.spring(stretchXAnim, {
@@ -415,7 +436,7 @@ export function StatsMetricSelector({
         isHorizontalDragRef.current = false;
         Animated.spring(slideAnim, {
           toValue: activeIndexRef.current,
-          ...MotionTokens.spring.metricCard,
+          ...motionRef.current.spring.metricCard,
           useNativeDriver: true,
         }).start();
         settleDeformation();
@@ -452,11 +473,14 @@ export function StatsMetricSelector({
               styles.unselectedSlot,
               {
                 height: containerHeight,
+                borderRadius: shapes.selectorSlotRadius,
+                elevation: surfaces.cardElevation,
+                shadowOpacity: surfaces.cardShadowOpacity,
                 backgroundColor: isDark
                   ? theme.colors.elevation.level1
                   : theme.colors.surface,
-                borderWidth: isDark ? 1 : 0,
-                borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+                borderWidth: cardBorder.borderWidth,
+                borderColor: cardBorder.borderColor,
               },
             ]}
           />
@@ -472,7 +496,8 @@ export function StatsMetricSelector({
             {
               width: currentSlotWidth,
               height: containerHeight,
-              backgroundColor: theme.colors.primaryContainer,
+              borderRadius: shapes.selectorSlotRadius,
+              backgroundColor: activeMetricAccent.container,
               transform: [
                 { translateX },
                 { scaleX: stretchXAnim },
@@ -491,8 +516,8 @@ export function StatsMetricSelector({
         <View style={styles.contentRow}>
           {METRICS.map(metric => {
             const isSelected = selectedMetric === metric.type;
-            const iconColor = isSelected ? theme.colors.primary : theme.colors.onSurfaceVariant;
-            const textColor = isSelected ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant;
+            const iconColor = isSelected ? activeMetricAccent.color : theme.colors.onSurfaceVariant;
+            const textColor = isSelected ? activeMetricAccent.onContainer : theme.colors.onSurfaceVariant;
 
             return (
               <View

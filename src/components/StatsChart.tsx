@@ -26,7 +26,8 @@ import Svg, { Line } from 'react-native-svg';
 import type { StatMetricType } from './StatsMetricSelector';
 import type { StatPeriodType } from './StatsPeriodSelector';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
-import { MotionTokens, useReducedMotion } from '../theme/motion';
+import { useReducedMotion } from '../theme/motion';
+import { useAyumiTheme } from '../themes';
 import { AnimatedStatNumber, type StatNumberScaleUnit } from './AnimatedStatNumber';
 
 export type ChartPointStatus = 'recorded' | 'missing' | 'future';
@@ -146,13 +147,29 @@ export function StatsChart({
   const theme = useTheme();
   const isDark = theme.dark;
   const reducedMotion = useReducedMotion();
+  const {
+    themeId,
+    motion,
+    surfaces,
+    shapes,
+    typography,
+    metricAccents,
+    resolveCardBorder,
+  } = useAyumiTheme();
+  const metricAccent =
+    metric === 'distance'
+      ? metricAccents.distance
+      : metric === 'water'
+        ? metricAccents.water
+        : metricAccents.steps;
+  const cardBorder = resolveCardBorder();
   const effectiveChartHeight = Math.max(chartHeight, 120);
   const plotSpan = effectiveChartHeight - PLOT_TOP_PADDING - PLOT_BOTTOM_PADDING;
 
   const [containerWidth, setContainerWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
-  const revealConfig = MotionTokens.chartReveal[period];
+  const revealConfig = motion.chartReveal[period];
 
   // Native-driven baseline growth factor (0 -> 1)
   const growthAnim = useRef(new Animated.Value(0)).current;
@@ -174,12 +191,12 @@ export function StatsChart({
       Animated.timing(growthAnim, {
         toValue: 1,
         duration: revealConfig.duration,
-        easing: MotionTokens.easing.dataReveal,
+        easing: motion.easing.dataReveal,
         useNativeDriver: true,
       }).start();
     }
     setSelectedIndex(null);
-  }, [datasetSignature, revealConfig.duration, reducedMotion, growthAnim]);
+  }, [datasetSignature, revealConfig.duration, reducedMotion, growthAnim, motion]);
 
   // Tooltip entrance animation
   useEffect(() => {
@@ -191,11 +208,11 @@ export function StatsChart({
       tooltipAnim.setValue(0);
       Animated.spring(tooltipAnim, {
         toValue: 1,
-        ...MotionTokens.spring.snappy,
+        ...motion.spring.snappy,
         useNativeDriver: true,
       }).start();
     }
-  }, [selectedIndex, reducedMotion, tooltipAnim]);
+  }, [selectedIndex, reducedMotion, tooltipAnim, motion]);
 
   const onLayout = (e: LayoutChangeEvent) => {
     setContainerWidth(e.nativeEvent.layout.width);
@@ -203,7 +220,7 @@ export function StatsChart({
 
   // Metric Icon configuration
   const metricIcon = useMemo(() => {
-    const iconColor = theme.colors.primary;
+    const iconColor = metricAccent.color;
     switch (metric) {
       case 'steps':
         return <SneakerIcon size={22} color={iconColor} />;
@@ -212,7 +229,7 @@ export function StatsChart({
       case 'water':
         return <DropletIcon size={22} color={iconColor} />;
     }
-  }, [metric, theme.colors.primary]);
+  }, [metric, metricAccent.color]);
 
   const metricTitle = useMemo(() => {
     switch (metric) {
@@ -276,11 +293,14 @@ export function StatsChart({
         {
           marginTop,
           paddingVertical: cardPaddingVertical,
+          borderRadius: surfaces.cardRadius,
+          elevation: surfaces.cardElevation,
+          shadowOpacity: surfaces.cardShadowOpacity,
           backgroundColor: isDark
             ? theme.colors.elevation.level1
             : theme.colors.surface,
-          borderWidth: isDark ? 1 : 0,
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+          borderWidth: cardBorder.borderWidth,
+          borderColor: cardBorder.borderColor,
         },
       ]}
       onLayout={onLayout}>
@@ -288,7 +308,7 @@ export function StatsChart({
       {/* Card Header: Left = Metric + Period Subtitle, Right = Sum Value */}
       <View style={[styles.cardHeader, { marginBottom: headerMarginBottom }]}>
         <View style={styles.headerLeft}>
-          <View style={[styles.iconBubble, { backgroundColor: theme.colors.primaryContainer }]}>
+          <View style={[styles.iconBubble, { backgroundColor: metricAccent.container }]}>
             {metricIcon}
           </View>
           <View style={styles.titleColumn}>
@@ -310,13 +330,19 @@ export function StatsChart({
               scaleUnit={totalScaleUnit}
               syncKey={datasetSignature}
               duration={revealConfig.duration}
-              style={[styles.totalValueText, { color: theme.colors.onSurface }]}
+              style={[
+                styles.totalValueText,
+                { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+              ]}
               numberOfLines={1}
               adjustsFontSizeToFit
             />
           ) : (
             <Text
-              style={[styles.totalValueText, { color: theme.colors.onSurface }]}
+              style={[
+                styles.totalValueText,
+                { color: theme.colors.onSurface, fontWeight: typography.statValueWeight },
+              ]}
               numberOfLines={1}
               adjustsFontSizeToFit>
               {totalValueText}
@@ -336,12 +362,12 @@ export function StatsChart({
               style={[
                 styles.tooltipBubble,
                 {
-                  backgroundColor: theme.colors.primaryContainer,
+                  backgroundColor: metricAccent.container,
                   transform: [{ scale: tooltipAnim }],
                   opacity: tooltipAnim,
                 },
               ]}>
-              <Text style={[styles.tooltipText, { color: theme.colors.onPrimaryContainer }]}>
+              <Text style={[styles.tooltipText, { color: metricAccent.onContainer }]}>
                 {selectedPoint.subLabel || selectedPoint.label}:{' '}
                 <Text style={styles.tooltipBoldValue}>
                   {selectedPoint.status === 'future'
@@ -445,12 +471,17 @@ export function StatsChart({
                   const touchLeft = x - (touchWidth - barWidth) / 2;
 
                   const barColor = isSelected
-                    ? theme.colors.secondary
+                    ? themeId === 'default'
+                      ? theme.colors.secondary
+                      : metricAccent.onContainer
                     : pointStatus === 'recorded'
-                    ? theme.colors.primary
+                    ? metricAccent.color
                     : pointStatus === 'missing'
                     ? theme.colors.outline
                     : theme.colors.outlineVariant;
+
+                  const barTopRadius = Math.min(barWidth / 2, shapes.chartBarMaxRadius);
+                  const barBottomRadius = Math.min(barWidth / 2, shapes.chartBarBottomRadius);
 
                   const barOpacity = isSelected
                     ? 1
@@ -484,7 +515,10 @@ export function StatsChart({
                           {
                             height: targetBarHeight,
                             width: barWidth,
-                            borderRadius: Math.min(barWidth / 2, 4),
+                            borderTopLeftRadius: barTopRadius,
+                            borderTopRightRadius: barTopRadius,
+                            borderBottomLeftRadius: barBottomRadius,
+                            borderBottomRightRadius: barBottomRadius,
                             backgroundColor: barColor,
                             opacity: barOpacity,
                             transform: [
@@ -506,7 +540,10 @@ export function StatsChart({
                           {
                             height: targetBarHeight,
                             width: barWidth,
-                            borderRadius: Math.min(barWidth / 2, 4),
+                            borderTopLeftRadius: barTopRadius,
+                            borderTopRightRadius: barTopRadius,
+                            borderBottomLeftRadius: barBottomRadius,
+                            borderBottomRightRadius: barBottomRadius,
                             backgroundColor: barColor,
                             opacity: barOpacity,
                           },
@@ -562,7 +599,7 @@ export function StatsChart({
                 style={[
                   styles.axisLabelText,
                   {
-                    color: selectedIndex === index ? theme.colors.primary : theme.colors.onSurfaceVariant,
+                    color: selectedIndex === index ? metricAccent.color : theme.colors.onSurfaceVariant,
                     fontWeight: selectedIndex === index ? '700' : '500',
                   },
                 ]}>

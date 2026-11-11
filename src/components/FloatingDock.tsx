@@ -30,6 +30,7 @@ import {
   SettingsGearIcon,
 } from './AestheticIcons';
 import { MotionTokens, useReducedMotion } from '../theme/motion';
+import { OxygenColorOsDockBar, useAyumiTheme } from '../themes';
 
 export interface FloatingDockProps {
   readonly activeTab?: 'home' | 'stats' | 'water' | 'settings';
@@ -51,6 +52,7 @@ export function FloatingDock({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const { navigation, shapes, motion } = useAyumiTheme();
 
   // Container width measured on layout for accurate slot centering
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -86,45 +88,51 @@ export function FloatingDock({
     Animated.sequence([
       Animated.timing(tabSqueezeAnim, {
         toValue: 1,
-        duration: 180,
+        duration: motion.duration.short,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
       Animated.spring(tabSqueezeAnim, {
         toValue: 0,
-        damping: 15,
-        stiffness: 140,
+        ...motion.spring.snappy,
         useNativeDriver: true,
       }),
     ]).start();
 
     Animated.spring(tabSlideAnim, {
       toValue: activeTabIndex,
-      ...MotionTokens.spring.snappy,
+      ...motion.spring.snappy,
       useNativeDriver: true,
     }).start();
-  }, [activeTabIndex, reducedMotion, tabSlideAnim, tabSqueezeAnim]);
+  }, [activeTabIndex, reducedMotion, tabSlideAnim, tabSqueezeAnim, motion]);
 
   const onLayout = (e: LayoutChangeEvent) => {
     setContainerWidth(e.nativeEvent.layout.width);
   };
 
   // Dimensions of pill indicator across four equal navigation slots
-  const availableWidth = Math.max(containerWidth - 16, 0);
+  const horizontalPad = shapes.dockPaddingHorizontal;
+  const availableWidth = Math.max(containerWidth - horizontalPad * 2, 0);
   const slotWidth = availableWidth / 4;
-  const pillWidth = Math.min(Math.max(slotWidth - 8, 44), 60);
-  const pillHeight = 38;
+  const pillWidth = Math.min(Math.max(slotWidth - 8, 44), navigation.pillMaxWidth);
+  const pillHeight = navigation.pillHeight;
+  const pillTop = Math.max((shapes.dockHeight - pillHeight) / 2, 4);
 
   // Slot center offsets (0=Home, 1=Stats, 2=Water, 3=Settings)
-  const slot0X = 8 + (slotWidth - pillWidth) / 2;
-  const slot1X = 8 + slotWidth + (slotWidth - pillWidth) / 2;
-  const slot2X = 8 + 2 * slotWidth + (slotWidth - pillWidth) / 2;
-  const slot3X = 8 + 3 * slotWidth + (slotWidth - pillWidth) / 2;
+  const slot0X = horizontalPad + (slotWidth - pillWidth) / 2;
+  const slot1X = horizontalPad + slotWidth + (slotWidth - pillWidth) / 2;
+  const slot2X = horizontalPad + 2 * slotWidth + (slotWidth - pillWidth) / 2;
+  const slot3X = horizontalPad + 3 * slotWidth + (slotWidth - pillWidth) / 2;
+
+  const stretchMax = motion.squish?.stretchX ?? MotionTokens.squish.stretchX;
+  const stretchMid = 1 + (stretchMax - 1) * 0.69;
+  const compressMin = motion.squish?.compressY ?? MotionTokens.squish.compressY;
+  const compressMid = 1 - (1 - compressMin) * 0.59;
 
   // Determine transform based on whether pagerProgress is actively driving transitions
-  let indicatorTranslateX: any = slot0X;
-  let indicatorScaleX: any = 1;
-  let indicatorScaleY: any = 1;
+  let indicatorTranslateX: number | Animated.AnimatedInterpolation<number> = slot0X;
+  let indicatorScaleX: number | Animated.AnimatedInterpolation<number> = 1;
+  let indicatorScaleY: number | Animated.AnimatedInterpolation<number> = 1;
 
   if (pagerProgress && containerWidth > 0) {
     // Destination-anchored curve: pill clings near origin on launch, stretches mid-flight,
@@ -164,9 +172,9 @@ export function FloatingDock({
       : pagerProgress.interpolate({
           inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2, 2.2, 2.5, 2.8, 3],
           outputRange: [
-            1.0, 1.18, 1.26, 1.18,
-            1.0, 1.18, 1.26, 1.18,
-            1.0, 1.18, 1.26, 1.18,
+            1.0, stretchMid, stretchMax, stretchMid,
+            1.0, stretchMid, stretchMax, stretchMid,
+            1.0, stretchMid, stretchMax, stretchMid,
             1.0,
           ],
           extrapolate: 'clamp',
@@ -177,9 +185,9 @@ export function FloatingDock({
       : pagerProgress.interpolate({
           inputRange: [0, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 1.8, 2, 2.2, 2.5, 2.8, 3],
           outputRange: [
-            1.0, 0.9, 0.83, 0.9,
-            1.0, 0.9, 0.83, 0.9,
-            1.0, 0.9, 0.83, 0.9,
+            1.0, compressMid, compressMin, compressMid,
+            1.0, compressMid, compressMin, compressMid,
+            1.0, compressMid, compressMin, compressMid,
             1.0,
           ],
           extrapolate: 'clamp',
@@ -193,13 +201,36 @@ export function FloatingDock({
 
     indicatorScaleX = tabSqueezeAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [1.0, 1.24],
+      outputRange: [1.0, stretchMax],
     });
 
     indicatorScaleY = tabSqueezeAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [1.0, 0.84],
+      outputRange: [1.0, compressMin],
     });
+  }
+
+  const bottomOffset = Math.max(insets.bottom + 8, 16);
+
+  if (navigation.variant === 'oem_labeled_pill') {
+    return (
+      <OxygenColorOsDockBar
+        activeTab={activeTab}
+        containerWidth={containerWidth}
+        bottomOffset={bottomOffset}
+        indicatorTranslateX={indicatorTranslateX}
+        indicatorScaleX={indicatorScaleX}
+        indicatorScaleY={indicatorScaleY}
+        shapes={shapes}
+        pillWidth={pillWidth}
+        pillHeight={pillHeight}
+        onLayout={onLayout}
+        onHomePress={onHomePress}
+        onAnalyticsPress={onAnalyticsPress}
+        onWaterPress={onWaterPress}
+        onProfilePress={onProfilePress}
+      />
+    );
   }
 
   const dockBorderColor = theme.dark
@@ -210,7 +241,7 @@ export function FloatingDock({
     <View
       style={[
         styles.dockWrapper,
-        { bottom: Math.max(insets.bottom + 8, 16) },
+        { bottom: bottomOffset },
       ]}
       pointerEvents="box-none">
       <View
@@ -218,19 +249,26 @@ export function FloatingDock({
         style={[
           styles.dockContainer,
           {
+            width: shapes.dockWidthPercent,
+            maxWidth: shapes.dockMaxWidth,
+            height: shapes.dockHeight,
+            borderRadius: shapes.dockRadius,
+            paddingHorizontal: shapes.dockPaddingHorizontal,
             backgroundColor: theme.dark ? theme.colors.elevation.level2 : theme.colors.surface,
             borderColor: dockBorderColor,
           },
         ]}>
         {/* Clipped Sliding Active Indicator Pill */}
         {containerWidth > 0 && (
-          <View style={styles.pillTrackClip} pointerEvents="none">
+          <View style={[styles.pillTrackClip, { borderRadius: shapes.dockRadius }]} pointerEvents="none">
             <Animated.View
               style={[
                 styles.slidingIndicatorPill,
                 {
                   width: pillWidth,
                   height: pillHeight,
+                  top: pillTop,
+                  borderRadius: pillHeight / 2,
                   backgroundColor: theme.colors.primaryContainer,
                   transform: [
                     { translateX: indicatorTranslateX },

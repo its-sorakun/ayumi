@@ -45,7 +45,8 @@ import {
 } from '../components/WaterCustomSheet';
 import { useSettings } from '../contexts/SettingsContext';
 import { useWaterTracker, type WaterLog } from '../hooks/useWaterTracker';
-import { MotionTokens, useReducedMotion } from '../theme/motion';
+import { useReducedMotion } from '../theme/motion';
+import { useAyumiTheme } from '../themes';
 import { calculateWaterGoal } from '../utils';
 
 export interface WaterLoggerScreenProps {
@@ -86,10 +87,7 @@ const WATER_PRESETS: readonly WaterPresetOption[] = [
 ];
 
 const RING_SIZE = 104;
-const RING_STROKE = 10;
 const RING_CENTER = RING_SIZE / 2;
-const RING_RADIUS = RING_CENTER - RING_STROKE / 2 - 4;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 export interface WaterProgressSummary {
   readonly consumedLiters: string;
@@ -163,6 +161,8 @@ function WaterPresetTile({
   onPress,
 }: PresetTileProps): React.JSX.Element {
   const theme = useTheme();
+  const { motion, metricAccents } = useAyumiTheme();
+  const waterAccent = metricAccents.water;
   const pressScale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -181,24 +181,24 @@ function WaterPresetTile({
     pressScale.stopAnimation();
     Animated.spring(pressScale, {
       toValue: 1,
-      ...MotionTokens.spring.metricCard,
+      ...motion.spring.metricCard,
       useNativeDriver: true,
     }).start();
   };
 
   const tileBg = isActive
-    ? theme.colors.primaryContainer
+    ? waterAccent.container
     : theme.dark
     ? theme.colors.elevation.level2
     : theme.colors.background;
   const tileBorder = isActive
-    ? theme.colors.primary
+    ? waterAccent.color
     : theme.colors.outlineVariant;
   const iconColor = isActive
-    ? theme.colors.primary
+    ? waterAccent.color
     : theme.colors.onSurfaceVariant;
   const labelColor = isActive
-    ? theme.colors.onPrimaryContainer
+    ? waterAccent.onContainer
     : theme.colors.onSurfaceVariant;
 
   return (
@@ -257,6 +257,8 @@ function WaterTimelineRow({
   onOpenMenu,
 }: WaterTimelineRowProps): React.JSX.Element {
   const theme = useTheme();
+  const { motion, shapes, metricAccents } = useAyumiTheme();
+  const waterAccent = metricAccents.water;
   const enterAnim = useRef(new Animated.Value(isNewlyAdded ? 0 : 1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const exitAnim = useRef(new Animated.Value(0)).current;
@@ -272,11 +274,11 @@ function WaterTimelineRow({
       Animated.timing(enterAnim, {
         toValue: 1,
         duration: 260,
-        easing: MotionTokens.easing.emphasizedDecel,
+        easing: motion.easing.emphasizedDecel,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [isNewlyAdded, reducedMotion, enterAnim]);
+  }, [isNewlyAdded, reducedMotion, enterAnim, motion]);
 
   useEffect(() => {
     if (!isRecentlyEdited || reducedMotion) return;
@@ -290,21 +292,21 @@ function WaterTimelineRow({
       }),
       Animated.spring(pulseAnim, {
         toValue: 1,
-        ...MotionTokens.spring.snappy,
+        ...motion.spring.snappy,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [isRecentlyEdited, reducedMotion, pulseAnim]);
+  }, [isRecentlyEdited, reducedMotion, pulseAnim, motion]);
 
   useEffect(() => {
     if (!isDeleting || reducedMotion) return;
     Animated.timing(exitAnim, {
       toValue: 1,
       duration: 170,
-      easing: MotionTokens.easing.accelerate,
+      easing: motion.easing.accelerate,
       useNativeDriver: true,
     }).start();
-  }, [isDeleting, reducedMotion, exitAnim]);
+  }, [isDeleting, reducedMotion, exitAnim, motion]);
 
   const rowBg = theme.dark
     ? theme.colors.elevation.level2
@@ -346,20 +348,20 @@ function WaterTimelineRow({
           style={[
             styles.timelineRailSegment,
             isFirst ? styles.timelineSegmentHidden : styles.timelineSegmentVisible,
-            { backgroundColor: theme.colors.primary },
+            { backgroundColor: waterAccent.color },
           ]}
         />
         <View
           style={[
             styles.timelineDot,
-            { backgroundColor: theme.colors.primary },
+            { backgroundColor: waterAccent.color },
           ]}
         />
         <View
           style={[
             styles.timelineRailSegment,
             isLast ? styles.timelineSegmentHidden : styles.timelineSegmentVisible,
-            { backgroundColor: theme.colors.primary },
+            { backgroundColor: waterAccent.color },
           ]}
         />
       </View>
@@ -369,18 +371,19 @@ function WaterTimelineRow({
         style={[
           styles.logEntryCard,
           {
+            borderRadius: shapes.logEntryRadius,
             backgroundColor: rowBg,
             borderColor: isRecentlyEdited
-              ? theme.colors.primary
+              ? waterAccent.color
               : theme.colors.outlineVariant,
           },
         ]}>
         <View
           style={[
             styles.logEntryIconBox,
-            { backgroundColor: theme.colors.primaryContainer },
+            { backgroundColor: waterAccent.container },
           ]}>
-          <WaterCupIcon size={18} color={theme.colors.primary} />
+          <WaterCupIcon size={18} color={waterAccent.color} />
         </View>
 
         <View style={styles.logEntryTextCol}>
@@ -427,6 +430,19 @@ export function WaterLoggerScreen({
   const isDark = theme.dark;
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const {
+    motion,
+    surfaces,
+    shapes,
+    typography,
+    progress,
+    metricAccents,
+    resolveCardBorder,
+  } = useAyumiTheme();
+  const waterAccent = metricAccents.water;
+  const ringStroke = progress.waterStrokeWidth;
+  const ringRadius = RING_CENTER - ringStroke / 2 - 4;
+  const ringCircumference = 2 * Math.PI * ringRadius;
 
   const { gender, weight, height, age, customWaterGoal } = useSettings();
   const { logs, totalWater, addWater, updateWater, deleteWater } =
@@ -463,7 +479,7 @@ export function WaterLoggerScreen({
   const [viewportHeight, setViewportHeight] = useState(0);
   const [topSectionHeight, setTopSectionHeight] = useState(0);
   const currentFontScale = PixelRatio.getFontScale();
-  const dockTopOffset = Math.max(insets.bottom + 8, 16) + 58;
+  const dockTopOffset = Math.max(insets.bottom + 8, 16) + shapes.dockHeight;
   const bottomClearance = dockTopOffset + 12;
   const minLogCardHeight = 196;
   const requiresOuterScroll =
@@ -518,7 +534,7 @@ export function WaterLoggerScreen({
     const anim = Animated.timing(mlAnim, {
       toValue: totalWater,
       duration: 540,
-      easing: MotionTokens.easing.dataReveal,
+      easing: motion.easing.dataReveal,
       useNativeDriver: false,
     });
 
@@ -537,7 +553,7 @@ export function WaterLoggerScreen({
             }),
             Animated.spring(ringPulseAnim, {
               toValue: 1,
-              ...MotionTokens.spring.metricCard,
+              ...motion.spring.metricCard,
               useNativeDriver: true,
             }),
           ]).start();
@@ -549,7 +565,7 @@ export function WaterLoggerScreen({
       mlAnim.removeListener(listenerId);
       anim.stop();
     };
-  }, [totalWater, waterGoalMl, reducedMotion, ringPulseAnim]);
+  }, [totalWater, waterGoalMl, reducedMotion, ringPulseAnim, motion]);
 
   // Detect newly appended log id cleanly so new rows animate in without re-animating unchanged ones
   useEffect(() => {
@@ -662,17 +678,17 @@ export function WaterLoggerScreen({
     [totalWater, waterGoalMl],
   );
 
-  const dashOffset = RING_CIRCUMFERENCE * (1 - animatedProgress.ringRatio);
+  const dashOffset = ringCircumference * (1 - animatedProgress.ringRatio);
   const tipAngle = -Math.PI / 2 + animatedProgress.ringRatio * Math.PI * 2;
-  const tipKnobX = RING_CENTER + RING_RADIUS * Math.cos(tipAngle);
-  const tipKnobY = RING_CENTER + RING_RADIUS * Math.sin(tipAngle);
+  const tipKnobX = RING_CENTER + ringRadius * Math.cos(tipAngle);
+  const tipKnobY = RING_CENTER + ringRadius * Math.sin(tipAngle);
   const showTipKnob =
-    animatedProgress.ringRatio > 0.015 && animatedProgress.ringRatio < 0.995;
+    progress.showWaterTipKnob &&
+    animatedProgress.ringRatio > 0.015 &&
+    animatedProgress.ringRatio < 0.995;
 
   const cardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
-  const cardBorderColor = isDark
-    ? theme.colors.outlineVariant
-    : 'transparent';
+  const cardBorder = resolveCardBorder();
   const customDraftLabel = formatConfirmWaterLabel(customDraftMl, customDraftUnit);
 
   const headerAndControls = (
@@ -681,13 +697,25 @@ export function WaterLoggerScreen({
       onLayout={e => setTopSectionHeight(e.nativeEvent.layout.height)}>
       {/* 1. Header */}
       <View style={styles.headerRow}>
-        <Text style={[styles.screenTitleText, { color: theme.colors.onSurface }]}>
+        <Text
+          style={[
+            styles.screenTitleText,
+            {
+              color: theme.colors.onSurface,
+              fontSize: typography.screenTitleSize,
+              fontWeight: typography.screenTitleWeight,
+              letterSpacing: typography.screenTitleTracking,
+            },
+          ]}>
           Water Logger
         </Text>
         <Text
           style={[
             styles.screenSubtitleText,
-            { color: theme.colors.onSurfaceVariant },
+            {
+              color: theme.colors.onSurfaceVariant,
+              fontSize: typography.screenSubtitleSize,
+            },
           ]}>
           Log your water intake and stay hydrated
         </Text>
@@ -698,10 +726,13 @@ export function WaterLoggerScreen({
         style={[
           styles.sectionCard,
           styles.intakeCardSpacing,
-          isDark && styles.darkCardBorder,
           {
+            borderRadius: surfaces.sectionCardRadius,
+            elevation: surfaces.cardElevation,
+            shadowOpacity: surfaces.cardShadowOpacity,
             backgroundColor: cardBg,
-            borderColor: cardBorderColor,
+            borderWidth: cardBorder.borderWidth,
+            borderColor: cardBorder.borderColor,
           },
         ]}>
         <View style={styles.intakeRow}>
@@ -710,9 +741,9 @@ export function WaterLoggerScreen({
               <View
                 style={[
                   styles.intakeBadge,
-                  { backgroundColor: theme.colors.primaryContainer },
+                  { backgroundColor: waterAccent.container },
                 ]}>
-                <DropletIcon size={17} color={theme.colors.primary} />
+                <DropletIcon size={17} color={waterAccent.color} />
               </View>
               <Text
                 style={[
@@ -726,7 +757,13 @@ export function WaterLoggerScreen({
             <Text
               numberOfLines={1}
               adjustsFontSizeToFit
-              style={[styles.consumedValueText, { color: theme.colors.onSurface }]}>
+              style={[
+                styles.consumedValueText,
+                {
+                  color: theme.colors.onSurface,
+                  fontWeight: typography.statValueWeight,
+                },
+              ]}>
               {animatedProgress.consumedLiters}
             </Text>
 
@@ -741,14 +778,14 @@ export function WaterLoggerScreen({
             <View
               style={[
                 styles.remainingPill,
-                { backgroundColor: theme.colors.primaryContainer },
+                { backgroundColor: waterAccent.container },
               ]}>
-              <WaterCupIcon size={14} color={theme.colors.primary} />
+              <WaterCupIcon size={14} color={waterAccent.color} />
               <Text
                 numberOfLines={1}
                 style={[
                   styles.remainingPillText,
-                  { color: theme.colors.onPrimaryContainer },
+                  { color: waterAccent.onContainer },
                 ]}>
                 {actualProgress.remainingLabel}
               </Text>
@@ -765,13 +802,13 @@ export function WaterLoggerScreen({
               <Circle
                 cx={RING_CENTER}
                 cy={RING_CENTER}
-                r={RING_RADIUS}
+                r={ringRadius}
                 stroke={
                   isDark
                     ? theme.colors.elevation.level3
                     : theme.colors.surfaceVariant
                 }
-                strokeWidth={RING_STROKE}
+                strokeWidth={ringStroke}
                 fill="none"
               />
               {/* Animated hydration arc */}
@@ -779,11 +816,11 @@ export function WaterLoggerScreen({
                 <Circle
                   cx={RING_CENTER}
                   cy={RING_CENTER}
-                  r={RING_RADIUS}
-                  stroke={theme.colors.primary}
-                  strokeWidth={RING_STROKE}
+                  r={ringRadius}
+                  stroke={waterAccent.color}
+                  strokeWidth={ringStroke}
                   fill="none"
-                  strokeDasharray={`${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`}
+                  strokeDasharray={`${ringCircumference} ${ringCircumference}`}
                   strokeDashoffset={dashOffset}
                   strokeLinecap="round"
                   transform={`rotate(-90, ${RING_CENTER}, ${RING_CENTER})`}
@@ -796,7 +833,7 @@ export function WaterLoggerScreen({
                   cy={tipKnobY}
                   r={5.5}
                   fill={cardBg}
-                  stroke={theme.colors.primary}
+                  stroke={waterAccent.color}
                   strokeWidth={2.5}
                 />
               )}
@@ -807,7 +844,10 @@ export function WaterLoggerScreen({
                 adjustsFontSizeToFit
                 style={[
                   styles.percentValueText,
-                  { color: theme.colors.onSurface },
+                  {
+                    color: theme.colors.onSurface,
+                    fontWeight: typography.statValueWeight,
+                  },
                 ]}>
                 {animatedProgress.percentText}
               </Text>
@@ -821,14 +861,25 @@ export function WaterLoggerScreen({
         style={[
           styles.sectionCard,
           styles.secondaryCardSpacing,
-          isDark && styles.darkCardBorder,
           {
+            borderRadius: surfaces.sectionCardRadius,
+            elevation: surfaces.cardElevation,
+            shadowOpacity: surfaces.cardShadowOpacity,
             backgroundColor: cardBg,
-            borderColor: cardBorderColor,
+            borderWidth: cardBorder.borderWidth,
+            borderColor: cardBorder.borderColor,
           },
         ]}>
         <View style={styles.addHeaderRow}>
-          <Text style={[styles.sectionTitleText, { color: theme.colors.onSurface }]}>
+          <Text
+            style={[
+              styles.sectionTitleText,
+              {
+                color: theme.colors.onSurface,
+                fontSize: typography.sectionTitleSize,
+                fontWeight: typography.sectionTitleWeight,
+              },
+            ]}>
             Add Water
           </Text>
           {toastLabel ? (
@@ -836,14 +887,14 @@ export function WaterLoggerScreen({
               style={[
                 styles.addedFeedbackPill,
                 {
-                  backgroundColor: theme.colors.primaryContainer,
+                  backgroundColor: waterAccent.container,
                   opacity: toastAnim,
                 },
               ]}>
               <Text
                 style={[
                   styles.addedFeedbackText,
-                  { color: theme.colors.onPrimaryContainer },
+                  { color: waterAccent.onContainer },
                 ]}>
                 {toastLabel}
               </Text>
@@ -894,6 +945,7 @@ export function WaterLoggerScreen({
               style={[
                 styles.customDraftChip,
                 {
+                  borderRadius: shapes.chipRadius,
                   backgroundColor: cardBg,
                   borderColor: theme.colors.outlineVariant,
                 },
@@ -918,26 +970,37 @@ export function WaterLoggerScreen({
       style={[
         styles.sectionCard,
         styles.secondaryCardSpacing,
-        isDark && styles.darkCardBorder,
         requiresOuterScroll ? styles.logCardExpandedMin : styles.logCardFlex,
         {
+          borderRadius: surfaces.sectionCardRadius,
+          elevation: surfaces.cardElevation,
+          shadowOpacity: surfaces.cardShadowOpacity,
           backgroundColor: cardBg,
-          borderColor: cardBorderColor,
+          borderWidth: cardBorder.borderWidth,
+          borderColor: cardBorder.borderColor,
         },
       ]}>
       <View style={styles.logHeaderRow}>
-        <Text style={[styles.sectionTitleText, { color: theme.colors.onSurface }]}>
+        <Text
+          style={[
+            styles.sectionTitleText,
+            {
+              color: theme.colors.onSurface,
+              fontSize: typography.sectionTitleSize,
+              fontWeight: typography.sectionTitleWeight,
+            },
+          ]}>
           Today's Log
         </Text>
         <View
           style={[
             styles.totalBadgePill,
-            { backgroundColor: theme.colors.primaryContainer },
+            { backgroundColor: waterAccent.container },
           ]}>
           <Text
             style={[
               styles.totalBadgeText,
-              { color: theme.colors.onPrimaryContainer },
+              { color: waterAccent.onContainer },
             ]}>
             Total {actualProgress.consumedLiters}
           </Text>
@@ -1066,6 +1129,8 @@ export function WaterLoggerScreen({
             style={[
               styles.actionSheet,
               {
+                borderTopLeftRadius: shapes.bottomSheetRadius,
+                borderTopRightRadius: shapes.bottomSheetRadius,
                 backgroundColor: isDark
                   ? theme.colors.elevation.level2
                   : theme.colors.surface,
@@ -1105,7 +1170,7 @@ export function WaterLoggerScreen({
                 { backgroundColor: theme.colors.elevation.level1 },
               ]}
               accessibilityRole="button">
-              <PencilEditIcon size={18} color={theme.colors.primary} />
+              <PencilEditIcon size={18} color={waterAccent.color} />
               <Text
                 style={[
                   styles.actionOptionText,
@@ -1488,9 +1553,6 @@ const styles = StyleSheet.create({
   actionOptionText: {
     fontSize: 15,
     fontWeight: '700',
-  },
-  darkCardBorder: {
-    borderWidth: 1,
   },
   intakeCardSpacing: {
     marginTop: 6,

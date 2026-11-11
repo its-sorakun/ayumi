@@ -9,10 +9,11 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { ChevronLeftIcon, ChevronRightIcon } from './AestheticIcons';
 import { useReducedMotion } from '../theme/motion';
+import { useAyumiTheme } from '../themes';
 
 interface StatsPeriodNavigatorProps {
   readonly dateRangeText: string;
@@ -35,6 +36,7 @@ export function StatsPeriodNavigator({
 }: StatsPeriodNavigatorProps): React.JSX.Element {
   const theme = useTheme();
   const reducedMotion = useReducedMotion();
+  const { motion } = useAyumiTheme();
 
   const animValue = useRef(new Animated.Value(0)).current;
 
@@ -47,11 +49,11 @@ export function StatsPeriodNavigator({
     animValue.setValue(transitionDirection === 'next' ? 1 : -1);
     Animated.timing(animValue, {
       toValue: 0,
-      duration: 320,
-      easing: Easing.out(Easing.cubic),
+      duration: motion.duration.medium,
+      easing: motion.easing.emphasizedDecel,
       useNativeDriver: true,
     }).start();
-  }, [dateRangeText, transitionDirection, reducedMotion, animValue]);
+  }, [dateRangeText, transitionDirection, reducedMotion, animValue, motion]);
 
   const translateX = animValue.interpolate({
     inputRange: [-1, 0, 1],

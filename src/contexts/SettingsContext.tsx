@@ -1,6 +1,12 @@
+/**
+ * SettingsContext.tsx — Persistent user settings provider backed by AsyncStorage.
+ * Manages light/dark preference, active theme selection (applied cleanly at launch),
+ * sensor provider choice, physical metrics, and daily activity/hydration goals.
+ */
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_STEP_GOAL, DEFAULT_DISTANCE_GOAL } from '../constants';
+import { AyumiThemeId, DEFAULT_VISUAL_THEME_ID, normalizeVisualThemeId } from '../themes';
 
 export type ThemePreference = 'auto' | 'light' | 'dark';
 export type ProviderPreference = 'health_connect' | 'device_sensor';
@@ -8,6 +14,7 @@ export type GenderPreference = 'male' | 'female' | null;
 
 interface SettingsData {
   theme: ThemePreference;
+  visualTheme: AyumiThemeId;
   provider: ProviderPreference;
   stepGoal: number;
   distanceGoal: number;
@@ -20,6 +27,7 @@ interface SettingsData {
 
 interface SettingsContextType extends SettingsData {
   setTheme: (theme: ThemePreference) => Promise<void>;
+  setVisualTheme: (visualTheme: AyumiThemeId) => Promise<void>;
   setProvider: (provider: ProviderPreference) => Promise<void>;
   setStepGoal: (goal: number) => Promise<void>;
   setDistanceGoal: (goal: number) => Promise<void>;
@@ -33,6 +41,7 @@ interface SettingsContextType extends SettingsData {
 
 const defaultSettings: SettingsData = {
   theme: 'auto',
+  visualTheme: DEFAULT_VISUAL_THEME_ID,
   provider: 'health_connect',
   stepGoal: DEFAULT_STEP_GOAL,
   distanceGoal: DEFAULT_DISTANCE_GOAL,
@@ -56,6 +65,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const loadSettings = async () => {
     try {
       const storedTheme = await AsyncStorage.getItem('@ayumi_theme');
+      const storedVisualTheme = await AsyncStorage.getItem('@ayumi_visual_theme');
       const storedProvider = await AsyncStorage.getItem('@ayumi_provider');
       const storedStepGoal = await AsyncStorage.getItem('@ayumi_step_goal');
       const storedDistanceGoal = await AsyncStorage.getItem('@ayumi_distance_goal');
@@ -67,6 +77,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
       setSettings({
         theme: (storedTheme as ThemePreference) || 'auto',
+        visualTheme: normalizeVisualThemeId(storedVisualTheme),
         provider: (storedProvider as ProviderPreference) || 'health_connect',
         stepGoal: storedStepGoal ? parseInt(storedStepGoal, 10) : DEFAULT_STEP_GOAL,
         distanceGoal: storedDistanceGoal ? parseInt(storedDistanceGoal, 10) : DEFAULT_DISTANCE_GOAL,
@@ -86,6 +97,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setTheme = async (theme: ThemePreference) => {
     setSettings(prev => ({ ...prev, theme }));
     await AsyncStorage.setItem('@ayumi_theme', theme);
+  };
+
+  const setVisualTheme = async (visualTheme: AyumiThemeId) => {
+    const normalized = normalizeVisualThemeId(visualTheme);
+    setSettings(prev => ({ ...prev, visualTheme: normalized }));
+    await AsyncStorage.setItem('@ayumi_visual_theme', normalized);
   };
 
   const setProvider = async (provider: ProviderPreference) => {
@@ -152,6 +169,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     <SettingsContext.Provider value={{ 
       ...settings, 
       setTheme, 
+      setVisualTheme,
       setProvider, 
       setStepGoal, 
       setDistanceGoal, 

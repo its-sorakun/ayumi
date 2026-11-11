@@ -18,13 +18,16 @@ import {
   PanResponder,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
-import { MotionTokens, useReducedMotion } from '../theme/motion';
+import { useReducedMotion } from '../theme/motion';
+import { useAyumiTheme } from '../themes';
 
 export type StatPeriodType = 'week' | 'daily' | 'month';
 
 interface StatsPeriodSelectorProps {
   readonly selectedPeriod: StatPeriodType;
   readonly onSelectPeriod: (period: StatPeriodType) => void;
+  readonly accentColor?: string;
+  readonly onAccentColor?: string;
   readonly containerHeight?: number;
   readonly marginTop?: number;
 }
@@ -42,6 +45,8 @@ const TAP_SLOP_PX = 10;
 export function StatsPeriodSelector({
   selectedPeriod,
   onSelectPeriod,
+  accentColor,
+  onAccentColor,
   containerHeight = CONTAINER_HEIGHT,
   marginTop = 8,
 }: StatsPeriodSelectorProps): React.JSX.Element {
@@ -50,6 +55,10 @@ export function StatsPeriodSelector({
   const theme = useTheme();
   const isDark = theme.dark;
   const reducedMotion = useReducedMotion();
+  const { motion, surfaces, resolveCardBorder } = useAyumiTheme();
+  const cardBorder = resolveCardBorder();
+  const activeColor = accentColor ?? theme.colors.primary;
+  const onActiveColor = onAccentColor ?? theme.colors.onPrimary;
 
   const [containerWidth, setContainerWidth] = useState(0);
   const activeIndex = Math.max(PERIODS.findIndex(p => p.type === selectedPeriod), 0);
@@ -65,9 +74,11 @@ export function StatsPeriodSelector({
   const prevActiveIndexRef = useRef(activeIndex);
   const onSelectRef = useRef(onSelectPeriod);
   const reducedMotionRef = useRef(reducedMotion);
+  const motionRef = useRef(motion);
   activeIndexRef.current = activeIndex;
   onSelectRef.current = onSelectPeriod;
   reducedMotionRef.current = reducedMotion;
+  motionRef.current = motion;
 
   const pressLocalXRef = useRef(0);
   const dragStartSlotRef = useRef(activeIndex);
@@ -78,8 +89,9 @@ export function StatsPeriodSelector({
 
   const resetCapsuleShape = useCallback(() => {
     const reduced = reducedMotionRef.current;
-    const settleStiffness = reduced ? 380 : MotionTokens.spring.periodCapsule.stiffness;
-    const settleDamping = reduced ? 36 : MotionTokens.spring.periodCapsule.damping;
+    const capsuleSpring = motionRef.current.spring.periodCapsule;
+    const settleStiffness = reduced ? 380 : capsuleSpring.stiffness;
+    const settleDamping = reduced ? 36 : capsuleSpring.damping;
     Animated.parallel([
       Animated.spring(stretchXAnim, {
         toValue: 1,
@@ -146,7 +158,7 @@ export function StatsPeriodSelector({
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: activeIndex,
-        ...MotionTokens.spring.periodCapsule,
+        ...motion.spring.periodCapsule,
         useNativeDriver: true,
       }),
       Animated.sequence([
@@ -206,7 +218,16 @@ export function StatsPeriodSelector({
         ]),
       ]),
     ]).start();
-  }, [activeIndex, reducedMotion, slideAnim, stretchXAnim, compressYAnim, leanXAnim, pressScaleAnim]);
+  }, [
+    activeIndex,
+    reducedMotion,
+    slideAnim,
+    stretchXAnim,
+    compressYAnim,
+    leanXAnim,
+    pressScaleAnim,
+    motion.spring.periodCapsule,
+  ]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -283,7 +304,7 @@ export function StatsPeriodSelector({
           } else {
             Animated.spring(slideAnim, {
               toValue: activeIndexRef.current,
-              ...MotionTokens.spring.periodCapsule,
+              ...motionRef.current.spring.periodCapsule,
               useNativeDriver: true,
             }).start();
           }
@@ -308,13 +329,14 @@ export function StatsPeriodSelector({
         }
 
         const reduced = reducedMotionRef.current;
+        const capsuleSpring = motionRef.current.spring.periodCapsule;
         Animated.parallel([
           Animated.spring(slideAnim, {
             toValue: targetSlot,
             velocity: swipeVelocitySlots,
-            stiffness: reduced ? 360 : MotionTokens.spring.periodCapsule.stiffness,
-            damping: reduced ? 34 : MotionTokens.spring.periodCapsule.damping,
-            mass: MotionTokens.spring.periodCapsule.mass,
+            stiffness: reduced ? 360 : capsuleSpring.stiffness,
+            damping: reduced ? 34 : capsuleSpring.damping,
+            mass: capsuleSpring.mass,
             useNativeDriver: true,
           }),
           Animated.spring(stretchXAnim, {
@@ -348,7 +370,7 @@ export function StatsPeriodSelector({
         isHorizontalDragRef.current = false;
         Animated.spring(slideAnim, {
           toValue: activeIndexRef.current,
-          ...MotionTokens.spring.periodCapsule,
+          ...motionRef.current.spring.periodCapsule,
           useNativeDriver: true,
         }).start();
         resetCapsuleShape();
@@ -376,11 +398,13 @@ export function StatsPeriodSelector({
           height: containerHeight,
           borderRadius: outerRadius,
           marginTop,
+          elevation: surfaces.cardElevation,
+          shadowOpacity: surfaces.cardShadowOpacity,
           backgroundColor: isDark
             ? theme.colors.elevation.level1
             : theme.colors.surface,
-          borderWidth: isDark ? 1 : 0,
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+          borderWidth: cardBorder.borderWidth,
+          borderColor: cardBorder.borderColor,
         },
       ]}
       onLayout={onLayout}
@@ -396,7 +420,7 @@ export function StatsPeriodSelector({
               {
                 width: segmentWidth,
                 borderRadius: innerRadius,
-                backgroundColor: theme.colors.primary,
+                backgroundColor: activeColor,
                 transform: [
                   { translateX },
                   { scaleX: Animated.multiply(stretchXAnim, pressScaleAnim) },
@@ -412,7 +436,7 @@ export function StatsPeriodSelector({
         {PERIODS.map(period => {
           const isSelected = selectedPeriod === period.type;
           const textColor = isSelected
-            ? theme.colors.onPrimary
+            ? onActiveColor
             : theme.colors.onSurfaceVariant;
 
           return (
