@@ -66,6 +66,18 @@ export const MotionTokens = {
       damping: 18,
       mass: 1.0,
     },
+    // Elastic, cushiony spatial leap for metric selector tiles
+    metricCard: {
+      stiffness: 175,
+      damping: 14,
+      mass: 0.95,
+    },
+    // Taut, cohesive ferrofluid capsule glide for period pill selector
+    periodCapsule: {
+      stiffness: 235,
+      damping: 16,
+      mass: 0.78,
+    },
     // Responsive, snappy hand-off for page-level horizontal swipe navigation
     pager: {
       stiffness: 220,
@@ -90,7 +102,15 @@ export const MotionTokens = {
   easing: {
     standard: Easing.bezier(0.2, 0.0, 0, 1.0),
     emphasizedDecel: Easing.bezier(0.05, 0.7, 0.1, 1.0),
+    dataReveal: Easing.bezier(0.22, 0.8, 0.25, 1.0),
     accelerate: Easing.bezier(0.3, 0.0, 0.8, 0.15),
+  },
+
+  // Per-chart-type reveal choreography (deliberate rise + controlled overshoot -> exact 1.0 settle)
+  chartReveal: {
+    week: { duration: 940, staggerSpread: 0.36, overshoot: 0.042 },
+    daily: { duration: 900, staggerSpread: 0.42, overshoot: 0.025 },
+    month: { duration: 980, staggerSpread: 0.46, overshoot: 0.016 },
   },
 
   // Gesture thresholds
