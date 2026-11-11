@@ -22,10 +22,8 @@ import {
   PanResponder,
 } from 'react-native';
 import { useTheme } from 'react-native-paper';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useRoute } from '@react-navigation/native';
 
-import type { RootStackParamList } from '../types';
 import { DashboardScreen } from './DashboardScreen';
 import { StatsScreen } from './StatsScreen';
 import { SettingsScreen } from './SettingsScreen';
@@ -35,11 +33,8 @@ import type { StatMetricType } from '../components/StatsMetricSelector';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
 export function MainPagerScreen(): React.JSX.Element {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
 
   // Page index: 0 = Home, 1 = Stats, 2 = Settings
@@ -53,6 +48,8 @@ export function MainPagerScreen(): React.JSX.Element {
 
   const currentPageRef = useRef<number>(initialPage);
   const translateX = useRef(new Animated.Value(-initialPage * SCREEN_WIDTH)).current;
+  const currentTranslateXRef = useRef<number>(-initialPage * SCREEN_WIDTH);
+  const gestureStartPageRef = useRef<number>(initialPage);
   const dragStartX = useRef<number>(-initialPage * SCREEN_WIDTH);
 
   // Smooth spring navigation to a target page
@@ -80,9 +77,10 @@ export function MainPagerScreen(): React.JSX.Element {
     [goToPage]
   );
 
-  // Real-time listener on translateX to synchronize activePageIndex when dragging past halfway mark
+  // Track exact live offset and synchronize dock active icon smoothly past page midpoints
   useEffect(() => {
     const id = translateX.addListener(({ value }) => {
+      currentTranslateXRef.current = value;
       const page = Math.min(Math.max(Math.round(-value / SCREEN_WIDTH), 0), 2);
       if (page !== currentPageRef.current) {
         currentPageRef.current = page;
@@ -116,9 +114,15 @@ export function MainPagerScreen(): React.JSX.Element {
         return isHorizontal && isPastSlop;
       },
       onPanResponderGrant: () => {
-        // Stop any running settling animations so finger claims control immediately
-        translateX.stopAnimation();
-        dragStartX.current = -currentPageRef.current * SCREEN_WIDTH;
+        // Capture exact in-flight position and originating page so partial drags never skip two pages
+        dragStartX.current = currentTranslateXRef.current;
+        gestureStartPageRef.current = Math.min(
+          Math.max(Math.round(-currentTranslateXRef.current / SCREEN_WIDTH), 0),
+          2
+        );
+        translateX.stopAnimation(stoppedValue => {
+          dragStartX.current = stoppedValue;
+        });
       },
       onPanResponderMove: (_, gestureState) => {
         const base = dragStartX.current;
@@ -126,7 +130,7 @@ export function MainPagerScreen(): React.JSX.Element {
 
         // Apply rubber-banding resistance if overscrolling outer bounds (Page 0 left or Page 2 right)
         if (newOffset > 0) {
-          newOffset = gestureState.dx * 0.32;
+          newOffset = newOffset * 0.32;
         } else if (newOffset < -SCREEN_WIDTH * 2) {
           const overscroll = newOffset - -SCREEN_WIDTH * 2;
           newOffset = -SCREEN_WIDTH * 2 + overscroll * 0.32;
@@ -136,31 +140,23 @@ export function MainPagerScreen(): React.JSX.Element {
       },
       onPanResponderRelease: (_, gestureState) => {
         const { dx, vx } = gestureState;
-        let targetIndex = currentPageRef.current;
+        const startPage = gestureStartPageRef.current;
         const distThreshold =
           SCREEN_WIDTH * MotionTokens.gesture.pageDistanceThresholdRatio;
         const velThreshold = MotionTokens.gesture.pageVelocityThreshold;
 
-        if (currentPageRef.current === 0) {
-          // On Home: drag left qualifies to advance to Stats
-          if (dx < -distThreshold || vx < -velThreshold) {
-            targetIndex = 1;
-          }
-        } else if (currentPageRef.current === 1) {
-          // On Stats:
-          // drag right qualifies to return to Home
-          if (dx > distThreshold || vx > velThreshold) {
-            targetIndex = 0;
-          }
-          // drag left qualifies to advance to Settings
-          else if (dx < -distThreshold || vx < -velThreshold) {
-            targetIndex = 2;
-          }
-        } else if (currentPageRef.current === 2) {
-          // On Settings: drag right qualifies to return to Stats
-          if (dx > distThreshold || vx > velThreshold) {
-            targetIndex = 1;
-          }
+        let targetIndex = startPage;
+        if (dx < -distThreshold || vx < -velThreshold) {
+          targetIndex = Math.min(startPage + 1, 2);
+        } else if (dx > distThreshold || vx > velThreshold) {
+          targetIndex = Math.max(startPage - 1, 0);
+        } else {
+          // If released gently after slow drag past halfway, settle toward nearest neighbor of startPage
+          const nearestPage = Math.min(
+            Math.max(Math.round(-currentTranslateXRef.current / SCREEN_WIDTH), 0),
+            2
+          );
+          targetIndex = Math.min(Math.max(nearestPage, startPage - 1), startPage + 1);
         }
 
         goToPage(targetIndex, vx);
@@ -205,6 +201,7 @@ export function MainPagerScreen(): React.JSX.Element {
             hideDock={true}
             activeMetricProp={activeStatsMetric}
             onSelectMetricProp={setActiveStatsMetric}
+            isPageActive={activePageIndex === 1}
           />
         </View>
 
