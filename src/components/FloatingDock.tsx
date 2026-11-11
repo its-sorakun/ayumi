@@ -105,16 +105,16 @@ export function FloatingDock({
       extrapolate: 'clamp',
     });
 
-    // Squash & Stretch: pill elongates horizontally during travel and thins vertically across both transitions
+    // Restrained Material 3 pill deformation during transit (grounded proportions, never over-flattened)
     indicatorScaleX = pagerProgress.interpolate({
       inputRange: [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-      outputRange: [1.0, 1.20, 1.34, 1.20, 1.0, 1.20, 1.34, 1.20, 1.0],
+      outputRange: [1.0, 1.07, 1.12, 1.07, 1.0, 1.07, 1.12, 1.07, 1.0],
       extrapolate: 'clamp',
     });
 
     indicatorScaleY = pagerProgress.interpolate({
       inputRange: [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-      outputRange: [1.0, 0.88, 0.76, 0.88, 1.0, 0.88, 0.76, 0.88, 1.0],
+      outputRange: [1.0, 0.94, 0.91, 0.94, 1.0, 0.94, 0.91, 0.94, 1.0],
       extrapolate: 'clamp',
     });
   } else if (containerWidth > 0) {
@@ -146,23 +146,25 @@ export function FloatingDock({
             borderColor: theme.dark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.outlineVariant,
           },
         ]}>
-        {/* Animated Sliding Highlight Pill with Squeeze Deformation */}
+        {/* Clipped Sliding Active Indicator Pill */}
         {containerWidth > 0 && (
-          <Animated.View
-            style={[
-              styles.slidingIndicatorPill,
-              {
-                width: pillWidth,
-                height: pillHeight,
-                backgroundColor: theme.colors.primaryContainer,
-                transform: [
-                  { translateX: indicatorTranslateX },
-                  { scaleX: indicatorScaleX },
-                  { scaleY: indicatorScaleY },
-                ],
-              },
-            ]}
-          />
+          <View style={styles.pillTrackClip} pointerEvents="none">
+            <Animated.View
+              style={[
+                styles.slidingIndicatorPill,
+                {
+                  width: pillWidth,
+                  height: pillHeight,
+                  backgroundColor: theme.colors.primaryContainer,
+                  transform: [
+                    { translateX: indicatorTranslateX },
+                    { scaleX: indicatorScaleX },
+                    { scaleY: indicatorScaleY },
+                  ],
+                },
+              ]}
+            />
+          </View>
         )}
 
         {/* Slot 1: Home Tab */}
@@ -243,6 +245,15 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 4,
     borderWidth: 0,
+  },
+  pillTrackClip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 29,
+    overflow: 'hidden',
   },
   slidingIndicatorPill: {
     position: 'absolute',
