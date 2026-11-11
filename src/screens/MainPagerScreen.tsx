@@ -55,10 +55,12 @@ export function MainPagerScreen(): React.JSX.Element {
   const currentTranslateXRef = useRef<number>(-initialPage * SCREEN_WIDTH);
   const gestureStartPageRef = useRef<number>(initialPage);
   const dragStartX = useRef<number>(-initialPage * SCREEN_WIDTH);
+  const isDraggingRef = useRef<boolean>(false);
 
   // Smooth spring (or brisk linear slide under reduced motion) navigation to a target page
   const goToPage = useCallback(
     (pageIndex: number, velocity?: number) => {
+      isDraggingRef.current = false;
       currentPageRef.current = pageIndex;
       setActivePageIndex(pageIndex);
 
@@ -91,10 +93,11 @@ export function MainPagerScreen(): React.JSX.Element {
     [goToPage]
   );
 
-  // Track exact live offset and synchronize dock active icon smoothly past page midpoints
+  // Track exact live offset and synchronize dock active icon smoothly past midpoints during manual drags
   useEffect(() => {
     const id = translateX.addListener(({ value }) => {
       currentTranslateXRef.current = value;
+      if (!isDraggingRef.current) return;
       const page = Math.min(Math.max(Math.round(-value / SCREEN_WIDTH), 0), 2);
       if (page !== currentPageRef.current) {
         currentPageRef.current = page;
@@ -129,6 +132,7 @@ export function MainPagerScreen(): React.JSX.Element {
       },
       onPanResponderGrant: () => {
         // Capture exact in-flight position and originating page so partial drags never skip two pages
+        isDraggingRef.current = true;
         dragStartX.current = currentTranslateXRef.current;
         gestureStartPageRef.current = Math.min(
           Math.max(Math.round(-currentTranslateXRef.current / SCREEN_WIDTH), 0),
