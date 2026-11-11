@@ -19,6 +19,7 @@ import {
   ScrollView,
   Animated,
   PanResponder,
+  PixelRatio,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -51,6 +52,7 @@ import {
 import { StatsPeriodNavigator } from '../components/StatsPeriodNavigator';
 import { StatsChart, type ChartDataPoint } from '../components/StatsChart';
 import { StatsSummaryCards } from '../components/StatsSummaryCards';
+import type { StatNumberScaleUnit } from '../components/AnimatedStatNumber';
 import { FloatingDock } from '../components/FloatingDock';
 import { MotionTokens, useReducedMotion } from '../theme/motion';
 
@@ -177,6 +179,8 @@ export function StatsScreen({
   const [anchorDate, setAnchorDate] = useState<Date>(today());
   const [navDirection, setNavDirection] = useState<'prev' | 'next'>('next');
   const [loading, setLoading] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
 
   // Atomic committed dataset ensures chart title, total, bars, and summary always match
   const [committedDataset, setCommittedDataset] = useState<PeriodDataset | null>(null);
@@ -704,15 +708,34 @@ export function StatsScreen({
   }, [committedDataset, committedPeriod, committedAnchor, selectedMetric]);
 
   // Compute total, average (over elapsed recorded slots only), and highest without duplicating units
-  const { totalText, unitText, averageText, averageUnitText, highestText, highestUnitText } =
+  const {
+    totalText,
+    totalRaw,
+    totalScaleUnit,
+    unitText,
+    averageText,
+    averageRaw,
+    averageScaleUnit,
+    averageUnitText,
+    highestText,
+    highestRaw,
+    highestScaleUnit,
+    highestUnitText,
+  } =
     useMemo(() => {
       if (hourlyUnavailable) {
         return {
           totalText: '--',
+          totalRaw: null as number | null,
+          totalScaleUnit: 'raw' as StatNumberScaleUnit,
           unitText: selectedMetric === 'steps' ? 'steps/hr' : 'hourly',
           averageText: '--',
+          averageRaw: null as number | null,
+          averageScaleUnit: 'raw' as StatNumberScaleUnit,
           averageUnitText: 'unavailable',
           highestText: '--',
+          highestRaw: null as number | null,
+          highestScaleUnit: 'raw' as StatNumberScaleUnit,
           highestUnitText: 'unavailable',
         };
       }
@@ -733,10 +756,16 @@ export function StatsScreen({
       if (selectedMetric === 'steps') {
         return {
           totalText: Math.round(sum).toLocaleString(),
+          totalRaw: sum,
+          totalScaleUnit: 'raw' as StatNumberScaleUnit,
           unitText: 'steps',
           averageText: Math.round(avg).toLocaleString(),
+          averageRaw: avg,
+          averageScaleUnit: 'raw' as StatNumberScaleUnit,
           averageUnitText: `steps/${periodUnitSuffix}`,
           highestText: Math.round(max).toLocaleString(),
+          highestRaw: max,
+          highestScaleUnit: 'raw' as StatNumberScaleUnit,
           highestUnitText: 'steps',
         };
       }
@@ -747,10 +776,16 @@ export function StatsScreen({
         const highParts = formatDistanceSummary(max);
         return {
           totalText: totalParts.value,
+          totalRaw: sum,
+          totalScaleUnit: (sum >= 1000 ? 'kilo' : 'raw') as StatNumberScaleUnit,
           unitText: totalParts.unit,
           averageText: avgParts.value,
+          averageRaw: avg,
+          averageScaleUnit: (avg >= 1000 ? 'kilo' : 'raw') as StatNumberScaleUnit,
           averageUnitText: avgParts.unit,
           highestText: highParts.value,
+          highestRaw: max,
+          highestScaleUnit: (max >= 1000 ? 'kilo' : 'raw') as StatNumberScaleUnit,
           highestUnitText: highParts.unit,
         };
       }
@@ -760,13 +795,28 @@ export function StatsScreen({
       const highWaterParts = formatWaterSummary(max);
       return {
         totalText: totalWaterParts.value,
+        totalRaw: sum,
+        totalScaleUnit: (sum >= 1000 ? 'kilo' : 'raw') as StatNumberScaleUnit,
         unitText: totalWaterParts.unit,
         averageText: avgWaterParts.value,
+        averageRaw: avg,
+        averageScaleUnit: (avg >= 1000 ? 'kilo' : 'raw') as StatNumberScaleUnit,
         averageUnitText: avgWaterParts.unit,
         highestText: highWaterParts.value,
+        highestRaw: max,
+        highestScaleUnit: (max >= 1000 ? 'kilo' : 'raw') as StatNumberScaleUnit,
         highestUnitText: highWaterParts.unit,
       };
     }, [chartDataPoints, committedPeriod, selectedMetric, hourlyUnavailable]);
+
+  const numericSyncKey = `${committedPeriod}:${committedDataset?.anchorKey ?? 'none'}:${selectedMetric}:${hourlyUnavailable ? 'na' : 'ok'}`;
+  const revealDuration = MotionTokens.chartReveal[committedPeriod].duration;
+
+  // Preserve non-scrolling layout on standard viewports while unlocking scroll only on smaller screens or large font scales
+  const dockReserve = Math.max(insets.bottom + 8, 16) + 58 + 10;
+  const requiresScroll =
+    PixelRatio.getFontScale() > 1.15 ||
+    (viewportHeight > 0 && contentHeight > 0 && contentHeight + dockReserve > viewportHeight + 1);
 
   const contentTranslateX = contentSlideAnim.interpolate({
     inputRange: [-1, 0, 1],
@@ -780,17 +830,22 @@ export function StatsScreen({
   });
 
   return (
-    <View style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.screenWrapper, { backgroundColor: theme.colors.background }]}
+      onLayout={e => setViewportHeight(e.nativeEvent.layout.height)}>
       <ScrollView
         style={styles.container}
+        scrollEnabled={requiresScroll}
+        bounces={requiresScroll}
+        overScrollMode={requiresScroll ? 'always' : 'never'}
         contentContainerStyle={[
           styles.contentContainer,
-          {
-            paddingTop: Math.max(insets.top + 12, 24),
-            paddingBottom: insets.bottom + 92,
-          },
+          requiresScroll ? { paddingBottom: dockReserve } : styles.nonScrollingContainer,
         ]}
         showsVerticalScrollIndicator={false}>
+        <View
+          onLayout={e => setContentHeight(e.nativeEvent.layout.height)}
+          style={{ paddingTop: insets.top + 6 }}>
 
         {/* 1. Top Header: Stats Title & Subtitle */}
         <Animated.View
@@ -876,6 +931,8 @@ export function StatsScreen({
               period={committedPeriod}
               subtitle={chartSubtitle}
               totalValueText={totalText}
+              totalRawValue={totalRaw}
+              totalScaleUnit={totalScaleUnit}
               unitText={unitText}
               data={chartDataPoints}
               loading={loading}
@@ -884,13 +941,21 @@ export function StatsScreen({
 
             {/* 6. Contextual Summary Cards (Average & Highest) */}
             <StatsSummaryCards
+              metric={selectedMetric}
               averageValue={averageText}
+              averageRawValue={averageRaw}
+              averageScaleUnit={averageScaleUnit}
               averageUnit={averageUnitText}
               highestValue={highestText}
+              highestRawValue={highestRaw}
+              highestScaleUnit={highestScaleUnit}
               highestUnit={highestUnitText}
               highestLabel={committedPeriod === 'daily' ? 'Highest (Hr)' : 'Highest (Day)'}
+              syncKey={numericSyncKey}
+              duration={revealDuration}
             />
           </Animated.View>
+        </View>
         </View>
       </ScrollView>
 
@@ -917,9 +982,13 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 0,
   },
+  nonScrollingContainer: {
+    flexGrow: 1,
+    paddingBottom: 0,
+  },
   headerRow: {
     paddingHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 6,
   },
   screenTitleText: {
     fontSize: 32,
