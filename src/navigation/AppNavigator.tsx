@@ -55,6 +55,14 @@ export function AppNavigator(): React.JSX.Element {
           }}
           initialParams={{ initialPage: 1 }}
         />
+        <Stack.Screen
+          name="Water"
+          component={MainPagerScreen}
+          options={{
+            headerShown: false,
+          }}
+          initialParams={{ initialPage: 2 }}
+        />
         <Stack.Screen 
           name="StepsDetails" 
           component={StepsDetailsScreen}
@@ -76,7 +84,7 @@ export function AppNavigator(): React.JSX.Element {
           options={{
             headerShown: false,
           }}
-          initialParams={{ initialPage: 2 }}
+          initialParams={{ initialPage: 3 }}
         />
       </Stack.Navigator>
     </NavigationContainer>
