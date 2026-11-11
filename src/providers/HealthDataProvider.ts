@@ -16,6 +16,9 @@ import type {
   TimeRangeFilter,
   HistoricalStepData,
   HistoricalDistanceData,
+  HourlyStepData,
+  HourlyDistanceData,
+  HourlyBreakdownResult,
   ExerciseSessionData,
 } from '../types/health';
 
@@ -49,6 +52,18 @@ export interface HealthDataProvider {
 
   /** Get daily distance buckets for a given time range */
   getHistoricalDistance(timeRange: 'week' | 'month' | 'year'): Promise<readonly HistoricalDistanceData[]>;
+
+  /** Get daily step buckets across an explicit local calendar date range [startDate..endDate] */
+  getHistoricalStepsRange(startDate: Date, endDate: Date): Promise<readonly HistoricalStepData[]>;
+
+  /** Get daily distance buckets across an explicit local calendar date range [startDate..endDate] */
+  getHistoricalDistanceRange(startDate: Date, endDate: Date): Promise<readonly HistoricalDistanceData[]>;
+
+  /** Get 24-hour local hourly step buckets for a date, or supported=false if unavailable */
+  getHourlySteps(date: Date): Promise<HourlyBreakdownResult<HourlyStepData>>;
+
+  /** Get 24-hour local hourly distance buckets for a date, or supported=false if unavailable */
+  getHourlyDistance(date: Date): Promise<HourlyBreakdownResult<HourlyDistanceData>>;
 
   /** Get exercise sessions for a given time range */
   getExerciseSessions(timeRange: 'week' | 'month' | 'year'): Promise<readonly ExerciseSessionData[]>;
