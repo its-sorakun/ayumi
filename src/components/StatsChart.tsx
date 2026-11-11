@@ -18,7 +18,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Easing,
   LayoutChangeEvent,
 } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
@@ -29,11 +28,14 @@ import type { StatPeriodType } from './StatsPeriodSelector';
 import { SneakerIcon, RouteMapIcon, DropletIcon } from './AestheticIcons';
 import { MotionTokens } from '../theme/motion';
 
+export type ChartPointStatus = 'recorded' | 'missing' | 'future';
+
 export interface ChartDataPoint {
   readonly key: string;
   readonly label: string;
   readonly subLabel?: string;
   readonly value: number;
+  readonly status?: ChartPointStatus;
 }
 
 interface StatsChartProps {
@@ -44,10 +46,45 @@ interface StatsChartProps {
   readonly unitText: string;
   readonly data: readonly ChartDataPoint[];
   readonly loading?: boolean;
+  readonly unavailableNotice?: string | null;
 }
 
 const CHART_HEIGHT = 140;
-const Y_AXIS_WIDTH = 34;
+const PLOT_TOP_PADDING = 8;
+const PLOT_BOTTOM_PADDING = 8;
+const PLOT_SPAN = CHART_HEIGHT - PLOT_TOP_PADDING - PLOT_BOTTOM_PADDING;
+const Y_AXIS_WIDTH = 38;
+
+/**
+ * Selects a clean upper axis bound divisible by 4 into round whole ticks.
+ * Handles small hourly counts (e.g. 6 steps -> 0..8) as cleanly as multi-thousand daily totals.
+ */
+export function computeNiceAxisMax(rawMax: number, metric: StatMetricType): number {
+  if (rawMax <= 0) {
+    return metric === 'water' ? 1000 : 100;
+  }
+
+  const minStep = rawMax / 4;
+  if (minStep < 10) {
+    const smallSteps = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15];
+    const picked = smallSteps.find(step => step * 4 >= rawMax) ?? 15;
+    return picked * 4;
+  }
+
+  const exponent = Math.floor(Math.log10(minStep));
+  const decade = Math.pow(10, exponent);
+  const mantissas = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+
+  for (const m of mantissas) {
+    const step = m * decade;
+    if (!Number.isInteger(step)) continue;
+    if (step * 4 >= rawMax) {
+      return step * 4;
+    }
+  }
+
+  return 10 * decade * 4;
+}
 
 export function StatsChart({
   metric,
@@ -57,6 +94,7 @@ export function StatsChart({
   unitText,
   data,
   loading = false,
+  unavailableNotice = null,
 }: StatsChartProps): React.JSX.Element {
   const theme = useTheme();
   const isDark = theme.dark;
@@ -64,21 +102,28 @@ export function StatsChart({
   const [containerWidth, setContainerWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
-  // Animated wave driver for sequential bar growth (0 -> 1)
+  // Native-driven baseline growth factor (0 -> 1)
   const growthAnim = useRef(new Animated.Value(0)).current;
   const tooltipAnim = useRef(new Animated.Value(0)).current;
 
-  // Trigger sequential wave reveal animation on dataset change
+  // Fingerprint meaningful chart changes so identical refreshes avoid redundant full replays
+  const datasetSignature = useMemo(() => {
+    const valuesSig = data.map(d => `${d.key}:${Math.round(d.value)}:${d.status || 'r'}`).join('|');
+    return `${metric}:${period}:${valuesSig}`;
+  }, [metric, period, data]);
+
+  // Trigger restrained UI-thread baseline reveal when dataset or view genuinely changes
   useEffect(() => {
+    growthAnim.stopAnimation();
     growthAnim.setValue(0);
     Animated.timing(growthAnim, {
       toValue: 1,
-      duration: 1000,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
+      duration: 360,
+      easing: MotionTokens.easing.emphasizedDecel,
+      useNativeDriver: true,
     }).start();
     setSelectedIndex(null);
-  }, [metric, period, data, growthAnim]);
+  }, [datasetSignature, growthAnim]);
 
   // Tooltip entrance animation
   useEffect(() => {
@@ -120,30 +165,18 @@ export function StatsChart({
     }
   }, [metric]);
 
-  // Compute maximum Y for scale
+  // Compute clean data-driven maximum Y for scale
   const maxValue = useMemo(() => {
     const max = Math.max(...data.map(d => d.value), 0);
-    if (max <= 0) return 100;
-    if (metric === 'steps') {
-      return max > 5000 ? Math.ceil(max / 2000) * 2000 : Math.ceil(max / 500) * 500;
-    }
-    if (metric === 'distance') {
-      return max > 5000 ? Math.ceil(max / 1000) * 1000 : Math.ceil(max / 500) * 500;
-    }
-    return max > 1000 ? Math.ceil(max / 500) * 500 : Math.ceil(max / 100) * 100;
+    return computeNiceAxisMax(max, metric);
   }, [data, metric]);
 
   const yTicks = [maxValue, maxValue * 0.75, maxValue * 0.5, maxValue * 0.25, 0];
 
   const formatTickLabel = (val: number) => {
     if (val === 0) return '0';
-    if (metric === 'distance') {
-      if (val >= 1000) return `${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k`;
-      return `${Math.round(val)}`;
-    }
     if (val >= 1000) {
-      const k = val / 1000;
-      return `${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}k`;
+      return `${Number((val / 1000).toFixed(2))}k`;
     }
     return `${Math.round(val)}`;
   };
@@ -171,7 +204,7 @@ export function StatsChart({
     return { barWidth: bWidth, barSpacing: Math.max(bSpacing, 1.5) };
   }, [period, chartPlotWidth, dataCount]);
 
-  const shouldShowLabel = (index: number, total: number) => {
+  const shouldShowLabel = (index: number, _total: number) => {
     if (period === 'week') return true;
     if (period === 'daily') {
       return index % 3 === 0 && index < 24;
@@ -239,11 +272,19 @@ export function StatsChart({
           <Text style={[styles.tooltipText, { color: theme.colors.onPrimaryContainer }]}>
             {selectedPoint.subLabel || selectedPoint.label}:{' '}
             <Text style={{ fontWeight: '800' }}>
-              {metric === 'distance'
+              {selectedPoint.status === 'future'
+                ? 'Upcoming'
+                : selectedPoint.status === 'missing'
+                ? 'No data'
+                : metric === 'distance'
                 ? selectedPoint.value >= 1000
-                ? `${(selectedPoint.value / 1000).toFixed(2)} km`
-                : `${Math.round(selectedPoint.value)} m`
-                : `${selectedPoint.value.toLocaleString()} ${unitText}`}
+                  ? `${(selectedPoint.value / 1000).toFixed(2)} km`
+                  : `${Math.round(selectedPoint.value)} m`
+                : metric === 'water'
+                ? selectedPoint.value >= 1000
+                  ? `${Number((selectedPoint.value / 1000).toFixed(2))} L`
+                  : `${Math.round(selectedPoint.value)} ml`
+                : `${Math.round(selectedPoint.value).toLocaleString()} steps`}
             </Text>
           </Text>
         </Animated.View>
@@ -251,24 +292,34 @@ export function StatsChart({
 
       {/* Main Chart Graphic Area */}
       <View style={styles.chartAreaRow}>
-        {/* Y-Axis scale labels */}
+        {/* Y-Axis scale labels anchored directly to SVG gridline y-positions */}
         <View style={styles.yAxisColumn}>
-          {yTicks.map((tick, i) => (
-            <Text
-              key={i}
-              style={[styles.axisLabelText, { color: theme.colors.onSurfaceVariant }]}>
-              {formatTickLabel(tick)}
-            </Text>
-          ))}
+          {yTicks.map((tick, i) => {
+            const lineY = PLOT_TOP_PADDING + (i / (yTicks.length - 1)) * PLOT_SPAN;
+            return (
+              <Text
+                key={i}
+                style={[
+                  styles.axisLabelText,
+                  styles.yAxisTickLabel,
+                  {
+                    color: theme.colors.onSurfaceVariant,
+                    top: lineY - 7,
+                  },
+                ]}>
+                {formatTickLabel(tick)}
+              </Text>
+            );
+          })}
         </View>
 
         {/* SVG Drawing Area for Grid Lines + Overlaid Animated Bars */}
         <View style={styles.plotAreaWrapper}>
           {containerWidth > 0 && (
             <Svg width={chartPlotWidth} height={CHART_HEIGHT} style={StyleSheet.absoluteFill}>
-              {/* Horizontal faint grid lines */}
+              {/* Horizontal faint grid lines matching PLOT_SPAN */}
               {yTicks.map((_, i) => {
-                const y = (i / (yTicks.length - 1)) * (CHART_HEIGHT - 12) + 6;
+                const y = PLOT_TOP_PADDING + (i / (yTicks.length - 1)) * PLOT_SPAN;
                 return (
                   <Line
                     key={`grid-${i}`}
@@ -277,7 +328,7 @@ export function StatsChart({
                     x2={chartPlotWidth}
                     y2={y}
                     stroke={theme.colors.outlineVariant}
-                    strokeOpacity={isDark ? 0.15 : 0.25}
+                    strokeOpacity={isDark ? 0.16 : 0.26}
                     strokeWidth={1}
                   />
                 );
@@ -285,57 +336,125 @@ export function StatsChart({
             </Svg>
           )}
 
-          {/* Sequential Wave-Animated Bars */}
+          {/* Baseline-Anchored Native Staggered Bars */}
           {containerWidth > 0 && (
             <View style={styles.barsContainer} pointerEvents="box-none">
               {data.map((point, index) => {
                 const x = index * (barWidth + barSpacing);
-                const rawHeight = (point.value / maxValue) * (CHART_HEIGHT - 16);
-                const targetBarHeight = Math.max(
-                  Math.min(rawHeight, CHART_HEIGHT - 16),
-                  point.value > 0 ? 4 : 0
-                );
+                const pointStatus: ChartPointStatus = point.status ?? 'recorded';
+                const rawHeight = (point.value / maxValue) * PLOT_SPAN;
+                const isPositiveValue = pointStatus === 'recorded' && point.value > 0;
+                const targetBarHeight = isPositiveValue
+                  ? Math.max(Math.min(rawHeight, PLOT_SPAN), 3)
+                  : pointStatus === 'recorded'
+                  ? 3
+                  : 2;
                 const isSelected = selectedIndex === index;
 
-                // Sequential Wave Timing: staggered progress across dataset
-                const startFrac = (index / dataCount) * 0.65;
-                const endFrac = Math.min(startFrac + 0.35, 1.0);
+                // Subtle restrained baseline stagger (max ~28% window offset across dataset)
+                const startFrac = dataCount > 1 ? (index / (dataCount - 1)) * 0.28 : 0;
+                const endFrac = Math.min(startFrac + 0.72, 1.0);
                 const barWave = growthAnim.interpolate({
                   inputRange: [startFrac, endFrac],
-                  outputRange: [0, 1],
+                  outputRange: [0.001, 1],
                   extrapolate: 'clamp',
                 });
-                const animatedHeight = Animated.multiply(barWave, targetBarHeight);
+
+                const touchWidth = Math.max(barWidth, 16);
+                const touchLeft = x - (touchWidth - barWidth) / 2;
+
+                const barColor = isSelected
+                  ? theme.colors.secondary
+                  : pointStatus === 'recorded'
+                  ? theme.colors.primary
+                  : pointStatus === 'missing'
+                  ? theme.colors.outline
+                  : theme.colors.outlineVariant;
+
+                const barOpacity = isSelected
+                  ? 1
+                  : pointStatus === 'recorded'
+                  ? point.value > 0
+                    ? 0.88
+                    : 0.3
+                  : pointStatus === 'missing'
+                  ? isDark
+                    ? 0.24
+                    : 0.28
+                  : 0.14;
 
                 return (
                   <TouchableOpacity
                     key={point.key || index}
-                    activeOpacity={0.8}
+                    activeOpacity={0.75}
                     onPress={() => setSelectedIndex(index === selectedIndex ? null : index)}
                     style={[
                       styles.barColumn,
                       {
-                        left: x,
-                        width: barWidth,
+                        left: touchLeft,
+                        width: touchWidth,
                       },
                     ]}>
-                    <Animated.View
-                      style={[
-                        styles.barPill,
-                        {
-                          height: animatedHeight,
-                          width: barWidth,
-                          borderRadius: Math.min(barWidth / 2, 4),
-                          backgroundColor: isSelected ? theme.colors.secondary : theme.colors.primary,
-                          opacity: isSelected ? 1 : point.value > 0 ? 0.85 : 0.2,
-                        },
-                      ]}
-                    />
+                    {isPositiveValue ? (
+                      <Animated.View
+                        style={[
+                          styles.barPill,
+                          {
+                            height: targetBarHeight,
+                            width: barWidth,
+                            borderRadius: Math.min(barWidth / 2, 4),
+                            backgroundColor: barColor,
+                            opacity: barOpacity,
+                            transform: [
+                              {
+                                translateY: Animated.multiply(
+                                  Animated.subtract(1, barWave),
+                                  targetBarHeight / 2,
+                                ),
+                              },
+                              { scaleY: barWave },
+                            ],
+                          },
+                        ]}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.barPill,
+                          {
+                            height: targetBarHeight,
+                            width: barWidth,
+                            borderRadius: Math.min(barWidth / 2, 4),
+                            backgroundColor: barColor,
+                            opacity: barOpacity,
+                          },
+                        ]}
+                      />
+                    )}
                   </TouchableOpacity>
                 );
               })}
             </View>
           )}
+
+          {/* Honest inline notice when provider lacks hourly breakdown */}
+          {!loading && unavailableNotice ? (
+            <View style={styles.unavailableNoticeOverlay} pointerEvents="none">
+              <View
+                style={[
+                  styles.unavailableNoticePill,
+                  { backgroundColor: theme.colors.secondaryContainer },
+                ]}>
+                <Text
+                  style={[
+                    styles.unavailableNoticeText,
+                    { color: theme.colors.onSecondaryContainer },
+                  ]}>
+                  {unavailableNotice}
+                </Text>
+              </View>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -345,13 +464,13 @@ export function StatsChart({
           const isVisible = shouldShowLabel(index, data.length);
           if (!isVisible) return null;
 
-          const x = index * (barWidth + barSpacing);
+          const centerX = index * (barWidth + barSpacing) + barWidth / 2;
           return (
             <View
               key={`xlabel-${index}`}
               style={[
                 styles.xAxisLabelWrapper,
-                { left: x - (period === 'week' ? 4 : 8) },
+                { left: centerX - 14 },
               ]}>
               <Text
                 style={[
@@ -448,10 +567,14 @@ const styles = StyleSheet.create({
   yAxisColumn: {
     width: Y_AXIS_WIDTH,
     height: CHART_HEIGHT,
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingRight: 8,
-    paddingVertical: 4,
+    position: 'relative',
+  },
+  yAxisTickLabel: {
+    position: 'absolute',
+    right: 8,
+    height: 14,
+    lineHeight: 14,
+    textAlign: 'right',
   },
   plotAreaWrapper: {
     flex: 1,
@@ -468,13 +591,34 @@ const styles = StyleSheet.create({
   },
   barColumn: {
     position: 'absolute',
-    bottom: 6,
-    height: CHART_HEIGHT - 12,
+    bottom: PLOT_BOTTOM_PADDING,
+    height: PLOT_SPAN,
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
   barPill: {
-    // animated height applied in style
+    // animated transform scaleY anchored to baseline
+  },
+  unavailableNoticeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  unavailableNoticePill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+    opacity: 0.94,
+  },
+  unavailableNoticeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   xAxisRow: {
     height: 22,
