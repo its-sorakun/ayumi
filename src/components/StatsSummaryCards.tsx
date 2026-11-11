@@ -29,6 +29,10 @@ interface StatsSummaryCardsProps {
   readonly highestLabel?: string;
   readonly syncKey?: string;
   readonly duration?: number;
+  readonly marginTop?: number;
+  readonly marginBottom?: number;
+  readonly cardPaddingVertical?: number;
+  readonly contentRowMarginBottom?: number;
 }
 
 export function StatsSummaryCards({
@@ -44,6 +48,10 @@ export function StatsSummaryCards({
   highestLabel = 'Highest (Day)',
   syncKey = '',
   duration,
+  marginTop = 8,
+  marginBottom = 10,
+  cardPaddingVertical = 14,
+  contentRowMarginBottom = 6,
 }: StatsSummaryCardsProps): React.JSX.Element {
   const theme = useTheme();
   const isDark = theme.dark;
@@ -53,18 +61,19 @@ export function StatsSummaryCards({
   const borderWidth = isDark ? 1 : 0;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { marginTop, marginBottom }]}>
       {/* Left Card: Average */}
       <View
         style={[
           styles.card,
           {
+            paddingVertical: cardPaddingVertical,
             backgroundColor: cardBg,
             borderColor,
             borderWidth,
           },
         ]}>
-        <View style={styles.contentRow}>
+        <View style={[styles.contentRow, { marginBottom: contentRowMarginBottom }]}>
           <View style={[styles.iconBubble, { backgroundColor: theme.colors.primaryContainer }]}>
             <TargetBullseyeIcon size={18} color={theme.colors.primary} />
           </View>
@@ -103,12 +112,13 @@ export function StatsSummaryCards({
         style={[
           styles.card,
           {
+            paddingVertical: cardPaddingVertical,
             backgroundColor: cardBg,
             borderColor,
             borderWidth,
           },
         ]}>
-        <View style={styles.contentRow}>
+        <View style={[styles.contentRow, { marginBottom: contentRowMarginBottom }]}>
           <View style={[styles.iconBubble, { backgroundColor: theme.colors.primaryContainer }]}>
             <TrophyIcon size={18} color={theme.colors.primary} />
           </View>
