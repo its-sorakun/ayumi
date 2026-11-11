@@ -167,6 +167,26 @@ class HealthService {
     return this.provider!.getHistoricalDistance(timeRange);
   }
 
+  async getHistoricalStepsRange(startDate: Date, endDate: Date) {
+    this.ensureProvider();
+    return this.provider!.getHistoricalStepsRange(startDate, endDate);
+  }
+
+  async getHistoricalDistanceRange(startDate: Date, endDate: Date) {
+    this.ensureProvider();
+    return this.provider!.getHistoricalDistanceRange(startDate, endDate);
+  }
+
+  async getHourlySteps(date: Date) {
+    this.ensureProvider();
+    return this.provider!.getHourlySteps(date);
+  }
+
+  async getHourlyDistance(date: Date) {
+    this.ensureProvider();
+    return this.provider!.getHourlyDistance(date);
+  }
+
   async getExerciseSessions(timeRange: 'week' | 'month' | 'year') {
     this.ensureProvider();
     return this.provider!.getExerciseSessions(timeRange);
