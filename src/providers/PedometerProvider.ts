@@ -35,6 +35,9 @@ import type {
   TimeRangeFilter,
   HistoricalStepData,
   HistoricalDistanceData,
+  HourlyStepData,
+  HourlyDistanceData,
+  HourlyBreakdownResult,
   ExerciseSessionData,
 } from '../types/health';
 
@@ -188,6 +191,23 @@ export class PedometerProvider implements HealthDataProvider {
 
   async getHistoricalDistance(_timeRange: 'week' | 'month' | 'year'): Promise<HistoricalDistanceData[]> {
     return [];
+  }
+
+  async getHistoricalStepsRange(_startDate: Date, _endDate: Date): Promise<HistoricalStepData[]> {
+    return [];
+  }
+
+  async getHistoricalDistanceRange(_startDate: Date, _endDate: Date): Promise<HistoricalDistanceData[]> {
+    return [];
+  }
+
+  async getHourlySteps(_date: Date): Promise<HourlyBreakdownResult<HourlyStepData>> {
+    // Software accelerometer sessions do not persist per-hour breakdown buckets.
+    return { supported: false, buckets: [] };
+  }
+
+  async getHourlyDistance(_date: Date): Promise<HourlyBreakdownResult<HourlyDistanceData>> {
+    return { supported: false, buckets: [] };
   }
 
   async getExerciseSessions(_timeRange: 'week' | 'month' | 'year'): Promise<ExerciseSessionData[]> {
