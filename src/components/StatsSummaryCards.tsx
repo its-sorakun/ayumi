@@ -13,21 +13,37 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { TargetBullseyeIcon, TrophyIcon } from './AestheticIcons';
+import { AnimatedStatNumber, type StatNumberScaleUnit } from './AnimatedStatNumber';
+import type { StatMetricType } from './StatsMetricSelector';
 
 interface StatsSummaryCardsProps {
+  readonly metric?: StatMetricType;
   readonly averageValue: string;
+  readonly averageRawValue?: number | null;
+  readonly averageScaleUnit?: StatNumberScaleUnit;
   readonly averageUnit: string;
   readonly highestValue: string;
+  readonly highestRawValue?: number | null;
+  readonly highestScaleUnit?: StatNumberScaleUnit;
   readonly highestUnit: string;
   readonly highestLabel?: string;
+  readonly syncKey?: string;
+  readonly duration?: number;
 }
 
 export function StatsSummaryCards({
+  metric = 'steps',
   averageValue,
+  averageRawValue,
+  averageScaleUnit = 'raw',
   averageUnit,
   highestValue,
+  highestRawValue,
+  highestScaleUnit = 'raw',
   highestUnit,
   highestLabel = 'Highest (Day)',
+  syncKey = '',
+  duration,
 }: StatsSummaryCardsProps): React.JSX.Element {
   const theme = useTheme();
   const isDark = theme.dark;
@@ -57,12 +73,26 @@ export function StatsSummaryCards({
           </Text>
         </View>
 
-        <Text
-          style={[styles.valueText, { color: theme.colors.onSurface }]}
-          numberOfLines={1}
-          adjustsFontSizeToFit>
-          {averageValue}
-        </Text>
+        {averageRawValue !== undefined ? (
+          <AnimatedStatNumber
+            value={averageRawValue}
+            fallbackText={averageValue}
+            unitKey={`${metric}:avg:${averageUnit}`}
+            scaleUnit={averageScaleUnit}
+            syncKey={syncKey}
+            duration={duration}
+            style={[styles.valueText, { color: theme.colors.onSurface }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          />
+        ) : (
+          <Text
+            style={[styles.valueText, { color: theme.colors.onSurface }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit>
+            {averageValue}
+          </Text>
+        )}
         <Text style={[styles.unitText, { color: theme.colors.onSurfaceVariant }]}>
           {averageUnit}
         </Text>
@@ -87,12 +117,26 @@ export function StatsSummaryCards({
           </Text>
         </View>
 
-        <Text
-          style={[styles.valueText, { color: theme.colors.onSurface }]}
-          numberOfLines={1}
-          adjustsFontSizeToFit>
-          {highestValue}
-        </Text>
+        {highestRawValue !== undefined ? (
+          <AnimatedStatNumber
+            value={highestRawValue}
+            fallbackText={highestValue}
+            unitKey={`${metric}:high:${highestUnit}`}
+            scaleUnit={highestScaleUnit}
+            syncKey={syncKey}
+            duration={duration}
+            style={[styles.valueText, { color: theme.colors.onSurface }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          />
+        ) : (
+          <Text
+            style={[styles.valueText, { color: theme.colors.onSurface }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit>
+            {highestValue}
+          </Text>
+        )}
         <Text style={[styles.unitText, { color: theme.colors.onSurfaceVariant }]}>
           {highestUnit}
         </Text>
@@ -106,13 +150,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginHorizontal: 20,
-    marginTop: 14,
-    marginBottom: 12,
+    marginTop: 8,
+    marginBottom: 10,
   },
   card: {
     flex: 1,
     borderRadius: 20,
-    padding: 16,
+    padding: 14,
     elevation: 1,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
@@ -122,7 +166,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 6,
   },
   iconBubble: {
     width: 32,
