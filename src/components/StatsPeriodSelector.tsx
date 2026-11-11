@@ -25,6 +25,8 @@ export type StatPeriodType = 'week' | 'daily' | 'month';
 interface StatsPeriodSelectorProps {
   readonly selectedPeriod: StatPeriodType;
   readonly onSelectPeriod: (period: StatPeriodType) => void;
+  readonly containerHeight?: number;
+  readonly marginTop?: number;
 }
 
 const PERIODS: readonly { type: StatPeriodType; label: string }[] = [
@@ -40,7 +42,11 @@ const TAP_SLOP_PX = 10;
 export function StatsPeriodSelector({
   selectedPeriod,
   onSelectPeriod,
+  containerHeight = CONTAINER_HEIGHT,
+  marginTop = 8,
 }: StatsPeriodSelectorProps): React.JSX.Element {
+  const outerRadius = containerHeight / 2;
+  const innerRadius = (containerHeight - PADDING * 2) / 2;
   const theme = useTheme();
   const isDark = theme.dark;
   const reducedMotion = useReducedMotion();
@@ -367,6 +373,9 @@ export function StatsPeriodSelector({
       style={[
         styles.container,
         {
+          height: containerHeight,
+          borderRadius: outerRadius,
+          marginTop,
           backgroundColor: isDark
             ? theme.colors.elevation.level1
             : theme.colors.surface,
@@ -378,12 +387,15 @@ export function StatsPeriodSelector({
       accessibilityRole="tablist"
       {...panResponder.panHandlers}>
       {segmentWidth > 0 && (
-        <View style={styles.trackClip} pointerEvents="none">
+        <View
+          style={[styles.trackClip, { borderRadius: innerRadius }]}
+          pointerEvents="none">
           <Animated.View
             style={[
               styles.activeIndicator,
               {
                 width: segmentWidth,
+                borderRadius: innerRadius,
                 backgroundColor: theme.colors.primary,
                 transform: [
                   { translateX },
