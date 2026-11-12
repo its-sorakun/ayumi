@@ -1,10 +1,10 @@
 /**
- * Native Keystore, OpenWeatherMap current-weather, coarse location, and free
+ * Native Keystore, manual-city OpenWeatherMap current-weather client, and free
  * DummyJSON daily quote client services for Ayumi's Ambient Scenery theme.
- * Contains zero generative-AI keys, endpoints, or prompt payloads.
+ * Requests zero device location permissions and contains zero generative-AI APIs.
  */
 
-import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
+import { NativeModules } from 'react-native';
 
 import {
   DAILY_QUOTE_POOL_SIZE,
@@ -27,9 +27,6 @@ interface NativeAyumiAmbientBridge {
     cityOrTest: string | null,
   ): Promise<{ valid: boolean; statusCode: number }>;
   fetchCurrentWeather(
-    hasCoords: boolean,
-    lat: number,
-    lon: number,
     cityQuery: string | null,
   ): Promise<{
     temperatureC?: number;
@@ -39,7 +36,7 @@ interface NativeAyumiAmbientBridge {
     iconCode: string;
     isNight: boolean;
     fetchedAtMs: number;
-    source: 'gps' | 'city';
+    source: 'city';
     cityLabel?: string;
   }>;
   fetchDailyQuote?: (
@@ -50,7 +47,6 @@ interface NativeAyumiAmbientBridge {
     quote: string;
     author: string;
   }>;
-  getApproximateLocation(): Promise<{ lat: number; lon: number; timestampMs: number }>;
 }
 
 function getNativeAmbient(): NativeAyumiAmbientBridge | undefined {
@@ -71,7 +67,7 @@ export interface AmbientWeatherSnapshot {
   readonly conditionCategory: WeatherConditionCategory;
   readonly isNight: boolean;
   readonly fetchedAtMs: number;
-  readonly source: 'gps' | 'city';
+  readonly source: 'city';
   readonly cityLabel?: string;
 }
 
@@ -198,63 +194,15 @@ export async function validateWeatherApiKey(
   }
 }
 
-export async function requestCoarseLocationPermission(): Promise<boolean> {
-  if (Platform.OS !== 'android') return false;
-  try {
-    const already = await PermissionsAndroid.check(
-      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-    );
-    if (already) return true;
-    const result = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-      {
-        title: 'Approximate location for local weather',
-        message:
-          'Ayumi uses coarse location only to query local current weather conditions. GPS coordinates are never stored.',
-        buttonPositive: 'Allow',
-        buttonNegative: 'Use manual city',
-      },
-    );
-    return result === PermissionsAndroid.RESULTS.GRANTED;
-  } catch {
-    return false;
-  }
-}
-
-export async function fetchAmbientWeather(
-  useDeviceLocation: boolean,
-  fallbackCity: string,
-): Promise<AmbientWeatherSnapshot> {
+export async function fetchAmbientWeather(city: string): Promise<AmbientWeatherSnapshot> {
   const bridge = getAmbientBridgeOrThrow();
-  let hasCoords = false;
-  let lat = 0;
-  let lon = 0;
-
-  if (useDeviceLocation) {
-    try {
-      const hasPerm =
-        Platform.OS === 'android'
-          ? await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION)
-          : false;
-      if (hasPerm) {
-        const loc = await bridge.getApproximateLocation();
-        if (Number.isFinite(loc.lat) && Number.isFinite(loc.lon)) {
-          hasCoords = true;
-          lat = loc.lat;
-          lon = loc.lon;
-        }
-      }
-    } catch {
-      // Fall back cleanly to manual city if coarse GPS is temporarily disabled.
-    }
-  }
-
-  if (!hasCoords && !fallbackCity.trim()) {
-    throw new Error('Enable coarse location permission or enter a city name in Settings.');
+  const trimmedCity = city.trim();
+  if (!trimmedCity) {
+    throw new Error('Enter a city name in Settings to sync local weather.');
   }
 
   try {
-    const res = await bridge.fetchCurrentWeather(hasCoords, lat, lon, fallbackCity.trim() || null);
+    const res = await bridge.fetchCurrentWeather(trimmedCity);
     return {
       temperatureC:
         typeof res.temperatureC === 'number' && Number.isFinite(res.temperatureC)
@@ -267,7 +215,7 @@ export async function fetchAmbientWeather(
       conditionCategory: normalizeWeatherCategory(res.conditionId, res.conditionMain),
       isNight: Boolean(res.isNight),
       fetchedAtMs: res.fetchedAtMs || Date.now(),
-      source: res.source,
+      source: 'city',
       cityLabel: res.cityLabel,
     };
   } catch (err) {

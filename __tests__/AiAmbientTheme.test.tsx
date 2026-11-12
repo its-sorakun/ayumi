@@ -40,7 +40,7 @@ const mockAyumiAmbient = {
     masked: '',
   })),
   validateWeatherKey: jest.fn(async () => ({ valid: true, statusCode: 200 })),
-  fetchCurrentWeather: jest.fn(async () => ({
+  fetchCurrentWeather: jest.fn(async (cityQuery?: string | null) => ({
     temperatureC: 24.4,
     conditionId: 800,
     conditionMain: 'Clear',
@@ -49,7 +49,7 @@ const mockAyumiAmbient = {
     isNight: false,
     fetchedAtMs: Date.now(),
     source: 'city' as const,
-    cityLabel: 'Kyoto',
+    cityLabel: cityQuery || 'Kyoto',
   })),
   fetchDailyQuote: jest.fn(async (dailySeedId: number, useRandom: boolean) => ({
     id: useRandom ? 777 : dailySeedId,
@@ -57,11 +57,6 @@ const mockAyumiAmbient = {
       ? 'Soft breeze walks with patience along the hill.'
       : 'Peace begins where haste settles down.',
     author: 'Seneca',
-  })),
-  getApproximateLocation: jest.fn(async () => ({
-    lat: 35.0,
-    lon: 135.7,
-    timestampMs: Date.now(),
   })),
 };
 
@@ -447,9 +442,11 @@ describe('Ambient Scenery Theme Isolation & Zero-AI Config', () => {
 
   it('removes all generative AI endpoints/models and uses DummyJSON free quotes', () => {
     const configModule = require('../src/themes/aiAmbient/config');
+    const servicesModule = require('../src/themes/aiAmbient/ambientServices');
     expect(configModule.GEMINI_IMAGE_MODELS).toBeUndefined();
     expect(configModule.GEMINI_TEXT_MODELS).toBeUndefined();
     expect(configModule.GEMINI_API_BASE).toBeUndefined();
+    expect(servicesModule.requestCoarseLocationPermission).toBeUndefined();
     expect(DUMMYJSON_QUOTE_BASE).toBe('https://dummyjson.com/quotes');
     expect(DAILY_QUOTE_POOL_SIZE).toBe(1454);
   });
@@ -669,7 +666,7 @@ describe('Dynamic Sky, Dashboard View, Nav & Settings Look Pickers', () => {
     expect(onStats).toHaveBeenCalledTimes(1);
   });
 
-  it('prevents background weather, quote, and location calls when Default or OxygenOS is active', async () => {
+  it('prevents background weather and quote calls when Default or OxygenOS is active', async () => {
     await act(async () => {
       trackTree(
         ReactTestRenderer.create(
@@ -693,7 +690,6 @@ describe('Dynamic Sky, Dashboard View, Nav & Settings Look Pickers', () => {
 
     expect(mockAyumiAmbient.fetchCurrentWeather).not.toHaveBeenCalled();
     expect(mockAyumiAmbient.fetchDailyQuote).not.toHaveBeenCalled();
-    expect(mockAyumiAmbient.getApproximateLocation).not.toHaveBeenCalled();
   });
 
   it('spawns randomized starfield & shooting star on night UI and monsoon greens during rainy summer', async () => {
@@ -701,7 +697,6 @@ describe('Dynamic Sky, Dashboard View, Nav & Settings Look Pickers', () => {
       AI_AMBIENT_STORAGE_KEYS.PREFS,
       JSON.stringify({
         autoRefreshWeather: false,
-        useDeviceLocation: false,
         manualCity: 'Tokyo',
         timeOverride: 'midnight',
         weatherOverride: 'rain',
@@ -739,7 +734,6 @@ describe('Dynamic Sky, Dashboard View, Nav & Settings Look Pickers', () => {
       AI_AMBIENT_STORAGE_KEYS.PREFS,
       JSON.stringify({
         autoRefreshWeather: false,
-        useDeviceLocation: false,
         manualCity: 'Kyoto',
         timeOverride: 'dawn',
         weatherOverride: 'clear',
@@ -902,6 +896,9 @@ describe('Dynamic Sky, Dashboard View, Nav & Settings Look Pickers', () => {
     });
     await flushAsync();
     expect(tree!.root.findAllByProps({ testID: 'ai-ambient-season-picker' })).toHaveLength(0);
+
+    // Verify zero device location permission toggles exist in Settings UI
+    expect(tree!.root.findAllByProps({ testID: 'ai-ambient-location-toggle' })).toHaveLength(0);
 
     // Save OpenWeatherMap BYOK exclusively via Keystore
     const weatherInput = tree!.root.findByProps({ testID: 'ai-ambient-weather-input' });

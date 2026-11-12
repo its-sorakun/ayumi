@@ -32,7 +32,6 @@ import {
   fetchDailyAmbientQuote,
   readAmbientKeyStatuses,
   redactAmbientSecrets,
-  requestCoarseLocationPermission,
   saveWeatherApiKey,
   validateWeatherApiKey,
   type AmbientKeyStatuses,
@@ -57,7 +56,6 @@ import {
 
 export interface AiAmbientPreferences {
   readonly autoRefreshWeather: boolean;
-  readonly useDeviceLocation: boolean;
   readonly manualCity: string;
   readonly timeOverride: TimeOfDayOverride;
   readonly weatherOverride: WeatherLookOverride;
@@ -67,7 +65,6 @@ export interface AiAmbientPreferences {
 
 const DEFAULT_PREFS: AiAmbientPreferences = {
   autoRefreshWeather: true,
-  useDeviceLocation: true,
   manualCity: 'Tokyo',
   timeOverride: 'auto',
   weatherOverride: 'auto',
@@ -96,7 +93,6 @@ export interface AiAmbientContextValue {
   readonly deleteWeatherKey: () => Promise<void>;
   readonly testWeatherKey: (candidateKey?: string, testCity?: string) => Promise<boolean>;
   readonly setAutoRefreshWeather: (enabled: boolean) => Promise<void>;
-  readonly setUseDeviceLocation: (enabled: boolean) => Promise<void>;
   readonly setManualCity: (city: string) => Promise<void>;
   readonly setTimeOverride: (override: TimeOfDayOverride) => Promise<void>;
   readonly setWeatherOverride: (override: WeatherLookOverride) => Promise<void>;
@@ -137,7 +133,6 @@ const DEFAULT_CONTEXT_VALUE: AiAmbientContextValue = {
   deleteWeatherKey: async () => {},
   testWeatherKey: async () => false,
   setAutoRefreshWeather: async () => {},
-  setUseDeviceLocation: async () => {},
   setManualCity: async () => {},
   setTimeOverride: async () => {},
   setWeatherOverride: async () => {},
@@ -268,14 +263,7 @@ export function AiAmbientProvider({
       setLastError(null);
 
       try {
-        const currentPrefs = prefsRef.current;
-        if (interactive && currentPrefs.useDeviceLocation) {
-          await requestCoarseLocationPermission();
-        }
-        const snap = await fetchAmbientWeather(
-          currentPrefs.useDeviceLocation,
-          currentPrefs.manualCity,
-        );
+        const snap = await fetchAmbientWeather(prefsRef.current.manualCity);
         setWeather(snap);
         weatherRef.current = snap;
         await AsyncStorage.setItem(AI_AMBIENT_STORAGE_KEYS.WEATHER_CACHE, JSON.stringify(snap));
@@ -321,7 +309,6 @@ export function AiAmbientProvider({
           const parsed = JSON.parse(rawPrefs) as Partial<AiAmbientPreferences>;
           const merged: AiAmbientPreferences = {
             autoRefreshWeather: parsed.autoRefreshWeather ?? true,
-            useDeviceLocation: parsed.useDeviceLocation ?? true,
             manualCity: parsed.manualCity ?? 'Tokyo',
             timeOverride: parsed.timeOverride ?? 'auto',
             weatherOverride: parsed.weatherOverride ?? 'auto',
@@ -527,7 +514,6 @@ export function AiAmbientProvider({
       deleteWeatherKey,
       testWeatherKey,
       setAutoRefreshWeather: (enabled: boolean) => updatePrefField('autoRefreshWeather', enabled),
-      setUseDeviceLocation: (enabled: boolean) => updatePrefField('useDeviceLocation', enabled),
       setManualCity: (city: string) => updatePrefField('manualCity', city),
       setTimeOverride: (override: TimeOfDayOverride) => updatePrefField('timeOverride', override),
       setWeatherOverride: (override: WeatherLookOverride) =>

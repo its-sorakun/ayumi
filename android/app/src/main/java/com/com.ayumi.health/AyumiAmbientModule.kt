@@ -1,23 +1,11 @@
 /*
  * Native Android bridge exposing Keystore-encrypted OpenWeatherMap storage,
- * HTTPS OpenWeatherMap current-weather/geocoding lookups, free DummyJSON daily quote
- * fetching, and low-privilege coarse location resolution for Ambient Scenery.
+ * HTTPS OpenWeatherMap geocoding/current-weather lookups by manual city, and
+ * free DummyJSON daily quote fetching for Ambient Scenery.
  */
 
 package com.ayumi.health
 
-import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
-import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
-import android.os.Build
-import android.os.Bundle
-import android.os.CancellationSignal
-import android.os.Handler
-import android.os.Looper
-import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -32,7 +20,6 @@ import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 
 class AyumiAmbientModule(
     reactContext: ReactApplicationContext
@@ -132,9 +119,6 @@ class AyumiAmbientModule(
 
     @ReactMethod
     fun fetchCurrentWeather(
-        hasCoords: Boolean,
-        lat: Double,
-        lon: Double,
         cityQuery: String?,
         promise: Promise
     ) {
@@ -145,37 +129,31 @@ class AyumiAmbientModule(
                         promise.reject("NO_WEATHER_KEY", "OpenWeatherMap API key is not configured.")
                         return@execute
                     }
-                val encodedKey = URLEncoder.encode(key, StandardCharsets.UTF_8.name())
-
-                var resolvedLat = lat
-                var resolvedLon = lon
-                var resolvedLocationLabel = ""
-
-                if (!hasCoords) {
-                    val query = cityQuery?.trim().orEmpty()
-                    if (query.isEmpty()) {
-                        promise.reject("NO_LOCATION", "Provide a manual city name or grant location permission.")
-                        return@execute
-                    }
-                    val geoUrl =
-                        "https://api.openweathermap.org/geo/1.0/direct?q=${URLEncoder.encode(query, StandardCharsets.UTF_8.name())}&limit=1&appid=$encodedKey"
-                    val (geoCode, geoBody) = executeHttpsRequest(geoUrl)
-                    if (geoCode !in 200..299) {
-                        promise.reject("GEOCODE_HTTP_ERROR", redactSensitiveText(parseOpenWeatherError(geoBody, geoCode)))
-                        return@execute
-                    }
-                    val arr = JSONArray(geoBody)
-                    if (arr.length() == 0) {
-                        promise.reject("CITY_NOT_FOUND", "City not found. Check spelling or include country code.")
-                        return@execute
-                    }
-                    val first = arr.getJSONObject(0)
-                    resolvedLat = first.getDouble("lat")
-                    resolvedLon = first.getDouble("lon")
-                    val name = first.optString("name", query)
-                    val country = first.optString("country", "")
-                    resolvedLocationLabel = if (country.isNotEmpty()) "$name, $country" else name
+                val query = cityQuery?.trim().orEmpty()
+                if (query.isEmpty()) {
+                    promise.reject("NO_CITY", "Enter a city name in Ambient Scenery Settings.")
+                    return@execute
                 }
+
+                val encodedKey = URLEncoder.encode(key, StandardCharsets.UTF_8.name())
+                val geoUrl =
+                    "https://api.openweathermap.org/geo/1.0/direct?q=${URLEncoder.encode(query, StandardCharsets.UTF_8.name())}&limit=1&appid=$encodedKey"
+                val (geoCode, geoBody) = executeHttpsRequest(geoUrl)
+                if (geoCode !in 200..299) {
+                    promise.reject("GEOCODE_HTTP_ERROR", redactSensitiveText(parseOpenWeatherError(geoBody, geoCode)))
+                    return@execute
+                }
+                val arr = JSONArray(geoBody)
+                if (arr.length() == 0) {
+                    promise.reject("CITY_NOT_FOUND", "City not found. Check spelling or include country code.")
+                    return@execute
+                }
+                val first = arr.getJSONObject(0)
+                val resolvedLat = first.getDouble("lat")
+                val resolvedLon = first.getDouble("lon")
+                val name = first.optString("name", query)
+                val country = first.optString("country", "")
+                val resolvedLocationLabel = if (country.isNotEmpty()) "$name, $country" else name
 
                 val weatherUrl =
                     "https://api.openweathermap.org/data/2.5/weather?lat=$resolvedLat&lon=$resolvedLon&units=metric&appid=$encodedKey"
@@ -214,7 +192,7 @@ class AyumiAmbientModule(
                 result.putString("iconCode", iconCode)
                 result.putBoolean("isNight", isNight)
                 result.putDouble("fetchedAtMs", System.currentTimeMillis().toDouble())
-                result.putString("source", if (hasCoords) "gps" else "city")
+                result.putString("source", "city")
                 if (resolvedLocationLabel.isNotEmpty()) {
                     result.putString("cityLabel", resolvedLocationLabel)
                 }
@@ -264,130 +242,6 @@ class AyumiAmbientModule(
                 )
             }
         }
-    }
-
-    @ReactMethod
-    fun getApproximateLocation(promise: Promise) {
-        val hasCoarse = ContextCompat.checkSelfPermission(
-            reactApplicationContext,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        val hasFine = ContextCompat.checkSelfPermission(
-            reactApplicationContext,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasCoarse && !hasFine) {
-            promise.reject("PERMISSION_DENIED", "Approximate location permission was not granted.")
-            return
-        }
-
-        val lm = reactApplicationContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-        if (lm == null) {
-            promise.reject("LOCATION_UNAVAILABLE", "Android LocationManager is unavailable.")
-            return
-        }
-
-        try {
-            val providers = listOfNotNull(
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) LocationManager.FUSED_PROVIDER else null,
-                LocationManager.NETWORK_PROVIDER,
-                LocationManager.PASSIVE_PROVIDER,
-                LocationManager.GPS_PROVIDER
-            )
-
-            val nowMs = System.currentTimeMillis()
-            var freshest: Location? = null
-            for (provider in providers) {
-                if (!runCatching { lm.isProviderEnabled(provider) }.getOrDefault(false)) continue
-                @Suppress("MissingPermission")
-                val candidate = runCatching { lm.getLastKnownLocation(provider) }.getOrNull() ?: continue
-                if (freshest == null || candidate.time > freshest.time) {
-                    freshest = candidate
-                }
-            }
-
-            if (freshest != null && (nowMs - freshest.time) < 3 * 60 * 60 * 1000L) {
-                resolveLocationPromise(promise, freshest)
-                return
-            }
-
-            val activeProvider = providers.firstOrNull { provider ->
-                provider != LocationManager.PASSIVE_PROVIDER &&
-                    runCatching { lm.isProviderEnabled(provider) }.getOrDefault(false)
-            }
-            if (activeProvider == null) {
-                if (freshest != null) {
-                    resolveLocationPromise(promise, freshest)
-                } else {
-                    promise.reject("LOCATION_DISABLED", "Device location providers are disabled.")
-                }
-                return
-            }
-
-            val settled = AtomicBoolean(false)
-            val mainHandler = Handler(Looper.getMainLooper())
-            val cancelSignal = CancellationSignal()
-
-            mainHandler.postDelayed({
-                if (settled.compareAndSet(false, true)) {
-                    cancelSignal.cancel()
-                    if (freshest != null) {
-                        resolveLocationPromise(promise, freshest)
-                    } else {
-                        promise.reject("LOCATION_TIMEOUT", "Timed out waiting for coarse location fix.")
-                    }
-                }
-            }, 7500L)
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                @Suppress("MissingPermission")
-                lm.getCurrentLocation(
-                    activeProvider,
-                    cancelSignal,
-                    ContextCompat.getMainExecutor(reactApplicationContext)
-                ) { location ->
-                    if (settled.compareAndSet(false, true)) {
-                        if (location != null) {
-                            resolveLocationPromise(promise, location)
-                        } else if (freshest != null) {
-                            resolveLocationPromise(promise, freshest)
-                        } else {
-                            promise.reject("LOCATION_UNAVAILABLE", "No approximate location available.")
-                        }
-                    }
-                }
-            } else {
-                @Suppress("DEPRECATION", "MissingPermission")
-                lm.requestSingleUpdate(
-                    activeProvider,
-                    object : LocationListener {
-                        override fun onLocationChanged(location: Location) {
-                            if (settled.compareAndSet(false, true)) {
-                                resolveLocationPromise(promise, location)
-                            }
-                        }
-
-                        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-                        override fun onProviderEnabled(provider: String) {}
-                        override fun onProviderDisabled(provider: String) {}
-                    },
-                    Looper.getMainLooper()
-                )
-            }
-        } catch (ex: SecurityException) {
-            promise.reject("PERMISSION_DENIED", "Location permission denied by system.")
-        } catch (ex: Exception) {
-            promise.reject("LOCATION_ERROR", ex.message ?: "Failed reading device location.")
-        }
-    }
-
-    private fun resolveLocationPromise(promise: Promise, location: Location) {
-        val map = Arguments.createMap()
-        map.putDouble("lat", location.latitude)
-        map.putDouble("lon", location.longitude)
-        map.putDouble("timestampMs", location.time.toDouble())
-        promise.resolve(map)
     }
 
     private fun resolveCandidateKey(overrideKey: String?, alias: String): String? {

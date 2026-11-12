@@ -3,7 +3,7 @@
  * Ambient Scenery (`ai_ambient`) is selected or active.
  * Exposes Time-of-Day look presets (Auto + 7 phases), Weather look presets (Auto + 8 moods),
  * Seasonal vibes toggle + month/manual overrides, optional OpenWeatherMap BYOK Keystore
- * management, coarse location vs. manual city fallback, and manual quote/weather sync.
+ * management, manual city input (with zero location permissions), and quote/weather sync.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -135,7 +135,6 @@ export function AiAmbientSettingsSection({
     deleteWeatherKey,
     testWeatherKey,
     setAutoRefreshWeather,
-    setUseDeviceLocation,
     setManualCity,
     setTimeOverride,
     setWeatherOverride,
@@ -161,10 +160,6 @@ export function AiAmbientSettingsSection({
   const handleToggleSeasonal = useCallback(
     (val: boolean) => setSeasonalEnabled(val),
     [setSeasonalEnabled],
-  );
-  const handleToggleLocation = useCallback(
-    (val: boolean) => setUseDeviceLocation(val),
-    [setUseDeviceLocation],
   );
   const handleToggleAutoWeather = useCallback(
     (val: boolean) => setAutoRefreshWeather(val),
@@ -227,6 +222,9 @@ export function AiAmbientSettingsSection({
 
   const handleRefreshAll = async () => {
     setStatusMessage(null);
+    if (cityDraft.trim() && cityDraft.trim() !== prefs.manualCity) {
+      await setManualCity(cityDraft.trim());
+    }
     await refreshAtmosphereNow();
     setStatusMessage('Weather look & daily quote refreshed.');
   };
@@ -383,22 +381,11 @@ export function AiAmbientSettingsSection({
 
         <Divider style={styles.innerDivider} />
 
-        <List.Item
-          title="Use approximate location"
-          description="Coarse location lookup only when Ambient Scenery is active"
-          descriptionNumberOfLines={2}
-          right={renderSettingSwitch(
-            prefs.useDeviceLocation,
-            handleToggleLocation,
-            'ai-ambient-location-toggle',
-          )}
-        />
-
         <View style={styles.cityRow}>
           <TextInput
             mode="outlined"
             dense
-            label="Fallback / Manual City"
+            label="City"
             value={cityDraft}
             onChangeText={setCityDraft}
             onBlur={() => {
