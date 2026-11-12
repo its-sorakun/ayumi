@@ -20,6 +20,9 @@ class MainApplication : Application(), ReactApplication {
               // SystemPalettePackage: reads public API 31+ / 34+ / 35+ android.R.color
               // system tokens and WallpaperManager diagnostics for theme palette adaptation
               add(SystemPalettePackage())
+              // AyumiAmbientPackage: Android Keystore BYOK secret storage, TLS weather/Gemini
+              // calls, local artwork caching, coarse location, and OKLab palette extraction
+              add(AyumiAmbientPackage())
             },
     )
   }

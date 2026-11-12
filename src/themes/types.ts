@@ -10,7 +10,7 @@ import type { Animated, EasingFunction, LayoutChangeEvent } from 'react-native';
 import type { MD3Theme } from 'react-native-paper';
 import type { MaterialYouPalette } from 'react-native-material-you-colors';
 
-export type AyumiThemeId = 'default' | 'oxygen_coloros';
+export type AyumiThemeId = 'default' | 'oxygen_coloros' | 'ai_ambient';
 
 export const DEFAULT_VISUAL_THEME_ID: AyumiThemeId = 'default';
 
@@ -18,6 +18,9 @@ export const DEFAULT_VISUAL_THEME_ID: AyumiThemeId = 'default';
 export function normalizeVisualThemeId(raw: string | null | undefined): AyumiThemeId {
   if (raw === 'oxygen_coloros') {
     return 'oxygen_coloros';
+  }
+  if (raw === 'ai_ambient') {
+    return 'ai_ambient';
   }
   return 'default';
 }
@@ -90,13 +93,13 @@ export interface AyumiSurfaceTokens {
   readonly cardShadowOpacity: number;
   readonly groupedSettingsCards: boolean;
   readonly tintHomeWaterCard: boolean;
-  readonly heroLayout: 'floating_gauge' | 'modular_card';
+  readonly heroLayout: 'floating_gauge' | 'modular_card' | 'organic_ambient';
   readonly bentoLayout: 'left_bubble' | 'header_inline';
   readonly activeControlStyle: 'tonal_container' | 'soft_outlined' | 'filled_pill';
   readonly subtleTimelineMenuButton: boolean;
   readonly badgeStyle: 'tonal' | 'solid';
   readonly iconFamily: 'ayumi_default' | 'oxygen_lucide';
-  readonly ambientGradientStyle: 'none' | 'dynamic_glow';
+  readonly ambientGradientStyle: 'none' | 'dynamic_glow' | 'ai_ambient_scenic';
   readonly metricSelectorVariant: 'cards_stacked' | 'horizontal_pills';
   readonly separateWaterPresetCards: boolean;
   readonly statsMainSummaryInline: boolean;
@@ -130,7 +133,7 @@ export interface AyumiTypographyTokens {
 }
 
 export interface AyumiNavigationTokens {
-  readonly variant: 'capsule_icons' | 'oem_labeled_pill';
+  readonly variant: 'capsule_icons' | 'oem_labeled_pill' | 'wave_organic_blob';
   readonly showLabels: boolean;
   readonly pillHeight: number;
   readonly pillMaxWidth: number;

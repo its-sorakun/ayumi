@@ -61,7 +61,8 @@ export function StatsSummaryCards({
   contentRowMarginBottom = 6,
 }: StatsSummaryCardsProps): React.JSX.Element {
   const theme = useTheme();
-  const { surfaces, typography, metricAccents, resolveCardBorder } = useAyumiTheme();
+  const { surfaces, typography, metricAccents, resolveCardBorder, resolveCardSurface } =
+    useAyumiTheme();
   const isDark = theme.dark;
 
   const metricAccent =
@@ -71,7 +72,9 @@ export function StatsSummaryCards({
         ? metricAccents.water
         : metricAccents.steps;
 
-  const cardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
+  const cardBg = resolveCardSurface(
+    isDark ? theme.colors.elevation.level1 : theme.colors.surface,
+  );
   const { borderColor, borderWidth } = resolveCardBorder();
   const isOemCards = surfaces.bentoLayout === 'header_inline';
   const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';

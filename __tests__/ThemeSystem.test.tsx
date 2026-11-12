@@ -552,10 +552,18 @@ async function flushAsyncRender(): Promise<void> {
 }
 
 describe('Theme Registry & Normalization', () => {
-  it('exposes exactly two themes (default and oxygen_coloros)', () => {
-    expect(AYUMI_THEME_OPTIONS).toHaveLength(2);
-    expect(AYUMI_THEME_OPTIONS.map((t) => t.id)).toEqual(['default', 'oxygen_coloros']);
-    expect(Object.keys(AYUMI_THEMES).sort()).toEqual(['default', 'oxygen_coloros']);
+  it('exposes all three themes (default, oxygen_coloros, ai_ambient)', () => {
+    expect(AYUMI_THEME_OPTIONS).toHaveLength(3);
+    expect(AYUMI_THEME_OPTIONS.map((t) => t.id)).toEqual([
+      'default',
+      'oxygen_coloros',
+      'ai_ambient',
+    ]);
+    expect(Object.keys(AYUMI_THEMES).sort()).toEqual([
+      'ai_ambient',
+      'default',
+      'oxygen_coloros',
+    ]);
     expect(DEFAULT_VISUAL_THEME_ID).toBe('default');
   });
 
@@ -567,10 +575,12 @@ describe('Theme Registry & Normalization', () => {
     expect(normalizeVisualThemeId('oxygen')).toBe('default');
     expect(normalizeVisualThemeId('default')).toBe('default');
     expect(normalizeVisualThemeId('oxygen_coloros')).toBe('oxygen_coloros');
+    expect(normalizeVisualThemeId('ai_ambient')).toBe('ai_ambient');
 
     expect(getAyumiThemeDefinition(null).id).toBe('default');
     expect(getAyumiThemeDefinition('invalid' as 'default').id).toBe('default');
     expect(getAyumiThemeDefinition('oxygen_coloros').id).toBe('oxygen_coloros');
+    expect(getAyumiThemeDefinition('ai_ambient').id).toBe('ai_ambient');
   });
 });
 

@@ -47,6 +47,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useWaterTracker, type WaterLog } from '../hooks/useWaterTracker';
 import { useReducedMotion } from '../theme/motion';
 import {
+  AiAmbientBackdropCanvas,
   blendHexColors,
   colorWithOpacity,
   deriveGradientHighlightHex,
@@ -195,7 +196,7 @@ function WaterPresetTile({
   onPress,
 }: PresetTileProps): React.JSX.Element {
   const theme = useTheme();
-  const { motion, surfaces, metricAccents } = useAyumiTheme();
+  const { motion, surfaces, metricAccents, resolveCardSurface } = useAyumiTheme();
   const waterAccent = metricAccents.water;
   const pressScale = useRef(new Animated.Value(1)).current;
   const isSeparateTile = surfaces.separateWaterPresetCards;
@@ -227,13 +228,15 @@ function WaterPresetTile({
     ? isOemTint
       ? blendHexColors(surfaceBaseHex, waterAccent.color, theme.dark ? 0.24 : 0.14)
       : waterAccent.container
-    : theme.dark
-    ? isSeparateTile
-      ? theme.colors.elevation.level1
-      : theme.colors.elevation.level2
-    : isOemTint
-    ? theme.colors.surface
-    : theme.colors.background;
+    : resolveCardSurface(
+        theme.dark
+          ? isSeparateTile
+            ? theme.colors.elevation.level1
+            : theme.colors.elevation.level2
+          : isOemTint
+          ? theme.colors.surface
+          : theme.colors.background,
+      );
   const tileBorder = isActive
     ? isSeparateTile
       ? blendHexColors(surfaceBaseHex, waterAccent.color, theme.dark ? 0.56 : 0.42)
@@ -530,6 +533,7 @@ export function WaterLoggerScreen({
     progress,
     metricAccents,
     resolveCardBorder,
+    resolveCardSurface,
   } = useAyumiTheme();
   const waterAccent = metricAccents.water;
   const ringStroke = progress.waterStrokeWidth;
@@ -779,7 +783,8 @@ export function WaterLoggerScreen({
     animatedProgress.ringRatio > 0.015 &&
     animatedProgress.ringRatio < 0.995;
 
-  const cardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
+  const baseCardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
+  const cardBg = resolveCardSurface(baseCardBg);
   const cardBorder = resolveCardBorder();
   const customDraftLabel = formatConfirmWaterLabel(customDraftMl, customDraftUnit);
   const isOemWaterVisual = surfaces.bentoLayout === 'header_inline';
@@ -981,7 +986,7 @@ export function WaterLoggerScreen({
                   cx={tipKnobX}
                   cy={tipKnobY}
                   r={5.5}
-                  fill={cardBg}
+                  fill={baseCardBg}
                   stroke={waterAccent.color}
                   strokeWidth={2.5}
                 />
@@ -1143,9 +1148,11 @@ export function WaterLoggerScreen({
             style={[
               styles.customAmountRow,
               {
-                backgroundColor: isDark
-                  ? theme.colors.elevation.level2
-                  : theme.colors.background,
+                backgroundColor: resolveCardSurface(
+                  isDark
+                    ? theme.colors.elevation.level2
+                    : theme.colors.background,
+                ),
                 borderColor: theme.colors.outlineVariant,
               },
             ]}
@@ -1340,6 +1347,12 @@ export function WaterLoggerScreen({
         isDark={isDark}
         testID="water-ambient-backdrop"
       />
+      {surfaces.ambientGradientStyle === 'ai_ambient_scenic' && (
+        <AiAmbientBackdropCanvas
+          variant="subdued"
+          testID="water-ai-ambient-backdrop"
+        />
+      )}
       {requiresOuterScroll ? (
         <ScrollView
           testID="water-outer-scroll"

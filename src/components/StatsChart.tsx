@@ -178,6 +178,7 @@ export function StatsChart({
     typography,
     metricAccents,
     resolveCardBorder,
+    resolveCardSurface,
   } = useAyumiTheme();
   const metricAccent =
     metric === 'distance'
@@ -358,8 +359,12 @@ export function StatsChart({
     }
   })();
 
-  const oemWellBg = isDark ? theme.colors.elevation.level2 : theme.colors.background;
-  const statsCardBg = isDark ? theme.colors.elevation.level1 : theme.colors.surface;
+  const oemWellBg = resolveCardSurface(
+    isDark ? theme.colors.elevation.level2 : theme.colors.background,
+  );
+  const statsCardBg = resolveCardSurface(
+    isDark ? theme.colors.elevation.level1 : theme.colors.surface,
+  );
 
   return (
     <View
@@ -378,7 +383,7 @@ export function StatsChart({
         },
       ]}
       onLayout={onLayout}>
-      {isOemStatsCard ? (
+      {surfaces.ambientGradientStyle === 'dynamic_glow' ? (
         <OxygenCardSurfaceGradient
           accentHex={metricAccent.color}
           surfaceHex={statsCardBg}

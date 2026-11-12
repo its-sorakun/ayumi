@@ -61,7 +61,7 @@ export function StatsPeriodSelector({
   const theme = useTheme();
   const isDark = theme.dark;
   const reducedMotion = useReducedMotion();
-  const { motion, surfaces, resolveCardBorder } = useAyumiTheme();
+  const { motion, surfaces, resolveCardBorder, resolveCardSurface } = useAyumiTheme();
   const activePeriods =
     surfaces.metricSelectorVariant === 'horizontal_pills'
       ? OEM_PERIODS
@@ -412,9 +412,9 @@ export function StatsPeriodSelector({
           marginTop,
           elevation: surfaces.cardElevation,
           shadowOpacity: surfaces.cardShadowOpacity,
-          backgroundColor: isDark
-            ? theme.colors.elevation.level1
-            : theme.colors.surface,
+          backgroundColor: resolveCardSurface(
+            isDark ? theme.colors.elevation.level1 : theme.colors.surface,
+          ),
           borderWidth: cardBorder.borderWidth,
           borderColor: cardBorder.borderColor,
         },

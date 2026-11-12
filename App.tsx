@@ -23,11 +23,15 @@ import { AppNavigator } from './src/navigation';
 import { createLightTheme, createDarkTheme } from './src/theme';
 import { SettingsProvider, useSettings } from './src/contexts/SettingsContext';
 import {
+  AiAmbientProvider,
   AYUMI_BASELINE_SEED,
   AyumiThemeId,
   AyumiThemeProvider,
   DEFAULT_VISUAL_THEME_ID,
+  deriveAiAmbientMetricAccents,
   getAyumiThemeDefinition,
+  mapAiAmbientTokensToPaperColors,
+  useAiAmbient,
 } from './src/themes';
 
 /**
@@ -166,10 +170,46 @@ function AppContent(): React.JSX.Element {
 
   const definition = getAyumiThemeDefinition(sessionThemeId);
 
+  return (
+    <AiAmbientProvider
+      activeSessionThemeId={sessionThemeId}
+      systemPalette={materialYouTheme.palette}
+      isDark={isDark}>
+      <ResolvedThemedApp
+        definition={definition}
+        sessionThemeId={sessionThemeId}
+        isLoading={isLoading}
+        isDark={isDark}
+        materialYouPalette={materialYouTheme.palette}
+      />
+    </AiAmbientProvider>
+  );
+}
+
+interface ResolvedThemedAppProps {
+  readonly definition: ReturnType<typeof getAyumiThemeDefinition>;
+  readonly sessionThemeId: AyumiThemeId;
+  readonly isLoading: boolean;
+  readonly isDark: boolean;
+  readonly materialYouPalette: MaterialYouPalette | null | undefined;
+}
+
+function ResolvedThemedApp({
+  definition,
+  sessionThemeId,
+  isLoading,
+  isDark,
+  materialYouPalette,
+}: ResolvedThemedAppProps): React.JSX.Element {
+  const { ambientPalette } = useAiAmbient();
+  const isAiAmbient = sessionThemeId === 'ai_ambient';
+
   const paperTheme = React.useMemo(() => {
-    const paletteColors = materialYouTheme.palette
-      ? definition.mapPaletteToPaperColors(materialYouTheme.palette, isDark)
-      : undefined;
+    const paletteColors = isAiAmbient
+      ? mapAiAmbientTokensToPaperColors(ambientPalette)
+      : materialYouPalette
+        ? definition.mapPaletteToPaperColors(materialYouPalette, isDark)
+        : undefined;
     const base = isDark
       ? createDarkTheme(paletteColors as any)
       : createLightTheme(paletteColors as any);
@@ -185,7 +225,12 @@ function AppContent(): React.JSX.Element {
         },
       },
     };
-  }, [definition, materialYouTheme.palette, isDark]);
+  }, [definition, isAiAmbient, ambientPalette, materialYouPalette, isDark]);
+
+  const ambientAccents = React.useMemo(
+    () => (isAiAmbient ? deriveAiAmbientMetricAccents(ambientPalette) : undefined),
+    [isAiAmbient, ambientPalette],
+  );
 
   // Brief hold until AsyncStorage resolves prevents locking a non-default launch to Default.
   if (isLoading) {
@@ -202,10 +247,15 @@ function AppContent(): React.JSX.Element {
 
   return (
     <PaperProvider theme={paperTheme}>
-      <AyumiThemeProvider themeId={sessionThemeId} paperTheme={paperTheme}>
+      <AyumiThemeProvider
+        themeId={sessionThemeId}
+        paperTheme={paperTheme}
+        customMetricAccents={ambientAccents}
+        customGlassSurface={isAiAmbient ? ambientPalette.glassFill : undefined}>
         <StatusBar
-          barStyle={isDark ? 'light-content' : 'dark-content'}
-          backgroundColor={paperTheme.colors.background}
+          barStyle={isAiAmbient ? 'light-content' : isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={isAiAmbient ? 'transparent' : paperTheme.colors.background}
+          translucent={isAiAmbient}
         />
         <AppNavigator />
       </AyumiThemeProvider>

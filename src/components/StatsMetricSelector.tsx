@@ -93,7 +93,8 @@ export function StatsMetricSelector({
   const theme = useTheme();
   const isDark = theme.dark;
   const reducedMotion = useReducedMotion();
-  const { motion, surfaces, shapes, metricAccents, resolveCardBorder } = useAyumiTheme();
+  const { motion, surfaces, shapes, metricAccents, resolveCardBorder, resolveCardSurface } =
+    useAyumiTheme();
   const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
   const isHorizontalPills = surfaces.metricSelectorVariant === 'horizontal_pills';
   const isFilledPill = surfaces.activeControlStyle === 'filled_pill';
@@ -523,9 +524,9 @@ export function StatsMetricSelector({
             marginTop,
             elevation: surfaces.cardElevation,
             shadowOpacity: surfaces.cardShadowOpacity,
-            backgroundColor: isDark
-              ? theme.colors.elevation.level1
-              : theme.colors.surface,
+            backgroundColor: resolveCardSurface(
+              isDark ? theme.colors.elevation.level1 : theme.colors.surface,
+            ),
             borderWidth: cardBorder.borderWidth,
             borderColor: cardBorder.borderColor,
           },
@@ -613,9 +614,9 @@ export function StatsMetricSelector({
                 borderRadius: shapes.selectorSlotRadius,
                 elevation: surfaces.cardElevation,
                 shadowOpacity: surfaces.cardShadowOpacity,
-                backgroundColor: isDark
-                  ? theme.colors.elevation.level1
-                  : theme.colors.surface,
+                backgroundColor: resolveCardSurface(
+                  isDark ? theme.colors.elevation.level1 : theme.colors.surface,
+                ),
                 borderWidth: cardBorder.borderWidth,
                 borderColor: cardBorder.borderColor,
               },

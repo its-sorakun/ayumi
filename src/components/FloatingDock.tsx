@@ -28,7 +28,7 @@ import {
   SettingsGearIcon,
 } from './AestheticIcons';
 import { MotionTokens, useReducedMotion } from '../theme/motion';
-import { OxygenColorOsDockBar, useAyumiTheme } from '../themes';
+import { AiAmbientWaveNav, OxygenColorOsDockBar, useAyumiTheme } from '../themes';
 
 export interface FloatingDockProps {
   readonly activeTab?: 'home' | 'stats' | 'water' | 'settings';
@@ -408,6 +408,19 @@ export function FloatingDock({
     () => handleTabPress('settings', onProfilePress),
     [handleTabPress, onProfilePress],
   );
+
+  if (navigation.variant === 'wave_organic_blob') {
+    return (
+      <AiAmbientWaveNav
+        activeTab={activeTab}
+        pagerProgress={pagerProgress}
+        onHomePress={handleHomeTabPress}
+        onAnalyticsPress={handleStatsTabPress}
+        onWaterPress={handleWaterTabPress}
+        onProfilePress={handleSettingsTabPress}
+      />
+    );
+  }
 
   if (navigation.variant === 'oem_labeled_pill') {
     return (

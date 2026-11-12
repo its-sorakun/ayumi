@@ -39,6 +39,7 @@ import {
 import { useHealthData, useWaterTracker } from '../hooks';
 import { useSettings } from '../contexts/SettingsContext';
 import {
+  AiAmbientDashboardView,
   colorWithOpacity,
   computeOxygenHomeLayout,
   deriveHarmonicGlowSecondaryHex,
@@ -72,14 +73,16 @@ function getGreeting(): string {
 interface DashboardScreenProps {
   readonly hideDock?: boolean;
   readonly onNavigateToStats?: (metric: 'steps' | 'distance' | 'water') => void;
+  readonly onNavigateToSettings?: () => void;
 }
 
 export function DashboardScreen({
   hideDock = false,
   onNavigateToStats,
+  onNavigateToSettings,
 }: DashboardScreenProps = {}): React.JSX.Element {
   const theme = useTheme();
-  const { colors, isDark, surfaces, shapes, typography, metricAccents } = useAyumiTheme();
+  const { themeId, colors, isDark, surfaces, shapes, typography, metricAccents } = useAyumiTheme();
   const isOemHomeLayout = surfaces.bentoLayout === 'header_inline';
   const useSoftOemBadges = isOemHomeLayout;
   const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
@@ -160,6 +163,7 @@ export function DashboardScreen({
       calories: formatCalories(todaySummary.calories),
       totalCalories: totalCaloriesStr,
       waterGoalText: formattedWaterGoal,
+      waterGoalMl: waterGoal,
       waterProgress,
       activeTime: formatDuration(todaySummary.activeTime),
       distanceProgress: distanceGoal > 0 ? todaySummary.distance / distanceGoal : 0,
@@ -231,6 +235,44 @@ export function DashboardScreen({
         description={error}
         actionLabel="Try Again"
         onAction={refresh}
+      />
+    );
+  }
+
+  if (themeId === 'ai_ambient') {
+    const resolvedWaterGoalMl =
+      formattedValues?.waterGoalMl ??
+      (customWaterGoal || calculateWaterGoal(gender, weight, height, age));
+    const resolvedWaterGoalText =
+      formattedValues?.waterGoalText ?? `${(resolvedWaterGoalMl / 1000).toFixed(1)} L`;
+
+    return (
+      <AiAmbientDashboardView
+        steps={formattedValues?.steps ?? 0}
+        stepGoal={stepGoal}
+        activeCaloriesText={calValue}
+        activeCaloriesUnit={calUnit || 'kcal'}
+        totalCaloriesRaw={formattedValues?.totalCalories ?? 'Setup'}
+        distanceValue={distValue}
+        distanceUnit={distUnit || 'km'}
+        distanceGoalText={formatDistance(distanceGoal)}
+        distanceProgress={formattedValues?.distanceProgress ?? 0}
+        activeTimeValue={activeTimeValue}
+        activeTimeUnit={activeTimeUnit || 'min'}
+        totalWaterMl={totalWater}
+        waterGoalMl={resolvedWaterGoalMl}
+        waterGoalText={resolvedWaterGoalText}
+        waterProgress={formattedValues?.waterProgress ?? 0}
+        refreshing={loading}
+        hideDock={hideDock}
+        onRefresh={onRefresh}
+        onAddWater={addWater}
+        onOpenStepsStats={() => navigateToStatsMetric('steps')}
+        onOpenDistanceStats={() => navigateToStatsMetric('distance')}
+        onOpenWaterStats={() => navigateToStatsMetric('water')}
+        onOpenSettings={() =>
+          onNavigateToSettings ? onNavigateToSettings() : navigation.navigate('Settings')
+        }
       />
     );
   }

@@ -12,6 +12,8 @@ import { useTheme as usePaperTheme, type MD3Theme } from 'react-native-paper';
 
 import { defaultThemeDefinition } from './defaultTheme';
 import { oxygenColorOsThemeDefinition } from './oxygenColorOsTheme';
+import { aiAmbientThemeDefinition } from './aiAmbientTheme';
+import { colorWithOpacity } from './paletteUtils';
 import type {
   AyumiMotionPreset,
   AyumiNavigationTokens,
@@ -27,6 +29,20 @@ import type {
 export * from './types';
 export * from './paletteUtils';
 export { defaultThemeDefinition } from './defaultTheme';
+export {
+  aiAmbientThemeDefinition,
+  AI_AMBIENT_MOTION_PRESET,
+} from './aiAmbientTheme';
+export * from './aiAmbient/config';
+export * from './aiAmbient/ambientPalette';
+export * from './aiAmbient/ambientServices';
+export { AiAmbientProvider, useAiAmbient } from './aiAmbient/AiAmbientContext';
+export { AiAmbientBackdropCanvas } from './aiAmbient/AiAmbientBackdropCanvas';
+export { AiAmbientOrganicSteps, buildOrganicStepsContour, computeOrganicStepsProgress } from './aiAmbient/AiAmbientOrganicSteps';
+export { AiAmbientWaveNav } from './aiAmbient/AiAmbientWaveNav';
+export { AiAmbientWeatherIcon } from './aiAmbient/AiAmbientWeatherIcon';
+export { AiAmbientDashboardView } from './aiAmbient/AiAmbientDashboardView';
+export { AiAmbientSettingsSection } from './aiAmbient/AiAmbientSettingsSection';
 export {
   deriveOxygenMultiAccentRoles,
   oxygenColorOsThemeDefinition,
@@ -50,11 +66,13 @@ export * from './oxygenIcons';
 export const AYUMI_THEMES: Record<AyumiThemeId, AyumiThemeDefinition> = {
   default: defaultThemeDefinition,
   oxygen_coloros: oxygenColorOsThemeDefinition,
+  ai_ambient: aiAmbientThemeDefinition,
 };
 
 export const AYUMI_THEME_OPTIONS: readonly AyumiThemeDefinition[] = [
   defaultThemeDefinition,
   oxygenColorOsThemeDefinition,
+  aiAmbientThemeDefinition,
 ];
 
 /** Retrieves a theme definition safely, falling back to Default when unknown. */
@@ -78,6 +96,7 @@ export interface AyumiThemeContextValue {
   readonly progress: AyumiProgressTokens;
   readonly motion: AyumiMotionPreset;
   readonly resolveCardBorder: () => { readonly borderWidth: number; readonly borderColor: string };
+  readonly resolveCardSurface: (opaqueFallback: string) => string;
 }
 
 const AyumiThemeContext = createContext<AyumiThemeContextValue | null>(null);
@@ -85,6 +104,8 @@ const AyumiThemeContext = createContext<AyumiThemeContextValue | null>(null);
 interface AyumiThemeProviderProps {
   readonly themeId: AyumiThemeId;
   readonly paperTheme: MD3Theme;
+  readonly customMetricAccents?: MetricAccentRoles;
+  readonly customGlassSurface?: string;
   readonly children: React.ReactNode;
 }
 
@@ -95,6 +116,8 @@ interface AyumiThemeProviderProps {
 export function AyumiThemeProvider({
   themeId,
   paperTheme,
+  customMetricAccents,
+  customGlassSurface,
   children,
 }: AyumiThemeProviderProps): React.JSX.Element {
   const definition = getAyumiThemeDefinition(themeId);
@@ -105,7 +128,8 @@ export function AyumiThemeProvider({
       definition,
       colors: paperTheme.colors,
       isDark: paperTheme.dark,
-      metricAccents: definition.getMetricAccents(paperTheme.colors, paperTheme.dark),
+      metricAccents:
+        customMetricAccents ?? definition.getMetricAccents(paperTheme.colors, paperTheme.dark),
       surfaces: definition.surfaces,
       shapes: definition.shapes,
       typography: definition.typography,
@@ -113,8 +137,13 @@ export function AyumiThemeProvider({
       progress: definition.progress,
       motion: definition.motion,
       resolveCardBorder: () => definition.resolveCardBorder(paperTheme.colors, paperTheme.dark),
+      resolveCardSurface: (opaqueFallback: string) =>
+        definition.id === 'ai_ambient'
+          ? customGlassSurface ??
+            colorWithOpacity(opaqueFallback, paperTheme.dark ? 0.72 : 0.78)
+          : opaqueFallback,
     }),
-    [definition, paperTheme.colors, paperTheme.dark],
+    [definition, paperTheme.colors, paperTheme.dark, customMetricAccents, customGlassSurface],
   );
 
   return React.createElement(AyumiThemeContext.Provider, { value }, children);
@@ -147,6 +176,7 @@ export function useAyumiTheme(): AyumiThemeContextValue {
       progress: def.progress,
       motion: def.motion,
       resolveCardBorder: () => def.resolveCardBorder(paperTheme.colors, paperTheme.dark),
+      resolveCardSurface: (opaqueFallback: string) => opaqueFallback,
     };
   }, [ctx, paperTheme.colors, paperTheme.dark]);
 }

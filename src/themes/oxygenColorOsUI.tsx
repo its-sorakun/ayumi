@@ -943,6 +943,8 @@ export function OxygenColorOsDockBar({
 interface SettingsSectionGroupProps {
   readonly grouped: boolean;
   readonly surfaces: AyumiSurfaceTokens;
+  readonly cardBackground?: string;
+  readonly cardBorderColor?: string;
   readonly children: React.ReactNode;
 }
 
@@ -953,6 +955,8 @@ interface SettingsSectionGroupProps {
 export function SettingsSectionGroup({
   grouped,
   surfaces,
+  cardBackground,
+  cardBorderColor,
   children,
 }: SettingsSectionGroupProps): React.JSX.Element {
   const theme = useTheme();
@@ -968,12 +972,16 @@ export function SettingsSectionGroup({
         styles.settingsCard,
         {
           borderRadius: surfaces.sectionCardRadius,
-          backgroundColor: isDark
-            ? theme.colors.elevation.level1
-            : theme.colors.surface,
-          borderColor: isDark
-            ? colorWithOpacity(theme.colors.onSurface, 0.09)
-            : theme.colors.outlineVariant,
+          elevation: surfaces.cardElevation,
+          shadowOpacity: surfaces.cardShadowOpacity,
+          backgroundColor:
+            cardBackground ??
+            (isDark ? theme.colors.elevation.level1 : theme.colors.surface),
+          borderColor:
+            cardBorderColor ??
+            (isDark
+              ? colorWithOpacity(theme.colors.onSurface, 0.09)
+              : theme.colors.outlineVariant),
         },
       ]}>
       {children}
@@ -1003,6 +1011,7 @@ export function ThemeOptionCard({
   const theme = useTheme();
   const isDark = theme.dark;
   const isOemPreview = option.id === 'oxygen_coloros';
+  const isAiAmbientPreview = option.id === 'ai_ambient';
 
   const cardBg = isSelected
     ? colorWithOpacity(theme.colors.primary, isDark ? 0.2 : 0.08)
@@ -1075,6 +1084,18 @@ export function ThemeOptionCard({
                   styles.previewDotSmall,
                   { backgroundColor: oemPreviewAccents.water.badgeBg ?? oemPreviewAccents.water.color },
                 ]}
+              />
+            </>
+          ) : isAiAmbientPreview ? (
+            <>
+              <View
+                style={[styles.previewDot, { backgroundColor: theme.colors.tertiary }]}
+              />
+              <View
+                style={[styles.previewDot, { backgroundColor: theme.colors.primary }]}
+              />
+              <View
+                style={[styles.previewDot, { backgroundColor: theme.colors.secondaryContainer }]}
               />
             </>
           ) : (

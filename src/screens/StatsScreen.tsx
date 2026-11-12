@@ -60,6 +60,7 @@ import type { StatNumberScaleUnit } from '../components/AnimatedStatNumber';
 import { FloatingDock } from '../components/FloatingDock';
 import { useReducedMotion } from '../theme/motion';
 import {
+  AiAmbientBackdropCanvas,
   deriveGradientHighlightHex,
   OxygenAmbientBackdrop,
   useAyumiTheme,
@@ -994,6 +995,12 @@ export function StatsScreen({
         isDark={isDark}
         testID="stats-ambient-backdrop"
       />
+      {surfaces.ambientGradientStyle === 'ai_ambient_scenic' && (
+        <AiAmbientBackdropCanvas
+          variant="subdued"
+          testID="stats-ai-ambient-backdrop"
+        />
+      )}
       {isOemStatsLayout ? (
         <View
           testID="stats-nonscroll-viewport"

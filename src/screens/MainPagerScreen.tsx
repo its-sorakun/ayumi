@@ -226,6 +226,7 @@ export function MainPagerScreen(): React.JSX.Element {
           <DashboardScreen
             hideDock={true}
             onNavigateToStats={handleNavigateToStats}
+            onNavigateToSettings={() => goToPage(3)}
           />
         </View>
 

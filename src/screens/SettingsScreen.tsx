@@ -24,6 +24,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '../contexts/SettingsContext';
 import {
+  AiAmbientBackdropCanvas,
+  AiAmbientSettingsSection,
   AYUMI_THEME_OPTIONS,
   AyumiThemeId,
   OxygenAmbientBackdrop,
@@ -71,8 +73,17 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
     surfaces,
     typography,
     metricAccents,
+    resolveCardSurface,
+    resolveCardBorder,
   } = useAyumiTheme();
   const isOxygenIcons = surfaces.iconFamily === 'oxygen_lucide';
+  const groupedCardBg = resolveCardSurface(
+    isDark ? theme.colors.elevation.level1 : theme.colors.surface,
+  );
+  const groupedCardBorderColor =
+    surfaces.ambientGradientStyle === 'ai_ambient_scenic'
+      ? resolveCardBorder().borderColor
+      : undefined;
 
   const renderSettingIcon = (
     fallbackEmoji: string,
@@ -171,12 +182,18 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
         isDark={isDark}
         testID="settings-ambient-backdrop"
       />
+      {surfaces.ambientGradientStyle === 'ai_ambient_scenic' && (
+        <AiAmbientBackdropCanvas
+          variant="subdued"
+          testID="settings-ai-ambient-backdrop"
+        />
+      )}
       <ScrollView
         style={[
           styles.container,
           {
             backgroundColor:
-              surfaces.ambientGradientStyle === 'dynamic_glow'
+              surfaces.ambientGradientStyle !== 'none'
                 ? 'transparent'
                 : theme.colors.background,
           },
@@ -216,7 +233,11 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
           </Text>
         </View>
 
-        <SettingsSectionGroup grouped={surfaces.groupedSettingsCards} surfaces={surfaces}>
+        <SettingsSectionGroup
+          grouped={surfaces.groupedSettingsCards}
+          surfaces={surfaces}
+          cardBackground={groupedCardBg}
+          cardBorderColor={groupedCardBorderColor}>
           <List.Section style={surfaces.groupedSettingsCards ? styles.groupedListSection : undefined}>
             <List.Subheader>Appearance</List.Subheader>
             <RadioButton.Group onValueChange={value => setTheme(value as any)} value={currentTheme}>
@@ -257,7 +278,11 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
 
         {!surfaces.groupedSettingsCards && <Divider style={styles.divider} />}
 
-        <SettingsSectionGroup grouped={surfaces.groupedSettingsCards} surfaces={surfaces}>
+        <SettingsSectionGroup
+          grouped={surfaces.groupedSettingsCards}
+          surfaces={surfaces}
+          cardBackground={groupedCardBg}
+          cardBorderColor={groupedCardBorderColor}>
           <List.Section style={surfaces.groupedSettingsCards ? styles.groupedListSection : undefined}>
             <List.Subheader>Theme</List.Subheader>
             <View style={styles.themeOptionsColumn}>
@@ -286,7 +311,15 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
 
         {!surfaces.groupedSettingsCards && <Divider style={styles.divider} />}
 
-        <SettingsSectionGroup grouped={surfaces.groupedSettingsCards} surfaces={surfaces}>
+        {(visualTheme === 'ai_ambient' || activeSessionThemeId === 'ai_ambient') && (
+          <AiAmbientSettingsSection isActiveSession={activeSessionThemeId === 'ai_ambient'} />
+        )}
+
+        <SettingsSectionGroup
+          grouped={surfaces.groupedSettingsCards}
+          surfaces={surfaces}
+          cardBackground={groupedCardBg}
+          cardBorderColor={groupedCardBorderColor}>
           <List.Section style={surfaces.groupedSettingsCards ? styles.groupedListSection : undefined}>
             <List.Subheader>Data Source</List.Subheader>
             <RadioButton.Group onValueChange={value => setProvider(value as any)} value={currentProvider}>
@@ -323,7 +356,11 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
 
         {!surfaces.groupedSettingsCards && <Divider style={styles.divider} />}
 
-        <SettingsSectionGroup grouped={surfaces.groupedSettingsCards} surfaces={surfaces}>
+        <SettingsSectionGroup
+          grouped={surfaces.groupedSettingsCards}
+          surfaces={surfaces}
+          cardBackground={groupedCardBg}
+          cardBorderColor={groupedCardBorderColor}>
           <List.Section style={surfaces.groupedSettingsCards ? styles.groupedListSection : undefined}>
             <List.Subheader>Physical Stats (Optional)</List.Subheader>
             <Text style={{ marginHorizontal: 16, marginBottom: 8, color: theme.colors.onSurfaceVariant, fontSize: 12 }}>
@@ -426,7 +463,11 @@ export function SettingsScreen({ hideDock = false }: SettingsScreenProps = {}): 
 
         {!surfaces.groupedSettingsCards && <Divider style={styles.divider} />}
 
-        <SettingsSectionGroup grouped={surfaces.groupedSettingsCards} surfaces={surfaces}>
+        <SettingsSectionGroup
+          grouped={surfaces.groupedSettingsCards}
+          surfaces={surfaces}
+          cardBackground={groupedCardBg}
+          cardBorderColor={groupedCardBorderColor}>
           <List.Section style={surfaces.groupedSettingsCards ? styles.groupedListSection : undefined}>
             <List.Subheader>Goals</List.Subheader>
             <List.Item
