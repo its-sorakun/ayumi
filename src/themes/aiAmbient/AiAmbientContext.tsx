@@ -1,10 +1,8 @@
 /**
- * AiAmbientContext — orchestrates non-secret AI Ambient state, Keystore key status,
- * weather/quote/artwork context-fingerprint caching, local OKLab palette switching, and
- * non-blocking manual or cooldown-guarded regeneration.
- *
- * When Default or OxygenOS / ColorOS is active in the session, AI Ambient triggers ZERO
- * background network, Gemini, OpenWeatherMap, or location calls.
+ * Isolated React state coordinator for Ambient Scenery (`ai_ambient`).
+ * Manages Android Keystore OpenWeatherMap BYOK status, dual auto/manual look overrides
+ * (time of day, weather mood, seasonal mode), live OpenWeatherMap syncing, and daily/random
+ * DummyJSON quote caching while staying dormant when Default or OxygenOS/ColorOS is active.
  */
 
 import React, {
@@ -16,105 +14,142 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { AppState } from 'react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { MaterialYouPalette } from 'react-native-material-you-colors';
 
-import { AYUMI_BASELINE_SEED, PALETTE_SHADE, resolveCompleteDynamicPalette } from '../paletteUtils';
 import type { AyumiThemeId } from '../types';
+
 import {
-  AI_AMBIENT_CACHE_STORAGE_KEY,
-  AI_AMBIENT_PREFS_STORAGE_KEY,
-  AUTO_ARTWORK_COOLDOWN_MS,
-  WEATHER_CACHE_TTL_MS,
-  getFallbackQuoteForContext,
-  resolveTimeOfDayPhase,
-} from './config';
-import {
-  type AiAmbientColourSource,
-  type AiAmbientPaletteTokens,
-  type ExtractedArtworkPalette,
   resolveAiAmbientPaletteTokens,
+  resolveAtmosphericSceneryPalette,
+  type AiAmbientPaletteTokens,
+  type AtmosphericSceneryPalette,
 } from './ambientPalette';
 import {
-  type AmbientArtworkSnapshot,
-  type AmbientKeyStatuses,
-  type AmbientWeatherSnapshot,
-  buildAmbientContextFingerprint,
+  deleteWeatherApiKey,
   fetchAmbientWeather,
-  generateAmbientArtworkAsset,
-  generateAmbientQuoteText,
+  fetchDailyAmbientQuote,
   readAmbientKeyStatuses,
   redactAmbientSecrets,
-  removeAmbientSecretKey,
   requestCoarseLocationPermission,
-  storeAmbientSecretKey,
-  validateStoredGeminiKey,
-  validateStoredWeatherKey,
-  verifyStoredArtworkFile,
+  saveWeatherApiKey,
+  validateWeatherApiKey,
+  type AmbientKeyStatuses,
+  type AmbientQuoteSnapshot,
+  type AmbientWeatherSnapshot,
 } from './ambientServices';
+import {
+  AI_AMBIENT_STORAGE_KEYS,
+  WEATHER_REFRESH_TTL_MS,
+  getFallbackQuoteForContext,
+  getLocalCalendarDateKey,
+  isDarkTimePhase,
+  resolveEffectiveSeason,
+  resolveEffectiveTimePhase,
+  type SeasonalOverride,
+  type SeasonalVibe,
+  type TimeOfDayOverride,
+  type TimeOfDayPhase,
+  type WeatherConditionCategory,
+  type WeatherLookOverride,
+} from './config';
 
 export interface AiAmbientPreferences {
-  readonly colourSource: AiAmbientColourSource;
-  readonly manualCity: string;
+  readonly autoRefreshWeather: boolean;
   readonly useDeviceLocation: boolean;
-  readonly autoRefreshEnabled: boolean;
+  readonly manualCity: string;
+  readonly timeOverride: TimeOfDayOverride;
+  readonly weatherOverride: WeatherLookOverride;
+  readonly seasonalEnabled: boolean;
+  readonly seasonalOverride: SeasonalOverride;
 }
 
 const DEFAULT_PREFS: AiAmbientPreferences = {
-  colourSource: 'artwork',
-  manualCity: '',
+  autoRefreshWeather: true,
   useDeviceLocation: true,
-  autoRefreshEnabled: true,
-};
-
-interface PersistedAmbientCache {
-  readonly weather: AmbientWeatherSnapshot | null;
-  readonly quote: string | null;
-  readonly quoteFingerprint: string | null;
-  readonly artwork: AmbientArtworkSnapshot | null;
-  readonly artworkFingerprint: string | null;
-  readonly extractedPalette: ExtractedArtworkPalette | null;
-}
-
-const EMPTY_CACHE: PersistedAmbientCache = {
-  weather: null,
-  quote: null,
-  quoteFingerprint: null,
-  artwork: null,
-  artworkFingerprint: null,
-  extractedPalette: null,
+  manualCity: 'Tokyo',
+  timeOverride: 'auto',
+  weatherOverride: 'auto',
+  seasonalEnabled: true,
+  seasonalOverride: 'auto',
 };
 
 export interface AiAmbientContextValue {
+  readonly isActive: boolean;
   readonly prefs: AiAmbientPreferences;
   readonly keyStatuses: AmbientKeyStatuses;
   readonly weather: AmbientWeatherSnapshot | null;
   readonly quote: string;
-  readonly artwork: AmbientArtworkSnapshot | null;
-  readonly extractedPalette: ExtractedArtworkPalette | null;
+  readonly quoteMeta: AmbientQuoteSnapshot | null;
+  readonly effectiveTimePhase: TimeOfDayPhase;
+  readonly effectiveWeatherCategory: WeatherConditionCategory;
+  readonly effectiveSeason: SeasonalVibe;
+  readonly effectiveIsNight: boolean;
   readonly ambientPalette: AiAmbientPaletteTokens;
-  readonly isGeneratingArtwork: boolean;
+  readonly sceneryPalette: AtmosphericSceneryPalette;
   readonly isRefreshingWeather: boolean;
-  readonly statusMessage: string | null;
+  readonly isRefreshingQuote: boolean;
   readonly lastError: string | null;
-  readonly refreshWeatherNow: (silent?: boolean) => Promise<AmbientWeatherSnapshot | null>;
-  readonly regenerateArtworkAndQuote: () => Promise<void>;
-  readonly setColourSource: (source: AiAmbientColourSource) => Promise<void>;
-  readonly setManualCity: (city: string) => Promise<void>;
-  readonly setUseDeviceLocation: (enabled: boolean) => Promise<void>;
-  readonly setAutoRefreshEnabled: (enabled: boolean) => Promise<void>;
-  readonly saveGeminiKey: (rawKey: string) => Promise<void>;
-  readonly deleteGeminiKey: () => Promise<void>;
-  readonly testGeminiKey: (rawKeyDraft?: string) => Promise<string>;
-  readonly saveWeatherKey: (rawKey: string) => Promise<void>;
+  readonly refreshStatus: () => Promise<void>;
+  readonly saveWeatherKey: (plaintext: string, testCity?: string) => Promise<void>;
   readonly deleteWeatherKey: () => Promise<void>;
-  readonly testWeatherKey: (rawKeyDraft?: string) => Promise<string>;
-  readonly requestLocationAccess: () => Promise<boolean>;
-  readonly clearDiagnostics: () => void;
+  readonly testWeatherKey: (candidateKey?: string, testCity?: string) => Promise<boolean>;
+  readonly setAutoRefreshWeather: (enabled: boolean) => Promise<void>;
+  readonly setUseDeviceLocation: (enabled: boolean) => Promise<void>;
+  readonly setManualCity: (city: string) => Promise<void>;
+  readonly setTimeOverride: (override: TimeOfDayOverride) => Promise<void>;
+  readonly setWeatherOverride: (override: WeatherLookOverride) => Promise<void>;
+  readonly setSeasonalEnabled: (enabled: boolean) => Promise<void>;
+  readonly setSeasonalOverride: (override: SeasonalOverride) => Promise<void>;
+  readonly refreshWeatherNow: (interactive?: boolean) => Promise<AmbientWeatherSnapshot | null>;
+  readonly refreshQuoteNow: (useRandom?: boolean) => Promise<void>;
+  readonly refreshAtmosphereNow: () => Promise<void>;
+  readonly clearError: () => void;
 }
 
-const AiAmbientContext = createContext<AiAmbientContextValue | null>(null);
+const DEFAULT_CONTEXT_VALUE: AiAmbientContextValue = {
+  isActive: false,
+  prefs: DEFAULT_PREFS,
+  keyStatuses: { hasWeatherKey: false, weatherMasked: '' },
+  weather: null,
+  quote: getFallbackQuoteForContext('morning', 'clear', 'summer', true),
+  quoteMeta: null,
+  effectiveTimePhase: 'morning',
+  effectiveWeatherCategory: 'clear',
+  effectiveSeason: 'summer',
+  effectiveIsNight: false,
+  ambientPalette: resolveAiAmbientPaletteTokens({
+    systemPalette: null,
+    isDark: false,
+  }),
+  sceneryPalette: resolveAtmosphericSceneryPalette({
+    phase: 'morning',
+    weatherCategory: 'clear',
+    season: 'summer',
+    seasonalEnabled: true,
+  }),
+  isRefreshingWeather: false,
+  isRefreshingQuote: false,
+  lastError: null,
+  refreshStatus: async () => {},
+  saveWeatherKey: async () => {},
+  deleteWeatherKey: async () => {},
+  testWeatherKey: async () => false,
+  setAutoRefreshWeather: async () => {},
+  setUseDeviceLocation: async () => {},
+  setManualCity: async () => {},
+  setTimeOverride: async () => {},
+  setWeatherOverride: async () => {},
+  setSeasonalEnabled: async () => {},
+  setSeasonalOverride: async () => {},
+  refreshWeatherNow: async () => null,
+  refreshQuoteNow: async () => {},
+  refreshAtmosphereNow: async () => {},
+  clearError: () => {},
+};
+
+const AiAmbientContext = createContext<AiAmbientContextValue>(DEFAULT_CONTEXT_VALUE);
 
 interface AiAmbientProviderProps {
   readonly activeSessionThemeId: AyumiThemeId;
@@ -129,536 +164,416 @@ export function AiAmbientProvider({
   isDark,
   children,
 }: AiAmbientProviderProps): React.JSX.Element {
+  const isActiveSession = activeSessionThemeId === 'ai_ambient';
+
   const [prefs, setPrefs] = useState<AiAmbientPreferences>(DEFAULT_PREFS);
-  const [cache, setCache] = useState<PersistedAmbientCache>(EMPTY_CACHE);
   const [keyStatuses, setKeyStatuses] = useState<AmbientKeyStatuses>({
-    hasGeminiKey: false,
-    geminiMasked: '',
     hasWeatherKey: false,
     weatherMasked: '',
   });
-  const [cacheHydrated, setCacheHydrated] = useState(false);
-  const [isGeneratingArtwork, setIsGeneratingArtwork] = useState(false);
+  const [weather, setWeather] = useState<AmbientWeatherSnapshot | null>(null);
+  const [quoteMeta, setQuoteMeta] = useState<AmbientQuoteSnapshot | null>(null);
+  const [clockNowMs, setClockNowMs] = useState<number>(() => Date.now());
   const [isRefreshingWeather, setIsRefreshingWeather] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isRefreshingQuote, setIsRefreshingQuote] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
-  const cacheRef = useRef(cache);
-  cacheRef.current = cache;
-  const keyStatusesRef = useRef(keyStatuses);
-  keyStatusesRef.current = keyStatuses;
-  const isGeneratingRef = useRef(isGeneratingArtwork);
-  isGeneratingRef.current = isGeneratingArtwork;
-  const lastAutoCheckMsRef = useRef(0);
-
-  const completeSystemPalette = useMemo(
-    () => resolveCompleteDynamicPalette(systemPalette, AYUMI_BASELINE_SEED, 'TONAL_SPOT'),
-    [systemPalette],
-  );
-  const systemPrimaryHint = completeSystemPalette.system_accent1[PALETTE_SHADE.T500];
-
-  const ambientPalette = useMemo(
-    () =>
-      resolveAiAmbientPaletteTokens({
-        colourSource: prefs.colourSource,
-        systemPalette,
-        artworkPalette: cache.extractedPalette,
-        isDark,
-      }),
-    [prefs.colourSource, systemPalette, cache.extractedPalette, isDark],
-  );
-  const ambientPaletteRef = useRef(ambientPalette);
-  ambientPaletteRef.current = ambientPalette;
+  const statusesRef = useRef(keyStatuses);
+  statusesRef.current = keyStatuses;
+  const weatherRef = useRef(weather);
+  weatherRef.current = weather;
+  const quoteRef = useRef(quoteMeta);
+  quoteRef.current = quoteMeta;
+  const weatherInFlightRef = useRef(false);
+  const quoteInFlightRef = useRef(false);
 
   const persistPrefs = useCallback(async (next: AiAmbientPreferences) => {
     setPrefs(next);
-    await AsyncStorage.setItem(AI_AMBIENT_PREFS_STORAGE_KEY, JSON.stringify(next));
+    prefsRef.current = next;
+    try {
+      await AsyncStorage.setItem(AI_AMBIENT_STORAGE_KEYS.PREFS, JSON.stringify(next));
+    } catch {
+      // Non-fatal persistence error; memory state remains current.
+    }
   }, []);
 
-  const persistCache = useCallback(async (next: PersistedAmbientCache) => {
-    setCache(next);
-    await AsyncStorage.setItem(AI_AMBIENT_CACHE_STORAGE_KEY, JSON.stringify(next));
+  const updatePrefField = useCallback(
+    async <K extends keyof AiAmbientPreferences>(key: K, value: AiAmbientPreferences[K]) => {
+      const next: AiAmbientPreferences = { ...prefsRef.current, [key]: value };
+      await persistPrefs(next);
+    },
+    [persistPrefs],
+  );
+
+  const refreshStatus = useCallback(async () => {
+    const statuses = await readAmbientKeyStatuses();
+    setKeyStatuses(statuses);
+    statusesRef.current = statuses;
   }, []);
 
-  // Hydrate Keystore key existence + non-secret prefs + cached metadata cleanly.
+  const refreshQuoteNow = useCallback(async (useRandom: boolean = false) => {
+    if (!isActiveSession || quoteInFlightRef.current) return;
+    quoteInFlightRef.current = true;
+    setIsRefreshingQuote(true);
+    try {
+      const p = prefsRef.current;
+      const now = new Date();
+      const phase = resolveEffectiveTimePhase(p.timeOverride, now);
+      const category =
+        p.weatherOverride === 'auto'
+          ? (weatherRef.current?.conditionCategory ?? 'clear')
+          : p.weatherOverride;
+      const season = resolveEffectiveSeason(p.seasonalOverride, now);
+
+      const snapshot = await fetchDailyAmbientQuote({
+        useRandom,
+        date: now,
+        phase,
+        weatherCategory: category,
+        season,
+        seasonalEnabled: p.seasonalEnabled,
+      });
+
+      setQuoteMeta(snapshot);
+      quoteRef.current = snapshot;
+      await AsyncStorage.setItem(AI_AMBIENT_STORAGE_KEYS.QUOTE_CACHE, JSON.stringify(snapshot));
+    } catch {
+      // Graceful fallback handled cleanly inside fetchDailyAmbientQuote.
+    } finally {
+      quoteInFlightRef.current = false;
+      setIsRefreshingQuote(false);
+    }
+  }, [isActiveSession]);
+
+  const refreshWeatherNow = useCallback(
+    async (interactive: boolean = false): Promise<AmbientWeatherSnapshot | null> => {
+      if (!isActiveSession || weatherInFlightRef.current) {
+        return weatherRef.current;
+      }
+      const statuses = await readAmbientKeyStatuses();
+      setKeyStatuses(statuses);
+      statusesRef.current = statuses;
+      if (!statuses.hasWeatherKey) {
+        if (interactive) {
+          setLastError('Add your OpenWeatherMap API key in Settings to sync local weather.');
+        }
+        return weatherRef.current;
+      }
+
+      weatherInFlightRef.current = true;
+      setIsRefreshingWeather(true);
+      setLastError(null);
+
+      try {
+        const currentPrefs = prefsRef.current;
+        if (interactive && currentPrefs.useDeviceLocation) {
+          await requestCoarseLocationPermission();
+        }
+        const snap = await fetchAmbientWeather(
+          currentPrefs.useDeviceLocation,
+          currentPrefs.manualCity,
+        );
+        setWeather(snap);
+        weatherRef.current = snap;
+        await AsyncStorage.setItem(AI_AMBIENT_STORAGE_KEYS.WEATHER_CACHE, JSON.stringify(snap));
+        return snap;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setLastError(redactAmbientSecrets(msg));
+        return weatherRef.current;
+      } finally {
+        weatherInFlightRef.current = false;
+        setIsRefreshingWeather(false);
+      }
+    },
+    [isActiveSession],
+  );
+
+  const refreshAtmosphereNow = useCallback(async () => {
+    if (!isActiveSession) return;
+    setClockNowMs(Date.now());
+    const jobs: Promise<unknown>[] = [refreshQuoteNow(true)];
+    if (statusesRef.current.hasWeatherKey) {
+      jobs.push(refreshWeatherNow(false));
+    }
+    await Promise.all(jobs);
+  }, [isActiveSession, refreshQuoteNow, refreshWeatherNow]);
+
+  // Hydrate preferences, weather cache, daily quote cache, and key statuses once active.
   useEffect(() => {
-    let mounted = true;
+    if (!isActiveSession) return;
+    let cancelled = false;
+
     (async () => {
       try {
-        const [rawPrefs, rawCache, keys] = await Promise.all([
-          AsyncStorage.getItem(AI_AMBIENT_PREFS_STORAGE_KEY),
-          AsyncStorage.getItem(AI_AMBIENT_CACHE_STORAGE_KEY),
+        const [rawPrefs, rawWeather, rawQuote, statuses] = await Promise.all([
+          AsyncStorage.getItem(AI_AMBIENT_STORAGE_KEYS.PREFS),
+          AsyncStorage.getItem(AI_AMBIENT_STORAGE_KEYS.WEATHER_CACHE),
+          AsyncStorage.getItem(AI_AMBIENT_STORAGE_KEYS.QUOTE_CACHE),
           readAmbientKeyStatuses(),
         ]);
-
-        if (!mounted) return;
-        setKeyStatuses(keys);
+        if (cancelled) return;
 
         if (rawPrefs) {
-          const parsedPrefs = JSON.parse(rawPrefs) as Partial<AiAmbientPreferences>;
-          setPrefs({
-            colourSource: parsedPrefs.colourSource === 'system' ? 'system' : 'artwork',
-            manualCity: typeof parsedPrefs.manualCity === 'string' ? parsedPrefs.manualCity : '',
-            useDeviceLocation: parsedPrefs.useDeviceLocation !== false,
-            autoRefreshEnabled: parsedPrefs.autoRefreshEnabled !== false,
-          });
+          const parsed = JSON.parse(rawPrefs) as Partial<AiAmbientPreferences>;
+          const merged: AiAmbientPreferences = {
+            autoRefreshWeather: parsed.autoRefreshWeather ?? true,
+            useDeviceLocation: parsed.useDeviceLocation ?? true,
+            manualCity: parsed.manualCity ?? 'Tokyo',
+            timeOverride: parsed.timeOverride ?? 'auto',
+            weatherOverride: parsed.weatherOverride ?? 'auto',
+            seasonalEnabled: parsed.seasonalEnabled ?? true,
+            seasonalOverride: parsed.seasonalOverride ?? 'auto',
+          };
+          setPrefs(merged);
+          prefsRef.current = merged;
         }
 
-        if (rawCache) {
-          const parsedCache = JSON.parse(rawCache) as Partial<PersistedAmbientCache>;
-          let validArtwork = parsedCache.artwork ?? null;
-          if (validArtwork?.path || validArtwork?.uri) {
-            const verified = await verifyStoredArtworkFile(validArtwork.path || validArtwork.uri);
-            if (!verified) {
-              validArtwork = null;
-            } else {
-              validArtwork = { ...validArtwork, path: verified.path, uri: verified.uri };
-            }
+        if (rawWeather) {
+          const parsedWeather = JSON.parse(rawWeather) as AmbientWeatherSnapshot;
+          if (parsedWeather && parsedWeather.conditionCategory) {
+            setWeather(parsedWeather);
+            weatherRef.current = parsedWeather;
           }
-          if (!mounted) return;
-          setCache({
-            weather: parsedCache.weather ?? null,
-            quote: typeof parsedCache.quote === 'string' ? parsedCache.quote : null,
-            quoteFingerprint: parsedCache.quoteFingerprint ?? null,
-            artwork: validArtwork,
-            artworkFingerprint: validArtwork ? parsedCache.artworkFingerprint ?? null : null,
-            extractedPalette: validArtwork ? parsedCache.extractedPalette ?? null : null,
-          });
         }
+
+        const todayKey = getLocalCalendarDateKey();
+        if (rawQuote) {
+          const parsedQuote = JSON.parse(rawQuote) as AmbientQuoteSnapshot;
+          if (parsedQuote?.quote && parsedQuote.dateKey === todayKey && !parsedQuote.isFallback) {
+            setQuoteMeta(parsedQuote);
+            quoteRef.current = parsedQuote;
+          }
+        }
+
+        setKeyStatuses(statuses);
+        statusesRef.current = statuses;
       } catch {
-        // Ignore corrupt local cache silently; clean fallback surfaces take over.
+        // Safe hydration defaults already present in state.
       } finally {
-        if (mounted) {
-          setCacheHydrated(true);
+        if (!cancelled) {
+          setHydrated(true);
         }
       }
     })();
 
     return () => {
-      mounted = false;
+      cancelled = true;
     };
-  }, []);
+  }, [isActiveSession]);
 
-  const refreshWeatherNow = useCallback(
-    async (silent: boolean = false): Promise<AmbientWeatherSnapshot | null> => {
-      if (!keyStatusesRef.current.hasWeatherKey) {
-        if (!silent) {
-          setLastError('Add an OpenWeatherMap API key in Settings to sync local weather.');
-        }
-        return null;
-      }
-      setIsRefreshingWeather(true);
-      if (!silent) {
-        setLastError(null);
-      }
-      try {
-        const snapshot = await fetchAmbientWeather({
-          useDeviceLocation: prefsRef.current.useDeviceLocation,
-          manualCity: prefsRef.current.manualCity,
-        });
-        const nextCache: PersistedAmbientCache = {
-          ...cacheRef.current,
-          weather: snapshot,
-        };
-        await persistCache(nextCache);
-        if (!silent) {
-          setStatusMessage('Weather synced.');
-        }
-        return snapshot;
-      } catch (err) {
-        if (!silent) {
-          setLastError(redactAmbientSecrets(err));
-        }
-        return cacheRef.current.weather;
-      } finally {
-        setIsRefreshingWeather(false);
-      }
-    },
-    [persistCache],
-  );
-
-  const runAmbientGeneration = useCallback(
-    async ({
-      weatherSnapshot,
-      force,
-    }: {
-      readonly weatherSnapshot: AmbientWeatherSnapshot | null;
-      readonly force: boolean;
-    }): Promise<void> => {
-      if (!keyStatusesRef.current.hasGeminiKey) {
-        if (force) {
-          setLastError('Add a Gemini API key in Settings to generate AI Ambient artwork.');
-        }
-        return;
-      }
-      if (isGeneratingRef.current) {
-        return;
-      }
-
-      const nowMs = Date.now();
-      const currentPrefs = prefsRef.current;
-      const currentCache = cacheRef.current;
-      const timePhase = resolveTimeOfDayPhase(new Date(nowMs));
-      const fingerprint = buildAmbientContextFingerprint({
-        timePhase,
-        weatherCategory: weatherSnapshot?.conditionCategory ?? null,
-        isNight: weatherSnapshot ? weatherSnapshot.isNight : timePhase === 'night',
-        temperatureC: weatherSnapshot?.temperatureC ?? null,
-        colourSource: currentPrefs.colourSource,
-        systemPrimaryHint,
-      });
-
-      if (!force) {
-        const artworkAgeMs = currentCache.artwork
-          ? nowMs - currentCache.artwork.generatedAtMs
-          : Number.POSITIVE_INFINITY;
-        const alreadyFresh =
-          currentCache.artwork != null &&
-          (currentCache.artworkFingerprint === fingerprint ||
-            artworkAgeMs < AUTO_ARTWORK_COOLDOWN_MS);
-        if (alreadyFresh) {
-          return;
-        }
-      }
-
-      setIsGeneratingArtwork(true);
-      setLastError(null);
-      if (force) {
-        setStatusMessage('Crafting new ambient artwork...');
-      }
-
-      try {
-        // Resolve the palette direction sent to Gemini: in System palette mode follow OS seed;
-        // in Artwork mode use current artwork direction or atmospheric seasonal tones.
-        const promptPaletteHint =
-          currentPrefs.colourSource === 'system'
-            ? ambientPaletteRef.current.summaryPromptPaletteHint
-            : currentCache.extractedPalette != null
-              ? ambientPaletteRef.current.summaryPromptPaletteHint
-              : timePhase === 'evening'
-                ? 'warm dusk amber, twilight indigo, and delicate blossom tones'
-                : timePhase === 'night'
-                  ? 'serene midnight blue and soft lantern amber'
-                  : 'fresh sky azure, gentle emerald foliage, and warm sunlight';
-
-        const [artResult, quoteResult] = await Promise.allSettled([
-          generateAmbientArtworkAsset({
-            weather: weatherSnapshot,
-            paletteHint: promptPaletteHint,
-          }),
-          generateAmbientQuoteText({ weather: weatherSnapshot }),
-        ]);
-
-        let nextArtwork = currentCache.artwork;
-        let nextArtworkFingerprint = currentCache.artworkFingerprint;
-        let nextExtractedPalette = currentCache.extractedPalette;
-        let nextQuote = currentCache.quote;
-        let nextQuoteFingerprint = currentCache.quoteFingerprint;
-        const errors: string[] = [];
-
-        if (artResult.status === 'fulfilled') {
-          nextArtwork = artResult.value.artwork;
-          nextExtractedPalette = artResult.value.extractedPalette;
-          nextArtworkFingerprint = fingerprint;
-        } else {
-          errors.push(redactAmbientSecrets(artResult.reason));
-        }
-
-        if (quoteResult.status === 'fulfilled' && quoteResult.value.trim().length > 0) {
-          nextQuote = quoteResult.value.trim();
-          nextQuoteFingerprint = fingerprint;
-        } else if (quoteResult.status === 'rejected' && artResult.status === 'rejected') {
-          errors.push(redactAmbientSecrets(quoteResult.reason));
-        }
-
-        await persistCache({
-          weather: weatherSnapshot ?? currentCache.weather,
-          quote: nextQuote,
-          quoteFingerprint: nextQuoteFingerprint,
-          artwork: nextArtwork,
-          artworkFingerprint: nextArtworkFingerprint,
-          extractedPalette: nextExtractedPalette,
-        });
-
-        if (errors.length > 0) {
-          setLastError(errors[0]);
-          setStatusMessage(null);
-        } else {
-          setStatusMessage('Ambient scenery updated.');
-        }
-      } finally {
-        setIsGeneratingArtwork(false);
-      }
-    },
-    [persistCache, systemPrimaryHint],
-  );
-
-  const regenerateArtworkAndQuote = useCallback(async () => {
-    let weatherSnapshot = cacheRef.current.weather;
-    if (keyStatusesRef.current.hasWeatherKey) {
-      weatherSnapshot = await refreshWeatherNow(true);
-    }
-    await runAmbientGeneration({ weatherSnapshot, force: true });
-  }, [refreshWeatherNow, runAmbientGeneration]);
-
-  // Isolated contextual refresh: strictly runs ONLY when `activeSessionThemeId === 'ai_ambient'`.
-  const checkContextualRefreshIfNeeded = useCallback(async () => {
-    if (activeSessionThemeId !== 'ai_ambient' || !cacheHydrated) return;
-    if (!prefsRef.current.autoRefreshEnabled) return;
-
-    const nowMs = Date.now();
-    if (nowMs - lastAutoCheckMsRef.current < 60_000) return;
-    lastAutoCheckMsRef.current = nowMs;
-
-    let latestWeather = cacheRef.current.weather;
-    const weatherStale =
-      !latestWeather || nowMs - latestWeather.fetchedAtMs > WEATHER_CACHE_TTL_MS;
-    if (weatherStale && keyStatusesRef.current.hasWeatherKey) {
-      latestWeather = await refreshWeatherNow(true);
-    }
-
-    if (keyStatusesRef.current.hasGeminiKey) {
-      await runAmbientGeneration({ weatherSnapshot: latestWeather, force: false });
-    }
-  }, [activeSessionThemeId, cacheHydrated, refreshWeatherNow, runAmbientGeneration]);
-
+  // Maintain live clock alignment (every minute + foreground resume) and sync daily quote / weather TTL.
   useEffect(() => {
-    if (activeSessionThemeId !== 'ai_ambient' || !cacheHydrated) return;
-    checkContextualRefreshIfNeeded();
+    if (!isActiveSession || !hydrated) return;
 
-    const sub = AppState.addEventListener('change', state => {
-      if (state === 'active') {
-        checkContextualRefreshIfNeeded();
+    const runContextualSync = async () => {
+      const now = Date.now();
+      setClockNowMs(now);
+      const todayKey = getLocalCalendarDateKey(new Date(now));
+
+      const cachedQuote = quoteRef.current;
+      if (!cachedQuote || cachedQuote.dateKey !== todayKey || cachedQuote.isFallback) {
+        await refreshQuoteNow(false);
+      }
+
+      if (prefsRef.current.autoRefreshWeather && statusesRef.current.hasWeatherKey) {
+        const cachedWeather = weatherRef.current;
+        const stale =
+          !cachedWeather || now - cachedWeather.fetchedAtMs >= WEATHER_REFRESH_TTL_MS;
+        if (stale) {
+          await refreshWeatherNow(false);
+        }
+      }
+    };
+
+    runContextualSync();
+
+    const intervalId = setInterval(() => {
+      setClockNowMs(Date.now());
+    }, 60 * 1000);
+
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        runContextualSync();
       }
     });
-    return () => sub.remove();
-  }, [activeSessionThemeId, cacheHydrated, checkContextualRefreshIfNeeded]);
 
-  const setColourSource = useCallback(
-    async (colourSource: AiAmbientColourSource) => {
-      await persistPrefs({ ...prefsRef.current, colourSource });
-    },
-    [persistPrefs],
-  );
+    return () => {
+      clearInterval(intervalId);
+      subscription.remove();
+    };
+  }, [hydrated, isActiveSession, refreshQuoteNow, refreshWeatherNow]);
 
-  const setManualCity = useCallback(
-    async (manualCity: string) => {
-      await persistPrefs({ ...prefsRef.current, manualCity: manualCity.trim() });
-    },
-    [persistPrefs],
-  );
-
-  const setUseDeviceLocation = useCallback(
-    async (useDeviceLocation: boolean) => {
-      await persistPrefs({ ...prefsRef.current, useDeviceLocation });
-    },
-    [persistPrefs],
-  );
-
-  const setAutoRefreshEnabled = useCallback(
-    async (autoRefreshEnabled: boolean) => {
-      await persistPrefs({ ...prefsRef.current, autoRefreshEnabled });
-    },
-    [persistPrefs],
-  );
-
-  const saveGeminiKey = useCallback(async (rawKey: string) => {
-    const res = await storeAmbientSecretKey('gemini', rawKey);
-    setKeyStatuses(prev => ({
-      ...prev,
-      hasGeminiKey: res.hasKey,
-      geminiMasked: res.masked,
-    }));
-    setLastError(null);
-    setStatusMessage('Gemini API key stored in Android Keystore.');
-  }, []);
-
-  const deleteGeminiKey = useCallback(async () => {
-    await removeAmbientSecretKey('gemini');
-    setKeyStatuses(prev => ({
-      ...prev,
-      hasGeminiKey: false,
-      geminiMasked: '',
-    }));
-    setStatusMessage('Gemini API key removed.');
-  }, []);
-
-  const testGeminiKey = useCallback(async (rawKeyDraft?: string): Promise<string> => {
-    try {
-      await validateStoredGeminiKey(rawKeyDraft);
-      const msg = 'Gemini API connection verified.';
+  const saveWeatherKey = useCallback(
+    async (plaintext: string, testCity?: string) => {
       setLastError(null);
-      setStatusMessage(msg);
-      return msg;
-    } catch (err) {
-      const clean = redactAmbientSecrets(err);
-      setLastError(clean);
-      throw new Error(clean);
-    }
-  }, []);
-
-  const saveWeatherKey = useCallback(async (rawKey: string) => {
-    const res = await storeAmbientSecretKey('openweathermap', rawKey);
-    setKeyStatuses(prev => ({
-      ...prev,
-      hasWeatherKey: res.hasKey,
-      weatherMasked: res.masked,
-    }));
-    setLastError(null);
-    setStatusMessage('OpenWeatherMap API key stored in Android Keystore.');
-  }, []);
+      await saveWeatherApiKey(plaintext);
+      await refreshStatus();
+      if (testCity && testCity.trim()) {
+        await validateWeatherApiKey(null, testCity.trim());
+      }
+    },
+    [refreshStatus],
+  );
 
   const deleteWeatherKey = useCallback(async () => {
-    await removeAmbientSecretKey('openweathermap');
-    setKeyStatuses(prev => ({
-      ...prev,
-      hasWeatherKey: false,
-      weatherMasked: '',
-    }));
-    setStatusMessage('OpenWeatherMap API key removed.');
-  }, []);
-
-  const testWeatherKey = useCallback(async (rawKeyDraft?: string): Promise<string> => {
-    try {
-      await validateStoredWeatherKey(rawKeyDraft, prefsRef.current.manualCity || 'Tokyo');
-      const msg = 'OpenWeatherMap connection verified.';
-      setLastError(null);
-      setStatusMessage(msg);
-      return msg;
-    } catch (err) {
-      const clean = redactAmbientSecrets(err);
-      setLastError(clean);
-      throw new Error(clean);
-    }
-  }, []);
-
-  const requestLocationAccess = useCallback(async () => {
-    return requestCoarseLocationPermission();
-  }, []);
-
-  const clearDiagnostics = useCallback(() => {
-    setStatusMessage(null);
     setLastError(null);
-  }, []);
+    await deleteWeatherApiKey();
+    await refreshStatus();
+  }, [refreshStatus]);
 
-  const resolvedQuote = useMemo(() => {
-    if (cache.quote && cache.quote.trim().length > 0) {
-      return cache.quote.trim();
-    }
-    return getFallbackQuoteForContext(
-      resolveTimeOfDayPhase(),
-      cache.weather?.conditionCategory ?? null,
-    );
-  }, [cache.quote, cache.weather?.conditionCategory]);
+  const testWeatherKey = useCallback(
+    async (candidateKey?: string, testCity?: string): Promise<boolean> => {
+      setLastError(null);
+      try {
+        await validateWeatherApiKey(
+          candidateKey,
+          testCity?.trim() || prefsRef.current.manualCity || 'Tokyo',
+        );
+        return true;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setLastError(redactAmbientSecrets(msg));
+        return false;
+      }
+    },
+    [],
+  );
 
-  const value = useMemo<AiAmbientContextValue>(
-    () => ({
-      prefs,
-      keyStatuses,
-      weather: cache.weather,
-      quote: resolvedQuote,
-      artwork: cache.artwork,
-      extractedPalette: cache.extractedPalette,
-      ambientPalette,
-      isGeneratingArtwork,
-      isRefreshingWeather,
-      statusMessage,
-      lastError,
-      refreshWeatherNow,
-      regenerateArtworkAndQuote,
-      setColourSource,
-      setManualCity,
-      setUseDeviceLocation,
-      setAutoRefreshEnabled,
-      saveGeminiKey,
-      deleteGeminiKey,
-      testGeminiKey,
-      saveWeatherKey,
-      deleteWeatherKey,
-      testWeatherKey,
-      requestLocationAccess,
-      clearDiagnostics,
-    }),
+  const nowDate = useMemo(() => new Date(clockNowMs), [clockNowMs]);
+  const effectiveTimePhase = useMemo(
+    () => resolveEffectiveTimePhase(prefs.timeOverride, nowDate),
+    [prefs.timeOverride, nowDate],
+  );
+  const effectiveWeatherCategory: WeatherConditionCategory =
+    prefs.weatherOverride === 'auto'
+      ? (weather?.conditionCategory ?? 'clear')
+      : prefs.weatherOverride;
+  const effectiveSeason = useMemo(
+    () => resolveEffectiveSeason(prefs.seasonalOverride, nowDate),
+    [prefs.seasonalOverride, nowDate],
+  );
+
+  const effectiveIsNight =
+    prefs.timeOverride !== 'auto'
+      ? isDarkTimePhase(effectiveTimePhase)
+      : (weather?.isNight ?? isDarkTimePhase(effectiveTimePhase));
+
+  const ambientPalette = useMemo(
+    () =>
+      resolveAiAmbientPaletteTokens({
+        systemPalette,
+        isDark,
+      }),
+    [isDark, systemPalette],
+  );
+
+  const sceneryPalette = useMemo(
+    () =>
+      resolveAtmosphericSceneryPalette({
+        phase: effectiveTimePhase,
+        weatherCategory: effectiveWeatherCategory,
+        season: effectiveSeason,
+        seasonalEnabled: prefs.seasonalEnabled,
+      }),
     [
-      prefs,
-      keyStatuses,
-      cache.weather,
-      resolvedQuote,
-      cache.artwork,
-      cache.extractedPalette,
-      ambientPalette,
-      isGeneratingArtwork,
-      isRefreshingWeather,
-      statusMessage,
-      lastError,
-      refreshWeatherNow,
-      regenerateArtworkAndQuote,
-      setColourSource,
-      setManualCity,
-      setUseDeviceLocation,
-      setAutoRefreshEnabled,
-      saveGeminiKey,
-      deleteGeminiKey,
-      testGeminiKey,
-      saveWeatherKey,
-      deleteWeatherKey,
-      testWeatherKey,
-      requestLocationAccess,
-      clearDiagnostics,
+      effectiveSeason,
+      effectiveTimePhase,
+      effectiveWeatherCategory,
+      prefs.seasonalEnabled,
     ],
   );
 
-  return React.createElement(AiAmbientContext.Provider, { value }, children);
+  const fallbackQuote = useMemo(
+    () =>
+      getFallbackQuoteForContext(
+        effectiveTimePhase,
+        effectiveWeatherCategory,
+        effectiveSeason,
+        prefs.seasonalEnabled,
+      ),
+    [
+      effectiveSeason,
+      effectiveTimePhase,
+      effectiveWeatherCategory,
+      prefs.seasonalEnabled,
+    ],
+  );
+
+  const activeQuote = quoteMeta?.quote?.trim() || fallbackQuote;
+
+  const value = useMemo<AiAmbientContextValue>(
+    () => ({
+      isActive: isActiveSession,
+      prefs,
+      keyStatuses,
+      weather,
+      quote: activeQuote,
+      quoteMeta,
+      effectiveTimePhase,
+      effectiveWeatherCategory,
+      effectiveSeason,
+      effectiveIsNight,
+      ambientPalette,
+      sceneryPalette,
+      isRefreshingWeather,
+      isRefreshingQuote,
+      lastError,
+      refreshStatus,
+      saveWeatherKey,
+      deleteWeatherKey,
+      testWeatherKey,
+      setAutoRefreshWeather: (enabled: boolean) => updatePrefField('autoRefreshWeather', enabled),
+      setUseDeviceLocation: (enabled: boolean) => updatePrefField('useDeviceLocation', enabled),
+      setManualCity: (city: string) => updatePrefField('manualCity', city),
+      setTimeOverride: (override: TimeOfDayOverride) => updatePrefField('timeOverride', override),
+      setWeatherOverride: (override: WeatherLookOverride) =>
+        updatePrefField('weatherOverride', override),
+      setSeasonalEnabled: (enabled: boolean) => updatePrefField('seasonalEnabled', enabled),
+      setSeasonalOverride: (override: SeasonalOverride) =>
+        updatePrefField('seasonalOverride', override),
+      refreshWeatherNow,
+      refreshQuoteNow,
+      refreshAtmosphereNow,
+      clearError: () => setLastError(null),
+    }),
+    [
+      activeQuote,
+      ambientPalette,
+      deleteWeatherKey,
+      effectiveIsNight,
+      effectiveSeason,
+      effectiveTimePhase,
+      effectiveWeatherCategory,
+      isActiveSession,
+      isRefreshingQuote,
+      isRefreshingWeather,
+      keyStatuses,
+      lastError,
+      prefs,
+      quoteMeta,
+      refreshAtmosphereNow,
+      refreshQuoteNow,
+      refreshStatus,
+      refreshWeatherNow,
+      saveWeatherKey,
+      sceneryPalette,
+      testWeatherKey,
+      updatePrefField,
+      weather,
+    ],
+  );
+
+  return (
+    <AiAmbientContext.Provider value={value}>
+      {children}
+    </AiAmbientContext.Provider>
+  );
 }
 
-/**
- * Reads live AI Ambient state and palette controls. Safe to call in tests or views outside
- * an `AiAmbientProvider`, returning a neutral non-networked fallback snapshot cleanly.
- */
 export function useAiAmbient(): AiAmbientContextValue {
-  const ctx = useContext(AiAmbientContext);
-  return useMemo(() => {
-    if (ctx) return ctx;
-    const fallbackTokens = resolveAiAmbientPaletteTokens({
-      colourSource: 'system',
-      systemPalette: null,
-      artworkPalette: null,
-      isDark: false,
-    });
-    return {
-      prefs: DEFAULT_PREFS,
-      keyStatuses: {
-        hasGeminiKey: false,
-        geminiMasked: '',
-        hasWeatherKey: false,
-        weatherMasked: '',
-      },
-      weather: null,
-      quote: getFallbackQuoteForContext(resolveTimeOfDayPhase(), null),
-      artwork: null,
-      extractedPalette: null,
-      ambientPalette: fallbackTokens,
-      isGeneratingArtwork: false,
-      isRefreshingWeather: false,
-      statusMessage: null,
-      lastError: null,
-      refreshWeatherNow: async () => null,
-      regenerateArtworkAndQuote: async () => {},
-      setColourSource: async () => {},
-      setManualCity: async () => {},
-      setUseDeviceLocation: async () => {},
-      setAutoRefreshEnabled: async () => {},
-      saveGeminiKey: async () => {},
-      deleteGeminiKey: async () => {},
-      testGeminiKey: async () => 'Unavailable outside provider.',
-      saveWeatherKey: async () => {},
-      deleteWeatherKey: async () => {},
-      testWeatherKey: async () => 'Unavailable outside provider.',
-      requestLocationAccess: async () => false,
-      clearDiagnostics: () => {},
-    };
-  }, [ctx]);
+  return useContext(AiAmbientContext);
 }
-

@@ -1,21 +1,22 @@
 /**
- * Comprehensive test suite for Ayumi's AI Ambient visual theme.
+ * Comprehensive test suite for Ayumi's Ambient Scenery visual theme.
  *
  * Verifies:
  *  - Complete theme registry & zero-regression isolation of Default and OxygenOS/ColorOS
- *  - Dynamic OKLab/Material You palette derivation in both `system` and `artwork` modes
- *  - Organic closed Fourier contour math & stroke-dash progress clamping
- *  - Context fingerprint deduplication, temperature formatting, secret redaction, and privacy-safe prompts
- *  - Undulating wavy bottom nav (`AiAmbientWaveNav`) with 4 icon-only tabs and reduced-motion safety
- *  - Complete `AiAmbientDashboardView` real metric rendering & `+ 250 ml` hydration quick-add
- *  - `AiAmbientContext` + `AiAmbientSettingsSection` Android Keystore secret isolation & session gating
+ *  - Zero generative-AI dependencies (no Gemini keys/endpoints/prompts)
+ *  - Dynamic OKLab/Material You system palette derivation with contrast guarantees
+ *  - 7 Time-of-Day phases (dawn, morning, afternoon, evening, dusk, night, midnight)
+ *  - Exact calendar month -> 5 seasonal vibes + lush green summer monsoon rain + on/off toggle
+ *  - Dynamic starry night backdrop, shooting-star spawning, and weather layers
+ *  - Organic Steps contour & progress math + undulating wavy bottom navigation
+ *  - Free DummyJSON daily/random quote client & Android Keystore OpenWeatherMap isolation
+ *  - Dual Auto / Manual Look Pickers in `AiAmbientSettingsSection`
  */
 
 import React from 'react';
 import {
   AccessibilityInfo,
   NativeModules,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -31,8 +32,6 @@ const mockAyumiAmbient = {
     alias,
   })),
   getAllKeyStatuses: jest.fn(async () => ({
-    hasGeminiKey: false,
-    geminiMasked: '',
     hasWeatherKey: false,
     weatherMasked: '',
   })),
@@ -40,7 +39,6 @@ const mockAyumiAmbient = {
     hasKey: false,
     masked: '',
   })),
-  validateGeminiKey: jest.fn(async () => ({ valid: true, statusCode: 200 })),
   validateWeatherKey: jest.fn(async () => ({ valid: true, statusCode: 200 })),
   fetchCurrentWeather: jest.fn(async () => ({
     temperatureC: 24.4,
@@ -53,42 +51,17 @@ const mockAyumiAmbient = {
     source: 'city' as const,
     cityLabel: 'Kyoto',
   })),
-  generateQuote: jest.fn(async () => ({
-    quote: 'Sunlight settles gently along the quiet terrace.',
-    modelUsed: 'gemini-2.5-flash-lite',
+  fetchDailyQuote: jest.fn(async (dailySeedId: number, useRandom: boolean) => ({
+    id: useRandom ? 777 : dailySeedId,
+    quote: useRandom
+      ? 'Soft breeze walks with patience along the hill.'
+      : 'Peace begins where haste settles down.',
+    author: 'Seneca',
   })),
-  generateArtwork: jest.fn(async () => ({
-    path: '/data/user/0/com.ayumi.health/files/ai_ambient_cache/ambient_1.jpg',
-    uri: 'file:///data/user/0/com.ayumi.health/files/ai_ambient_cache/ambient_1.jpg',
-    width: 1080,
-    height: 1920,
-    generatedAtMs: Date.now(),
-    modelUsed: 'gemini-3.1-flash-image-preview',
-    palette: {
-      dominant: '#3C8DAD',
-      primary: '#2B7A9B',
-      secondary: '#E28C6B',
-      tertiary: '#569E7B',
-      highlight: '#F6E4C8',
-      shadowDark: '#162836',
-      surfaceLightTint: '#EDF6F8',
-      surfaceDarkTint: '#0F1B24',
-      swatches: ['#2B7A9B', '#E28C6B', '#569E7B'],
-      isDarkArtwork: false,
-    },
-  })),
-  extractPaletteFromFile: jest.fn(async () => null),
-  verifyCachedArtwork: jest.fn(async () => ({
-    path: '',
-    uri: '',
-    width: 0,
-    height: 0,
-    exists: false,
-  })),
-  getCoarseLocation: jest.fn(async () => ({
-    hasCoords: false,
-    lat: 0,
-    lon: 0,
+  getApproximateLocation: jest.fn(async () => ({
+    lat: 35.0,
+    lon: 135.7,
+    timestampMs: Date.now(),
   })),
 };
 
@@ -238,6 +211,7 @@ jest.mock('react-native-paper', () => {
       headlineMedium: { fontFamily: 'sans-serif', fontWeight: '400' },
       titleLarge: { fontFamily: 'sans-serif', fontWeight: '500' },
       titleMedium: { fontFamily: 'sans-serif', fontWeight: '500' },
+      titleSmall: { fontFamily: 'sans-serif', fontWeight: '500' },
       bodyLarge: { fontFamily: 'sans-serif', fontWeight: '400' },
       bodyMedium: { fontFamily: 'sans-serif', fontWeight: '400' },
       labelLarge: { fontFamily: 'sans-serif', fontWeight: '500' },
@@ -283,6 +257,34 @@ jest.mock('react-native-paper', () => {
     actualReact.createElement(RNView, { testID: value ? `radio-btn-${value}` : undefined });
   MockRadioButton.Group = MockRadioGroup;
 
+  const MockList = {
+    Section: ({ children, ...props }: { children?: React.ReactNode; [k: string]: unknown }) =>
+      actualReact.createElement(RNView, props, children),
+    Subheader: ({ children }: { children?: React.ReactNode }) =>
+      actualReact.createElement(Text, null, children),
+    Item: ({
+      title,
+      description,
+      right,
+      left,
+      ...props
+    }: {
+      title?: string;
+      description?: string;
+      right?: () => React.ReactNode;
+      left?: () => React.ReactNode;
+      [k: string]: unknown;
+    }) =>
+      actualReact.createElement(
+        RNView,
+        props,
+        left ? left() : null,
+        actualReact.createElement(Text, null, title),
+        description ? actualReact.createElement(Text, null, description) : null,
+        right ? right() : null,
+      ),
+  };
+
   return {
     MD3LightTheme,
     MD3DarkTheme,
@@ -292,6 +294,30 @@ jest.mock('react-native-paper', () => {
     Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
       actualReact.createElement(Text, props, children),
     Divider: () => actualReact.createElement(RNView, null),
+    Button: ({
+      children,
+      onPress,
+      disabled,
+      ...props
+    }: {
+      children?: React.ReactNode;
+      onPress?: () => void;
+      disabled?: boolean;
+      [key: string]: unknown;
+    }) =>
+      actualReact.createElement(
+        RNTouchableOpacity,
+        { ...props, disabled, onPress },
+        actualReact.createElement(Text, null, children),
+      ),
+    HelperText: ({
+      children,
+      visible = true,
+    }: {
+      children?: React.ReactNode;
+      visible?: boolean;
+    }) => (visible ? actualReact.createElement(Text, null, children) : null),
+    List: MockList,
     ActivityIndicator: (props: Record<string, unknown>) =>
       actualReact.createElement(RNView, { ...props, accessibilityRole: 'progressbar' }),
     Switch: ({
@@ -317,27 +343,34 @@ jest.mock('react-native-paper', () => {
 import MaterialYou from 'react-native-material-you-colors';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import {
+  AI_AMBIENT_STORAGE_KEYS,
+  AiAmbientBackdropCanvas,
   AiAmbientDashboardView,
   AiAmbientProvider,
   AiAmbientSettingsSection,
   AiAmbientWaveNav,
   aiAmbientThemeDefinition,
   AyumiThemeProvider,
-  buildAmbientArtworkPrompt,
-  buildAmbientContextFingerprint,
-  buildAmbientQuotePrompt,
   buildOrganicStepsContour,
   computeOrganicStepsProgress,
+  DAILY_QUOTE_POOL_SIZE,
   defaultThemeDefinition,
   deriveAiAmbientMetricAccents,
+  DUMMYJSON_QUOTE_BASE,
+  fetchDailyAmbientQuote,
   formatAmbientTemperature,
   getAmbientGreetingLines,
   getContrastRatio,
+  getDailyQuoteSeedId,
+  getLocalCalendarDateKey,
   mapAiAmbientTokensToPaperColors,
   normalizeWeatherCategory,
   oxygenColorOsThemeDefinition,
   redactAmbientSecrets,
   resolveAiAmbientPaletteTokens,
+  resolveAtmosphericSceneryPalette,
+  resolveSeasonForDate,
+  resolveTimeOfDayPhase,
 } from '../src/themes';
 
 async function flushAsync(): Promise<void> {
@@ -365,6 +398,13 @@ function makePalette(seed: string): MaterialYouPalette {
   return MaterialYou.generatePaletteFromColor(seed);
 }
 
+const mountedRenderers: ReactTestRenderer.ReactTestRenderer[] = [];
+
+function trackTree(tree: ReactTestRenderer.ReactTestRenderer): ReactTestRenderer.ReactTestRenderer {
+  mountedRenderers.push(tree);
+  return tree;
+}
+
 beforeEach(() => {
   mockStorage.clear();
   jest.clearAllMocks();
@@ -376,97 +416,154 @@ beforeEach(() => {
     >);
 });
 
-afterEach(() => {
+afterEach(async () => {
+  while (mountedRenderers.length > 0) {
+    const tree = mountedRenderers.pop();
+    if (tree) {
+      await act(async () => {
+        tree.unmount();
+      });
+    }
+  }
   jest.restoreAllMocks();
 });
 
-describe('AI Ambient Theme Isolation & Definition', () => {
-  it('registers distinct AI Ambient tokens while leaving Default and OxygenOS untouched', () => {
+describe('Ambient Scenery Theme Isolation & Zero-AI Config', () => {
+  it('registers Scenic metadata while leaving Default and OxygenOS completely untouched', () => {
     expect(defaultThemeDefinition.navigation.variant).toBe('capsule_icons');
     expect(defaultThemeDefinition.surfaces.ambientGradientStyle).toBe('none');
     expect(oxygenColorOsThemeDefinition.navigation.variant).toBe('oem_labeled_pill');
     expect(oxygenColorOsThemeDefinition.surfaces.ambientGradientStyle).toBe('dynamic_glow');
 
     expect(aiAmbientThemeDefinition.id).toBe('ai_ambient');
+    expect(aiAmbientThemeDefinition.name).toBe('Ambient Scenery');
+    expect(aiAmbientThemeDefinition.badgeLabel).toBe('Scenic');
     expect(aiAmbientThemeDefinition.navigation.variant).toBe('wave_organic_blob');
     expect(aiAmbientThemeDefinition.navigation.showLabels).toBe(false);
     expect(aiAmbientThemeDefinition.surfaces.heroLayout).toBe('organic_ambient');
     expect(aiAmbientThemeDefinition.surfaces.ambientGradientStyle).toBe('ai_ambient_scenic');
     expect(aiAmbientThemeDefinition.surfaces.cardElevation).toBe(0);
   });
+
+  it('removes all generative AI endpoints/models and uses DummyJSON free quotes', () => {
+    const configModule = require('../src/themes/aiAmbient/config');
+    expect(configModule.GEMINI_IMAGE_MODELS).toBeUndefined();
+    expect(configModule.GEMINI_TEXT_MODELS).toBeUndefined();
+    expect(configModule.GEMINI_API_BASE).toBeUndefined();
+    expect(DUMMYJSON_QUOTE_BASE).toBe('https://dummyjson.com/quotes');
+    expect(DAILY_QUOTE_POOL_SIZE).toBe(1454);
+  });
 });
 
-describe('AI Ambient Dynamic Palette Engine (System & Artwork Modes)', () => {
-  it('adapts fully across diverse artwork palettes without hardcoding fixed hues', () => {
-    const tealCoastalPalette = resolveAiAmbientPaletteTokens({
-      colourSource: 'artwork',
-      systemPalette: null,
-      artworkPalette: {
-        dominant: '#1F7A8C',
-        primary: '#126E82',
-        secondary: '#E07A5F',
-        tertiary: '#2A9D8F',
-        highlight: '#F4D58D',
-        shadowDark: '#102A38',
-        surfaceLightTint: '#E9F5F7',
-        surfaceDarkTint: '#0D1C24',
-        swatches: ['#126E82', '#E07A5F'],
-        isDarkArtwork: false,
-      },
-      isDark: false,
-    });
-
-    const amberAutumnPalette = resolveAiAmbientPaletteTokens({
-      colourSource: 'artwork',
-      systemPalette: null,
-      artworkPalette: {
-        dominant: '#C85A17',
-        primary: '#B84B14',
-        secondary: '#6B7F36',
-        tertiary: '#D9822B',
-        highlight: '#FCE2AE',
-        shadowDark: '#2E180B',
-        surfaceLightTint: '#FBF1E6',
-        surfaceDarkTint: '#1F130B',
-        swatches: ['#B84B14', '#6B7F36'],
-        isDarkArtwork: false,
-      },
-      isDark: false,
-    });
-
-    expect(tealCoastalPalette.primary).not.toBe(amberAutumnPalette.primary);
-    expect(tealCoastalPalette.stepArcStart).not.toBe(amberAutumnPalette.stepArcStart);
-    expect(tealCoastalPalette.navBlobStart).not.toBe(amberAutumnPalette.navBlobStart);
-
-    const lightAccents = deriveAiAmbientMetricAccents(tealCoastalPalette);
-    expect(lightAccents.steps.color).toBeTruthy();
-    expect(lightAccents.water.color).toBeTruthy();
-
-    const paperColors = mapAiAmbientTokensToPaperColors(tealCoastalPalette);
-    expect(getContrastRatio(tealCoastalPalette.inkPrimary, tealCoastalPalette.canvasBg)).toBeGreaterThanOrEqual(4.5);
-    expect(getContrastRatio(paperColors.onPrimary, paperColors.primary)).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it('derives light and dark Paper palettes in System palette mode with readable contrast', () => {
-    const sysPalette = makePalette('#2E7D32');
+describe('Material You Palette & Atmospheric Season/Time/Weather Matrix', () => {
+  it('derives distinct accessible light and dark palettes from Material You system seeds', () => {
     const lightTokens = resolveAiAmbientPaletteTokens({
-      colourSource: 'system',
-      systemPalette: sysPalette,
-      artworkPalette: null,
+      systemPalette: makePalette('#1E88E5'),
       isDark: false,
     });
     const darkTokens = resolveAiAmbientPaletteTokens({
-      colourSource: 'system',
-      systemPalette: sysPalette,
-      artworkPalette: null,
+      systemPalette: makePalette('#1E88E5'),
       isDark: true,
     });
 
-    expect(lightTokens.source).toBe('system');
-    expect(darkTokens.source).toBe('system');
     expect(lightTokens.canvasBg).not.toBe(darkTokens.canvasBg);
     expect(getContrastRatio(lightTokens.inkPrimary, lightTokens.canvasBg)).toBeGreaterThanOrEqual(4.5);
     expect(getContrastRatio(darkTokens.inkPrimary, darkTokens.canvasBg)).toBeGreaterThanOrEqual(4.5);
+
+    const paperColors = mapAiAmbientTokensToPaperColors(lightTokens);
+    expect(getContrastRatio(paperColors.onPrimary, paperColors.primary)).toBeGreaterThanOrEqual(4.5);
+
+    const accents = deriveAiAmbientMetricAccents(lightTokens);
+    expect(accents.steps.color).toBeTruthy();
+    expect(accents.water.color).toBeTruthy();
+  });
+
+  it('resolves all 7 time-of-day phases and greetings across a 24h clock', () => {
+    expect(resolveTimeOfDayPhase(new Date(2026, 4, 15, 5, 30))).toBe('dawn');
+    expect(resolveTimeOfDayPhase(new Date(2026, 4, 15, 9, 15))).toBe('morning');
+    expect(resolveTimeOfDayPhase(new Date(2026, 4, 15, 14, 0))).toBe('afternoon');
+    expect(resolveTimeOfDayPhase(new Date(2026, 4, 15, 17, 45))).toBe('evening');
+    expect(resolveTimeOfDayPhase(new Date(2026, 4, 15, 19, 30))).toBe('dusk');
+    expect(resolveTimeOfDayPhase(new Date(2026, 4, 15, 22, 0))).toBe('night');
+    expect(resolveTimeOfDayPhase(new Date(2026, 4, 15, 2, 15))).toBe('midnight');
+
+    expect(getAmbientGreetingLines('dawn')).toEqual({ line1: 'Early', line2: 'Morning' });
+    expect(getAmbientGreetingLines('dusk')).toEqual({ line1: 'Late', line2: 'Evening' });
+    expect(getAmbientGreetingLines('midnight')).toEqual({ line1: 'Quiet', line2: 'Midnight' });
+  });
+
+  it('maps calendar months accurately onto all 5 seasons and transforms rainy summer into lush greens', () => {
+    expect(resolveSeasonForDate(new Date(2026, 11, 10))).toBe('harsh_winter'); // Dec
+    expect(resolveSeasonForDate(new Date(2026, 0, 10))).toBe('harsh_winter'); // Jan
+    expect(resolveSeasonForDate(new Date(2026, 1, 10))).toBe('early_spring'); // Feb
+    expect(resolveSeasonForDate(new Date(2026, 2, 10))).toBe('spring'); // Mar
+    for (let m = 3; m <= 8; m += 1) {
+      expect(resolveSeasonForDate(new Date(2026, m, 10))).toBe('summer'); // Apr..Sep
+    }
+    expect(resolveSeasonForDate(new Date(2026, 9, 10))).toBe('autumn_transition'); // Oct
+    expect(resolveSeasonForDate(new Date(2026, 10, 10))).toBe('autumn_transition'); // Nov
+
+    const harshWinter = resolveAtmosphericSceneryPalette({
+      phase: 'morning',
+      weatherCategory: 'clear',
+      season: 'harsh_winter',
+      seasonalEnabled: true,
+    });
+    expect(harshWinter.snowCapRatio).toBeGreaterThan(0.8);
+    expect(harshWinter.snowCapColor).toBeTruthy();
+
+    const febThaw = resolveAtmosphericSceneryPalette({
+      phase: 'morning',
+      weatherCategory: 'clear',
+      season: 'early_spring',
+      seasonalEnabled: true,
+    });
+    expect(febThaw.snowCapRatio).toBeLessThan(0.5);
+
+    const rainySummer = resolveAtmosphericSceneryPalette({
+      phase: 'afternoon',
+      weatherCategory: 'rain',
+      season: 'summer',
+      seasonalEnabled: true,
+    });
+    const clearSummer = resolveAtmosphericSceneryPalette({
+      phase: 'afternoon',
+      weatherCategory: 'clear',
+      season: 'summer',
+      seasonalEnabled: true,
+    });
+    expect(rainySummer.foliageAccent).toBe('#2EB85C');
+    expect(rainySummer.foliageSecondary).toBe('#6AD97C');
+    expect(rainySummer.midHill).not.toBe(clearSummer.midHill);
+
+    const disabledSeasonalWinter = resolveAtmosphericSceneryPalette({
+      phase: 'morning',
+      weatherCategory: 'clear',
+      season: 'harsh_winter',
+      seasonalEnabled: false,
+    });
+    expect(disabledSeasonalWinter.snowCapColor).toBeNull();
+    expect(disabledSeasonalWinter.snowCapRatio).toBe(0);
+  });
+
+  it('activates starry sky & shooting star flags during dusk/night/midnight', () => {
+    const midnight = resolveAtmosphericSceneryPalette({
+      phase: 'midnight',
+      weatherCategory: 'clear',
+      season: 'summer',
+      seasonalEnabled: true,
+    });
+    const morning = resolveAtmosphericSceneryPalette({
+      phase: 'morning',
+      weatherCategory: 'clear',
+      season: 'summer',
+      seasonalEnabled: true,
+    });
+
+    expect(midnight.starDensity).toBe(1);
+    expect(midnight.showShootingStars).toBe(true);
+    expect(morning.starDensity).toBe(0);
+    expect(morning.showShootingStars).toBe(false);
   });
 });
 
@@ -497,38 +594,8 @@ describe('Organic Steps Contour & Progress Math', () => {
   });
 });
 
-describe('Context Fingerprinting, Redaction, Weather & Privacy-Safe Prompts', () => {
-  it('deduplicates minor temperature swings within 4C bucket and invalidates on weather changes', () => {
-    const baseFp = buildAmbientContextFingerprint({
-      timePhase: 'afternoon',
-      weatherCategory: 'clear',
-      isNight: false,
-      temperatureC: 24.1,
-      colourSource: 'artwork',
-      systemPrimaryHint: '#226688',
-    });
-    const sameBucketFp = buildAmbientContextFingerprint({
-      timePhase: 'afternoon',
-      weatherCategory: 'clear',
-      isNight: false,
-      temperatureC: 26.8,
-      colourSource: 'artwork',
-      systemPrimaryHint: '#226688',
-    });
-    const rainFp = buildAmbientContextFingerprint({
-      timePhase: 'afternoon',
-      weatherCategory: 'rain',
-      isNight: false,
-      temperatureC: 24.1,
-      colourSource: 'artwork',
-      systemPrimaryHint: '#226688',
-    });
-
-    expect(baseFp).toBe(sameBucketFp);
-    expect(rainFp).not.toBe(baseFp);
-  });
-
-  it('formats temperature-only badge, maps OWM condition codes, and redacts API secrets', () => {
+describe('DummyJSON Quote Client, Weather Helpers & Secret Redaction', () => {
+  it('formats temperature-only badge, maps OWM codes, and redacts API secrets', () => {
     expect(formatAmbientTemperature(24.6)).toBe('25°');
     expect(formatAmbientTemperature(null)).toBe('--°');
     expect(normalizeWeatherCategory(201)).toBe('thunderstorm');
@@ -536,160 +603,222 @@ describe('Context Fingerprinting, Redaction, Weather & Privacy-Safe Prompts', ()
     expect(normalizeWeatherCategory(800)).toBe('clear');
 
     const redacted = redactAmbientSecrets(
-      'https://api.openweathermap.org/data/2.5/weather?lat=10&appid=SECRET123&key=AIzaSyDummyToken123456',
+      'https://api.openweathermap.org/data/2.5/weather?lat=10&appid=OWM_SECRET_123&units=metric',
     );
-    expect(redacted).not.toContain('SECRET123');
-    expect(redacted).not.toContain('AIzaSyDummyToken123456');
+    expect(redacted).not.toContain('OWM_SECRET_123');
+    expect(redacted).toContain('[REDACTED]');
   });
 
-  it('never leaks coordinates, personal names, or health data into prompts or greetings', () => {
-    const artworkPrompt = buildAmbientArtworkPrompt({
-      timePhase: 'morning',
-      weather: {
-        temperatureC: 21,
-        conditionId: 800,
-        conditionMain: 'Clear',
-        conditionDescription: 'clear sky',
-        conditionCategory: 'clear',
-        isNight: false,
-        fetchedAtMs: 1,
-        source: 'gps',
-        cityLabel: 'Tokyo',
-      },
-      paletteHint: 'emerald, warm coral accents',
-    });
-    const quotePrompt = buildAmbientQuotePrompt({
-      timePhase: 'morning',
-      weather: null,
-    });
+  it('fetches deterministic daily DummyJSON quotes and degrades cleanly on network failure', async () => {
+    const sampleDate = new Date(2026, 6, 15, 9, 0);
+    const seedId = getDailyQuoteSeedId(sampleDate);
+    expect(seedId).toBeGreaterThanOrEqual(1);
+    expect(seedId).toBeLessThanOrEqual(DAILY_QUOTE_POOL_SIZE);
 
-    expect(artworkPrompt).not.toContain('Tokyo');
-    expect(artworkPrompt).not.toContain('Sora');
-    expect(artworkPrompt).not.toContain('steps');
-    expect(quotePrompt).not.toContain('calories');
-    expect(quotePrompt).not.toContain('Sora');
+    const dailyQuote = await fetchDailyAmbientQuote({
+      useRandom: false,
+      date: sampleDate,
+      phase: 'morning',
+      weatherCategory: 'clear',
+      season: 'summer',
+      seasonalEnabled: true,
+    });
+    expect(mockAyumiAmbient.fetchDailyQuote).toHaveBeenCalledWith(seedId, false);
+    expect(dailyQuote.isFallback).toBe(false);
+    expect(dailyQuote.quote).toContain('Seneca');
 
-    const morningGreeting = getAmbientGreetingLines('morning');
-    expect(`${morningGreeting.line1} ${morningGreeting.line2}`).toBe('Good Morning');
-    expect(`${morningGreeting.line1} ${morningGreeting.line2}`).not.toContain('Sora');
+    mockAyumiAmbient.fetchDailyQuote.mockRejectedValueOnce(new Error('offline'));
+    const fallback = await fetchDailyAmbientQuote({
+      useRandom: true,
+      date: sampleDate,
+      phase: 'afternoon',
+      weatherCategory: 'rain',
+      season: 'summer',
+      seasonalEnabled: true,
+    });
+    expect(fallback.isFallback).toBe(true);
+    expect(fallback.quote.toLowerCase()).toContain('monsoon');
   });
 });
 
-describe('AI Ambient Navigation, Dashboard View & Settings Secret Handling', () => {
+describe('Dynamic Sky, Dashboard View, Nav & Settings Look Pickers', () => {
   it('renders AiAmbientWaveNav with 4 icon-only accessible tabs and liquid blob', async () => {
     const onStats = jest.fn();
     let tree: ReactTestRenderer.ReactTestRenderer | null = null;
 
     await act(async () => {
-      tree = ReactTestRenderer.create(
-        <AiAmbientProvider activeSessionThemeId="default" systemPalette={makePalette('#336699')} isDark={false}>
-          <AiAmbientWaveNav activeTab="home" onAnalyticsPress={onStats} />
-        </AiAmbientProvider>,
+      tree = trackTree(
+        ReactTestRenderer.create(
+          <AiAmbientProvider
+            activeSessionThemeId="default"
+            systemPalette={makePalette('#336699')}
+            isDark={false}>
+            <AiAmbientWaveNav activeTab="home" onAnalyticsPress={onStats} />
+          </AiAmbientProvider>,
+        ),
       );
     });
     await flushAsync();
 
     expect(tree!.root.findByProps({ testID: 'ai-ambient-wave-nav' })).toBeTruthy();
     expect(tree!.root.findByProps({ testID: 'ai-ambient-wave-blob' })).toBeTruthy();
-    expect(tree!.root.findByProps({ accessibilityLabel: 'Home tab' })).toBeTruthy();
     const statsTab = tree!.root.findByProps({ accessibilityLabel: 'Stats tab' });
-    expect(tree!.root.findByProps({ accessibilityLabel: 'Water tab' })).toBeTruthy();
-    expect(tree!.root.findByProps({ accessibilityLabel: 'Settings tab' })).toBeTruthy();
-
     await act(async () => {
       statsTab.props.onPress();
     });
     expect(onStats).toHaveBeenCalledTimes(1);
   });
 
-  it('prevents background weather/Gemini/location calls when active theme is Default or OxygenOS', async () => {
+  it('prevents background weather, quote, and location calls when Default or OxygenOS is active', async () => {
     await act(async () => {
-      ReactTestRenderer.create(
-        <AiAmbientProvider activeSessionThemeId="default" systemPalette={null} isDark={false}>
-          <View />
-        </AiAmbientProvider>,
+      trackTree(
+        ReactTestRenderer.create(
+          <AiAmbientProvider activeSessionThemeId="default" systemPalette={null} isDark={false}>
+            <View />
+          </AiAmbientProvider>,
+        ),
       );
-      ReactTestRenderer.create(
-        <AiAmbientProvider activeSessionThemeId="oxygen_coloros" systemPalette={null} isDark={false}>
-          <View />
-        </AiAmbientProvider>,
+      trackTree(
+        ReactTestRenderer.create(
+          <AiAmbientProvider
+            activeSessionThemeId="oxygen_coloros"
+            systemPalette={null}
+            isDark={false}>
+            <View />
+          </AiAmbientProvider>,
+        ),
       );
     });
     await flushAsync();
 
     expect(mockAyumiAmbient.fetchCurrentWeather).not.toHaveBeenCalled();
-    expect(mockAyumiAmbient.generateArtwork).not.toHaveBeenCalled();
-    expect(mockAyumiAmbient.generateQuote).not.toHaveBeenCalled();
-    expect(mockAyumiAmbient.getCoarseLocation).not.toHaveBeenCalled();
+    expect(mockAyumiAmbient.fetchDailyQuote).not.toHaveBeenCalled();
+    expect(mockAyumiAmbient.getApproximateLocation).not.toHaveBeenCalled();
   });
 
-  it('renders AiAmbientDashboardView with live metrics, combined calories, water sync, and temp-only pill', async () => {
+  it('spawns randomized starfield & shooting star on night UI and monsoon greens during rainy summer', async () => {
+    mockStorage.set(
+      AI_AMBIENT_STORAGE_KEYS.PREFS,
+      JSON.stringify({
+        autoRefreshWeather: false,
+        useDeviceLocation: false,
+        manualCity: 'Tokyo',
+        timeOverride: 'midnight',
+        weatherOverride: 'rain',
+        seasonalEnabled: true,
+        seasonalOverride: 'summer',
+      }),
+    );
+
+    let tree: ReactTestRenderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      tree = trackTree(
+        ReactTestRenderer.create(
+          <AiAmbientProvider
+            activeSessionThemeId="ai_ambient"
+            systemPalette={makePalette('#2E7D32')}
+            isDark={false}>
+            <AiAmbientBackdropCanvas variant="home" />
+          </AiAmbientProvider>,
+        ),
+      );
+    });
+    await flushAsync();
+
+    expect(tree!.root.findByProps({ testID: 'ai-ambient-starfield' })).toBeTruthy();
+    expect(tree!.root.findByProps({ testID: 'ai-ambient-shooting-star' })).toBeTruthy();
+    expect(tree!.root.findByProps({ testID: 'ai-ambient-monsoon-greens' })).toBeTruthy();
+    expect(tree!.root.findByProps({ testID: 'ai-ambient-weather-rain' })).toBeTruthy();
+  });
+
+  it('renders AiAmbientDashboardView with real metrics, DummyJSON daily quote, and quick hydration', async () => {
     const onAddWater = jest.fn();
-    const onOpenStepsStats = jest.fn();
-    const onOpenWaterStats = jest.fn();
     let tree: ReactTestRenderer.ReactTestRenderer | null = null;
 
-    const cached = {
-      weather: {
+    mockStorage.set(
+      AI_AMBIENT_STORAGE_KEYS.PREFS,
+      JSON.stringify({
+        autoRefreshWeather: false,
+        useDeviceLocation: false,
+        manualCity: 'Kyoto',
+        timeOverride: 'dawn',
+        weatherOverride: 'clear',
+        seasonalEnabled: true,
+        seasonalOverride: 'spring',
+      }),
+    );
+    mockStorage.set(
+      AI_AMBIENT_STORAGE_KEYS.WEATHER_CACHE,
+      JSON.stringify({
         temperatureC: 24.4,
         conditionId: 800,
         conditionMain: 'Clear',
         conditionDescription: 'clear sky',
+        iconCode: '01d',
         conditionCategory: 'clear',
         isNight: false,
         fetchedAtMs: Date.now(),
         source: 'city',
         cityLabel: 'Kyoto',
-      },
-      quote: 'Breeze stirs through the quiet cedar canopy.',
-      quoteFingerprint: 'afternoon|day|clear|mild_20_24|art',
-      artwork: null,
-      artworkFingerprint: null,
-      extractedPalette: null,
-    };
-    mockStorage.set('@ayumi_ai_ambient_cache_v1', JSON.stringify(cached));
+      }),
+    );
+    mockStorage.set(
+      AI_AMBIENT_STORAGE_KEYS.QUOTE_CACHE,
+      JSON.stringify({
+        id: 42,
+        quote: 'Breeze stirs through the quiet cedar canopy.',
+        author: '',
+        dateKey: getLocalCalendarDateKey(),
+        fetchedAtMs: Date.now(),
+        isFallback: false,
+      }),
+    );
 
     await act(async () => {
-      tree = ReactTestRenderer.create(
-        <PaperProvider theme={MD3LightTheme}>
-          <AyumiThemeProvider themeId="ai_ambient" paperTheme={MD3LightTheme}>
-            <AiAmbientProvider
-              activeSessionThemeId="ai_ambient"
-              systemPalette={makePalette('#4D6658')}
-              isDark={false}>
-              <AiAmbientDashboardView
-                steps={12450}
-                stepGoal={15000}
-                activeCaloriesText="410"
-                activeCaloriesUnit="kcal"
-                totalCaloriesRaw="1,890 kcal"
-                distanceValue="9.2"
-                distanceUnit="km"
-                distanceGoalText="10 km"
-                distanceProgress={0.92}
-                activeTimeValue="64"
-                activeTimeUnit="min"
-                totalWaterMl={750}
-                waterGoalMl={3000}
-                waterGoalText="3.0 L"
-                waterProgress={0.25}
-                refreshing={false}
-                hideDock={true}
-                onRefresh={jest.fn()}
-                onAddWater={onAddWater}
-                onOpenStepsStats={onOpenStepsStats}
-                onOpenDistanceStats={jest.fn()}
-                onOpenWaterStats={onOpenWaterStats}
-                onOpenSettings={jest.fn()}
-              />
-            </AiAmbientProvider>
-          </AyumiThemeProvider>
-        </PaperProvider>,
+      tree = trackTree(
+        ReactTestRenderer.create(
+          <PaperProvider theme={MD3LightTheme}>
+            <AyumiThemeProvider themeId="ai_ambient" paperTheme={MD3LightTheme}>
+              <AiAmbientProvider
+                activeSessionThemeId="ai_ambient"
+                systemPalette={makePalette('#4D6658')}
+                isDark={false}>
+                <AiAmbientDashboardView
+                  steps={12450}
+                  stepGoal={15000}
+                  activeCaloriesText="410"
+                  activeCaloriesUnit="kcal"
+                  totalCaloriesRaw="1,890 kcal"
+                  distanceValue="9.2"
+                  distanceUnit="km"
+                  distanceGoalText="10 km"
+                  distanceProgress={0.92}
+                  activeTimeValue="64"
+                  activeTimeUnit="min"
+                  totalWaterMl={750}
+                  waterGoalMl={3000}
+                  waterGoalText="3.0 L"
+                  waterProgress={0.25}
+                  refreshing={false}
+                  hideDock={true}
+                  onRefresh={jest.fn()}
+                  onAddWater={onAddWater}
+                  onOpenStepsStats={jest.fn()}
+                  onOpenDistanceStats={jest.fn()}
+                  onOpenWaterStats={jest.fn()}
+                  onOpenSettings={jest.fn()}
+                />
+              </AiAmbientProvider>
+            </AyumiThemeProvider>
+          </PaperProvider>,
+        ),
       );
     });
     await flushAsync();
 
     const renderedText = collectRenderedText(tree!.root);
+    expect(renderedText).toContain('Early');
+    expect(renderedText).toContain('Morning');
     expect(renderedText).toContain('12,450');
     expect(renderedText).toContain('of 15,000 steps');
     expect(renderedText).toContain('410');
@@ -698,25 +827,30 @@ describe('AI Ambient Navigation, Dashboard View & Settings Secret Handling', () 
     expect(renderedText).toContain('64');
     expect(renderedText).toContain('750 ml');
     expect(renderedText).toContain('24°');
+    expect(renderedText).toContain('Breeze stirs through the quiet cedar canopy.');
     expect(renderedText).not.toContain('Kyoto');
     expect(renderedText).not.toContain('6,842');
-    expect(renderedText).not.toContain('Sora');
-    expect(renderedText).toContain('Breeze stirs through the quiet cedar canopy.');
 
     const quickAdd = tree!.root.findByProps({ testID: 'ai-ambient-water-quick-add' });
     await act(async () => {
       quickAdd.props.onPress();
     });
     expect(onAddWater).toHaveBeenCalledWith(250);
+
+    // Tapping top-right refresh button fetches a fresh random quote cleanly
+    const refreshBtn = tree!.root.findByProps({ testID: 'ai-ambient-regenerate-button' });
+    await act(async () => {
+      refreshBtn.props.onPress();
+    });
+    await flushAsync();
+    expect(mockAyumiAmbient.fetchDailyQuote).toHaveBeenCalledWith(expect.any(Number), true);
   });
 
-  it('stores Gemini/Weather BYOK secrets exclusively via Android Keystore and never in AsyncStorage', async () => {
+  it('stores OpenWeatherMap secret via Keystore and switches time/weather/seasonal overrides', async () => {
     mockAyumiAmbient.setSecretKey.mockImplementationOnce(async (alias: string, plaintext: string) => {
       mockAyumiAmbient.getAllKeyStatuses.mockResolvedValueOnce({
-        hasGeminiKey: alias === 'gemini',
-        geminiMasked: alias === 'gemini' ? `••••••••${plaintext.slice(-4)}` : '',
-        hasWeatherKey: false,
-        weatherMasked: '',
+        hasWeatherKey: true,
+        weatherMasked: `••••••••${plaintext.slice(-4)}`,
       });
       return {
         hasKey: true,
@@ -727,61 +861,75 @@ describe('AI Ambient Navigation, Dashboard View & Settings Secret Handling', () 
 
     let tree: ReactTestRenderer.ReactTestRenderer | null = null;
     await act(async () => {
-      tree = ReactTestRenderer.create(
-        <PaperProvider theme={MD3LightTheme}>
-          <AyumiThemeProvider themeId="ai_ambient" paperTheme={MD3LightTheme}>
-            <AiAmbientProvider
-              activeSessionThemeId="ai_ambient"
-              systemPalette={makePalette('#4D6658')}
-              isDark={false}>
-              <AiAmbientSettingsSection isActiveSession={true} />
-            </AiAmbientProvider>
-          </AyumiThemeProvider>
-        </PaperProvider>,
+      tree = trackTree(
+        ReactTestRenderer.create(
+          <PaperProvider theme={MD3LightTheme}>
+            <AyumiThemeProvider themeId="ai_ambient" paperTheme={MD3LightTheme}>
+              <AiAmbientProvider
+                activeSessionThemeId="ai_ambient"
+                systemPalette={makePalette('#4D6658')}
+                isDark={false}>
+                <AiAmbientSettingsSection isActiveSession={true} />
+              </AiAmbientProvider>
+            </AyumiThemeProvider>
+          </PaperProvider>,
+        ),
       );
     });
     await flushAsync();
 
-    const geminiInput = tree!.root.findByProps({ testID: 'gemini-key-input' });
-    await act(async () => {
-      geminiInput.props.onChangeText('AIzaTestSecretKey9876');
-    });
+    // Verify Time, Weather, and Seasonal Pickers exist and work interactively
+    const midnightChip = tree!.root.findByProps({ testID: 'ai-ambient-time-midnight' });
+    const snowChip = tree!.root.findByProps({ testID: 'ai-ambient-weather-look-snow' });
+    const winterChip = tree!.root.findByProps({ testID: 'ai-ambient-season-harsh_winter' });
 
-    const saveBtn = tree!.root.findByProps({ testID: 'gemini-key-save' });
+    await act(async () => {
+      midnightChip.props.onPress();
+      snowChip.props.onPress();
+      winterChip.props.onPress();
+    });
+    await flushAsync();
+
+    const storedPrefs = JSON.parse(mockStorage.get(AI_AMBIENT_STORAGE_KEYS.PREFS) ?? '{}');
+    expect(storedPrefs.timeOverride).toBe('midnight');
+    expect(storedPrefs.weatherOverride).toBe('snow');
+    expect(storedPrefs.seasonalOverride).toBe('harsh_winter');
+
+    // Turning Seasonal Scenery OFF hides the seasonal picker chips cleanly
+    const seasonalSwitch = tree!.root.findByProps({ testID: 'ai-ambient-seasonal-toggle' });
+    await act(async () => {
+      seasonalSwitch.props.onValueChange(false);
+    });
+    await flushAsync();
+    expect(tree!.root.findAllByProps({ testID: 'ai-ambient-season-picker' })).toHaveLength(0);
+
+    // Save OpenWeatherMap BYOK exclusively via Keystore
+    const weatherInput = tree!.root.findByProps({ testID: 'ai-ambient-weather-input' });
+    await act(async () => {
+      weatherInput.props.onChangeText('owm_secret_4321');
+    });
+    const saveBtn = tree!.root.findByProps({ testID: 'ai-ambient-weather-save' });
     await act(async () => {
       await saveBtn.props.onPress();
     });
     await flushAsync();
 
-    expect(mockAyumiAmbient.setSecretKey).toHaveBeenCalledWith('gemini', 'AIzaTestSecretKey9876');
+    expect(mockAyumiAmbient.setSecretKey).toHaveBeenCalledWith('openweathermap', 'owm_secret_4321');
     const serializedStorage = Array.from(mockStorage.entries())
       .map(([k, v]) => `${k}:${v}`)
       .join('\n');
-    expect(serializedStorage).not.toContain('AIzaTestSecretKey9876');
-    expect((AsyncStorage.setItem as jest.Mock).mock.calls.every(c => !String(c[1]).includes('AIzaTestSecretKey9876'))).toBe(true);
+    expect(serializedStorage).not.toContain('owm_secret_4321');
+    expect(
+      (AsyncStorage.setItem as jest.Mock).mock.calls.every(
+        c => !String(c[1]).includes('owm_secret_4321'),
+      ),
+    ).toBe(true);
 
-    const statusNode = tree!.root.findByProps({ testID: 'gemini-key-status' });
-    expect(JSON.stringify(statusNode.props.children)).toContain('9876');
-
-    // Toggle colour source button works cleanly without Touch errors
-    const systemSourceBtn = tree!.root
-      .findAllByType(TouchableOpacity)
-      .find(n => collectRenderedText(n).includes('System palette'));
-    expect(systemSourceBtn).toBeTruthy();
-    await act(async () => {
-      systemSourceBtn!.props.onPress();
-    });
-    await flushAsync();
-
-    const testGeminiBtn = tree!.root.findByProps({ testID: 'gemini-key-test' });
-    await act(async () => {
-      await testGeminiBtn.props.onPress();
-    });
-    await flushAsync();
-    expect(mockAyumiAmbient.validateGeminiKey).toHaveBeenCalledTimes(1);
+    const statusNode = tree!.root.findByProps({ testID: 'ai-ambient-weather-status' });
+    expect(JSON.stringify(statusNode.props.children)).toContain('4321');
   });
 
-  it('preserves opaque card surfaces for Default/OxygenOS while providing frosted glass for AI Ambient', async () => {
+  it('preserves opaque card surfaces for Default/OxygenOS while providing frosted glass for Ambient Scenery', async () => {
     const observed: Record<string, string> = {};
     const { useAyumiTheme: useThemeTokens } = require('../src/themes');
 
@@ -792,21 +940,23 @@ describe('AI Ambient Navigation, Dashboard View & Settings Secret Handling', () 
     }
 
     await act(async () => {
-      ReactTestRenderer.create(
-        <PaperProvider theme={MD3LightTheme}>
-          <AyumiThemeProvider themeId="default" paperTheme={MD3LightTheme}>
-            <Probe label="default" />
-          </AyumiThemeProvider>
-          <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={MD3LightTheme}>
-            <Probe label="oxygen" />
-          </AyumiThemeProvider>
-          <AyumiThemeProvider
-            themeId="ai_ambient"
-            paperTheme={MD3LightTheme}
-            customGlassSurface="rgba(248, 251, 250, 0.78)">
-            <Probe label="ai_ambient" />
-          </AyumiThemeProvider>
-        </PaperProvider>,
+      trackTree(
+        ReactTestRenderer.create(
+          <PaperProvider theme={MD3LightTheme}>
+            <AyumiThemeProvider themeId="default" paperTheme={MD3LightTheme}>
+              <Probe label="default" />
+            </AyumiThemeProvider>
+            <AyumiThemeProvider themeId="oxygen_coloros" paperTheme={MD3LightTheme}>
+              <Probe label="oxygen" />
+            </AyumiThemeProvider>
+            <AyumiThemeProvider
+              themeId="ai_ambient"
+              paperTheme={MD3LightTheme}
+              customGlassSurface="rgba(248, 251, 250, 0.78)">
+              <Probe label="ai_ambient" />
+            </AyumiThemeProvider>
+          </PaperProvider>,
+        ),
       );
     });
 

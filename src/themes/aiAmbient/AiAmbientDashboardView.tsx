@@ -1,10 +1,8 @@
 /**
- * AiAmbientDashboardView — complete AI Ambient Home experience built to match the
- * target aesthetic (full-bleed anime scenery fading into soft atmospheric mist, crisp
- * white upper-left multi-line greeting with colourful icon+temperature weather pill and
- * short Gemini quote, top-right scalloped sparkle regeneration button, left organic
- * contour Steps progress visualization, right stacked translucent metric cards with all
- * real Ayumi data, and lower Water card with shared `useWaterTracker` sync).
+ * AiAmbientDashboardView — complete Ambient Scenery Home experience featuring
+ * dynamic seasonal & atmospheric scenery, crisp white upper-left greeting with colourful
+ * icon+temperature weather pill and free daily quote, top-right scalloped refresh button,
+ * left organic Steps blob, right translucent metric cards, and synced lower Water card.
  */
 
 import React, { useEffect, useMemo, useRef } from 'react';
@@ -15,8 +13,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  ToastAndroid,
-  Platform,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -33,10 +29,7 @@ import {
 } from '../oxygenIcons';
 import { colorWithOpacity } from '../paletteUtils';
 import { useReducedMotion } from '../../theme/motion';
-import {
-  getAmbientGreetingLines,
-  resolveTimeOfDayPhase,
-} from './config';
+import { getAmbientGreetingLines } from './config';
 import { useAiAmbient } from './AiAmbientContext';
 import { deriveAiAmbientMetricAccents, type AiAmbientPaletteTokens } from './ambientPalette';
 import { formatAmbientTemperature } from './ambientServices';
@@ -115,8 +108,8 @@ function ScallopedSparkleButton({
       accessibilityRole="button"
       accessibilityLabel={
         isGenerating
-          ? 'Generating new AI ambient scenery'
-          : 'Regenerate AI ambient scenery and quote'
+          ? 'Refreshing weather and daily quote'
+          : 'Refresh weather and daily quote'
       }
       style={styles.sparkleTouchable}>
       <Svg width={48} height={48} viewBox="0 0 48 48">
@@ -279,8 +272,12 @@ export function AiAmbientDashboardView({
     quote,
     keyStatuses,
     ambientPalette,
-    isGeneratingArtwork,
-    regenerateArtworkAndQuote,
+    effectiveTimePhase,
+    effectiveWeatherCategory,
+    effectiveIsNight,
+    isRefreshingWeather,
+    isRefreshingQuote,
+    refreshAtmosphereNow,
     refreshWeatherNow,
   } = useAiAmbient();
 
@@ -289,8 +286,8 @@ export function AiAmbientDashboardView({
     [ambientPalette],
   );
 
-  const timePhase = resolveTimeOfDayPhase();
-  const greeting = getAmbientGreetingLines(timePhase);
+  const greeting = getAmbientGreetingLines(effectiveTimePhase);
+  const isRefreshingMood = isRefreshingWeather || isRefreshingQuote;
 
   const viewportH = safeFrame.height > 0 ? safeFrame.height : 844;
   const viewportW = safeFrame.width > 0 ? safeFrame.width : 390;
@@ -317,18 +314,8 @@ export function AiAmbientDashboardView({
     fontScale > 1.08 ? 22 : Math.min(Math.max(Math.round(remainingScenicSlack * 0.78), 24), 132);
 
   const handleSparklePress = () => {
-    if (isGeneratingArtwork) return;
-    if (!keyStatuses.hasGeminiKey) {
-      if (Platform.OS === 'android') {
-        ToastAndroid.show(
-          'Add your Gemini API key in Settings to generate artwork.',
-          ToastAndroid.SHORT,
-        );
-      }
-      onOpenSettings();
-      return;
-    }
-    regenerateArtworkAndQuote();
+    if (isRefreshingMood) return;
+    refreshAtmosphereNow();
   };
 
   const handleWeatherTap = () => {
@@ -371,8 +358,8 @@ export function AiAmbientDashboardView({
             colors={[ambientPalette.primary]}
           />
         }
-        accessibilityLabel="Ayumi AI Ambient Dashboard">
-        {/* Top Row: Multi-line crisp white greeting + weather icon/temp ONLY + sparkle control */}
+        accessibilityLabel="Ayumi Ambient Scenery Dashboard">
+        {/* Top Row: Multi-line crisp white greeting + weather icon/temp ONLY + refresh control */}
         <View style={styles.headerRow}>
           <View style={styles.headerLeftCol}>
             <Text style={styles.greetingLine}>{greeting.line1}</Text>
@@ -386,8 +373,8 @@ export function AiAmbientDashboardView({
                 accessibilityLabel={`Current temperature ${formatAmbientTemperature(weather?.temperatureC)}`}
                 style={styles.weatherPill}>
                 <AiAmbientWeatherIcon
-                  category={weather?.conditionCategory ?? 'clear'}
-                  isNight={weather ? weather.isNight : timePhase === 'night'}
+                  category={effectiveWeatherCategory}
+                  isNight={effectiveIsNight}
                   size={22}
                 />
                 <Text style={styles.weatherTempText}>
@@ -405,7 +392,7 @@ export function AiAmbientDashboardView({
 
           <ScallopedSparkleButton
             palette={ambientPalette}
-            isGenerating={isGeneratingArtwork}
+            isGenerating={isRefreshingMood}
             reducedMotion={reducedMotion}
             onPress={handleSparklePress}
           />
